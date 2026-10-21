@@ -46,21 +46,27 @@ C:\Python314\python.exe -m pip install -r requirements.txt
 
 ### DeepSeek Harness（`~/.dsh/profiles/desktop/cordis.patch.yml`）
 
-`dsh-mcp-client` 每台服务器一条配置项，顶层数组插入：
+`dsh-mcp-client` 每台服务器一条配置项。注意本 loader 的顶层 patch 是
+**按 id 覆盖已有条目**，新增必须写在 `insert:` 下，否则会报
+`patch: entry "xxx" not found`：
 
 ```yaml
-- id: mcp-deepseek-tools
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: deepseek
-    transport: stdio
-    command: C:\Python314\python.exe
-    args: ['D:\Tools\AI\Juzi-Skill\Juzi-DeepSeek-Tools\server.py']
-    cwd: D:\Tools\AI\Juzi-Skill\Juzi-DeepSeek-Tools
-    toolCallTimeoutMs: 90000
+- insert:
+    - id: mcp-deepseek-tools
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: deepseek
+        transport: stdio
+        command: 'C:\Python314\python.exe'
+        args:
+          - 'D:\Tools\AI\Juzi-Skill\Juzi-DeepSeek-Tools\server.py'
+        cwd: 'D:\Tools\AI\Juzi-Skill\Juzi-DeepSeek-Tools'
+        toolCallTimeoutMs: 90000
+        failOnStartupError: false
 ```
 
-改完重启桌面端，工具会以 `mcp__deepseek__DeepSeek-Search` 形式出现在工具列表。
+现成文件见 `deploy/dsh-mcp-deepseek.patch.yml`。改完保存即会触发 profile 热重组，
+工具以 `mcp__deepseek__DeepSeek-Search` 形式出现在工具列表；没出现就重启桌面端。
 
 ## 环境变量
 
