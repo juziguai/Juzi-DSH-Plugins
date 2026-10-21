@@ -1,0 +1,8 @@
+# Bundle layer contributed by @juzi/dsh-ultra-effort.
+# Ultra effort seat: composer model + reasoning-effort slider over
+# session.models / session.selectModel. Forked from
+# @domitor-syh/dsh-ui-skin-switcher@0.2.5 (MIT) and restyled to the
+# "Ultra" purple-gradient look.
+- insert:
+    - id: ui-ultra-effort
+      name: '@juzi/dsh-ultra-effort'
