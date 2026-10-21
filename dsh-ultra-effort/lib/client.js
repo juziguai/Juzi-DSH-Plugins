@@ -75,6 +75,10 @@ window.__ModuleLoader__.load({
 .sk5-handle{background:#fff!important;box-shadow:0 2px 8px rgba(76,29,149,.32),0 0 0 1px rgba(124,58,237,.10)!important;}
 .sk5-handleMax{box-shadow:0 0 0 6px rgba(168,85,247,.16),0 2px 12px rgba(124,58,237,.5)!important;}
 .sk5-dot{background:#fff!important;opacity:.8;}
+.sk5-matrix{display:none!important;}
+.sk5-track:has(.sk5-handleMax){background:linear-gradient(90deg,#4f46e5 0%,#7c3aed 45%,#a855f7 100%)!important;}
+.sk5-track:has(.sk5-handleMax) .sk5-fill{opacity:0!important;}
+.sk5-handle,.sk5-handleMax{width:20px!important;height:20px!important;border-radius:50%!important;}
 `;		const NS = "ui-skin-switcher";
 		/** Plugin-owned copy: `zh` is the key-set source of truth, `en` mirrors it. */
 		const DICTS = {
