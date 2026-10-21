@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 本地计数与锁文件（真实路径在 ~/.claude，这里只是防误提交）
+deepseek-tools-usage.json
+*.lock
+*.tmp
