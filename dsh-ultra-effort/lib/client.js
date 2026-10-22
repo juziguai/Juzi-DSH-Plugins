@@ -397,9 +397,24 @@ window.__ModuleLoader__.load({
 					const handler = (ev) => {
 						if (rootRef.current !== null && !rootRef.current.contains(ev.target)) setMenu(null);
 					};
+					/** V2: Escape 先在面板内退出模型列表，再关闭整个面板。 */
+					const onKey = (ev) => {
+						if (ev.key !== "Escape") return;
+						if (menu === "effort" && panelView === "model") {
+							setPanelView("effort");
+							ev.stopPropagation();
+							return;
+						}
+						setMenu(null);
+						setPanelView("effort");
+					};
 					document.addEventListener("mousedown", handler);
-					return () => document.removeEventListener("mousedown", handler);
-				}, [menu]);
+					document.addEventListener("keydown", onKey);
+					return () => {
+						document.removeEventListener("mousedown", handler);
+						document.removeEventListener("keydown", onKey);
+					};
+				}, [menu, panelView]);
 				react.useEffect(() => {
 					if (menu !== "effort") {
 						setPanelView("effort");
