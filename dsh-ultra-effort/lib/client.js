@@ -90,7 +90,7 @@ window.__ModuleLoader__.load({
 .ue-track{position:relative;border-radius:999px;background:linear-gradient(90deg,#ece9ff 0%,#e4defb 100%);cursor:pointer;touch-action:none;outline:none;overflow:hidden;isolation:isolate;}
 .ue-track:focus-visible{box-shadow:0 0 0 3px rgba(124,58,237,.26);}
 .ue-trackMax{background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;}
-.ue-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;transition:width .12s linear;z-index:1;}
+.ue-fill{position:absolute;left:0;top:0;bottom:0;width:calc(10px + (100% - 20px) * var(--ue-pos,0));border-radius:999px;background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;transition:width .2s cubic-bezier(.22,.61,.36,1);z-index:1;}
 .ue-trackMax .ue-fill{opacity:0!important;}
 /* 粒子层 */
 .ue-particles{position:absolute;inset:0;border-radius:999px;overflow:hidden;pointer-events:none;z-index:2;}
@@ -109,9 +109,10 @@ window.__ModuleLoader__.load({
 .ue-particles i:nth-child(12){left:95%;top:64%;width:2px;height:2px;animation-delay:-1.3s}
 @keyframes ue-twinkle{0%,100%{opacity:.22;transform:translateY(0) scale(.85)}50%{opacity:.95;transform:translateY(-1px) scale(1.18)}}
 /* 手柄 */
-.sk5-track .ue-handle{position:absolute!important;top:50%!important;bottom:auto!important;width:20px!important;height:20px!important;margin-top:-10px!important;margin-left:0!important;border-radius:50%!important;background:#fff!important;box-shadow:0 2px 8px rgba(15,23,42,.28);z-index:4;transform:translateX(-50%);transition:transform .16s ease,box-shadow .16s ease;}
+.sk5-track .ue-handle{position:absolute!important;top:50%!important;bottom:auto!important;left:calc(10px + (100% - 20px) * var(--ue-pos,0))!important;width:20px!important;height:20px!important;margin-top:-10px!important;margin-left:0!important;border-radius:50%!important;background:#fff!important;box-shadow:0 2px 8px rgba(15,23,42,.28);z-index:4;transform:translateX(-50%);will-change:left;transition:left .2s cubic-bezier(.22,.61,.36,1),transform .16s ease,box-shadow .16s ease;}
 .sk5-track .ue-handle:hover{transform:translateX(-50%) scale(1.04);}
-.ue-trackMoving .ue-handle{transform:translateX(-50%) scale(1.16)!important;box-shadow:0 4px 18px rgba(80,60,200,.5)!important;}
+.ue-trackMoving .ue-handle{transform:translateX(-50%) scale(1.16)!important;box-shadow:0 4px 18px rgba(80,60,200,.5)!important;transition:transform .16s ease,box-shadow .16s ease!important;}
+.ue-trackMoving .ue-fill{transition:none!important;}
 .ue-trackMax .ue-handle{box-shadow:0 0 0 6px rgba(168,85,247,.18),0 3px 12px rgba(90,40,200,.5);}
 /* 终点动画：手柄弹跳 + 右侧光晕 + 粒子增亮 */
 .ue-burst .ue-handle{animation:ue-pop .34s cubic-bezier(.34,1.56,.64,1)!important;}
@@ -380,6 +381,10 @@ window.__ModuleLoader__.load({
 				const [resetFlash, setResetFlash] = react.useState(false);
 				const burstRef = react.useRef(false);
 				const resetTimerRef = react.useRef(null);
+				/** 拖拽连续跟随：不经过 React 状态，直接写 CSS 变量。 */
+				const dragFracRef = react.useRef(0);
+				const dragRectRef = react.useRef(null);
+				const dragRafRef = react.useRef(null);
 				/** This session's shared directory — the official selector's own data source. */
 				const directory = react.useMemo(() => directoryOf(sessionId), [sessionId]);
 				const state = react.useSyncExternalStore(react.useCallback((listener) => directory === null ? () => {} : directory.store.subscribe(listener), [directory]), react.useCallback(() => directory === null ? NO_DIRECTORY_STATE : directory.store.getSnapshot(), [directory]));
@@ -567,6 +572,12 @@ window.__ModuleLoader__.load({
 				}, [inMax]);
 				const matrixVisible = inMax && atMaxPos;
 				const posPct = choices.length > 1 ? posIdx / (choices.length - 1) * 100 : 0;
+				/** 提交值 → CSS 变量；拖拽期间让位给 dragFrac，避免回跳。 */
+				react.useLayoutEffect(() => {
+					if (moving) return;
+					const el = trackRef.current;
+					if (el !== null) el.style.setProperty("--ue-pos", String(Math.max(0, Math.min(1, posPct / 100))));
+				}, [posPct, moving, menu, choices.length]);
 				const matrixCells = react.useMemo(() => {
 					if (!inMax || grid === null) return [];
 					/** Blend a colour toward its own luminance: same hue, less saturation. */
@@ -732,28 +743,45 @@ window.__ModuleLoader__.load({
 					setHoverIdx(next);
 					onPickEffort(choices[next].effort);
 				};
-				const idxFromEvent = (ev) => {
-					const el = trackRef.current;
-					if (el === null || choices.length < 2) return 0;
-					const rect = el.getBoundingClientRect();
+				const fracFromEvent = (ev, rect) => {
 					const usable = Math.max(rect.width - 20, 1);
-					const frac = Math.max(0, Math.min(1, (ev.clientX - rect.left - insetPx) / usable));
-					const idx = Math.round(frac * (choices.length - 1));
-					return Math.max(0, Math.min(choices.length - 1, idx));
+					return Math.max(0, Math.min(1, (ev.clientX - rect.left - 10) / usable));
+				};
+				const idxFromFrac = (frac) => Math.max(0, Math.min(choices.length - 1, Math.round(frac * (choices.length - 1))));
+				/** 直接写 CSS 变量，避免每次 pointermove 触发 React 重渲染。 */
+				const paintPos = (frac) => {
+					const el = trackRef.current;
+					if (el !== null) el.style.setProperty("--ue-pos", String(frac));
 				};
 				const onWinMove = (ev) => {
 					if (dragIdxRef.current === null) return;
-					const idx = idxFromEvent(ev);
-					dragIdxRef.current = idx;
-					setHoverIdx(idx);
+					const rect = dragRectRef.current;
+					if (rect === null) return;
+					const frac = fracFromEvent(ev, rect);
+					dragFracRef.current = frac;
+					if (dragRafRef.current === null) {
+						dragRafRef.current = requestAnimationFrame(() => {
+							dragRafRef.current = null;
+							paintPos(dragFracRef.current);
+						});
+					}
+					const idx = idxFromFrac(frac);
+					if (idx !== dragIdxRef.current) {
+						dragIdxRef.current = idx;
+						setHoverIdx(idx);
+					}
 				};
 				const stopDrag = () => {
 					window.removeEventListener("pointermove", onWinMove);
 					window.removeEventListener("pointerup", onWinUp);
 					window.removeEventListener("pointercancel", onWinCancel);
 					window.removeEventListener("blur", onWinCancel);
-				};
-				const onWinUp = () => {
+					if (dragRafRef.current !== null) {
+						cancelAnimationFrame(dragRafRef.current);
+						dragRafRef.current = null;
+					}
+					dragRectRef.current = null;
+				};				const onWinUp = () => {
 					if (dragIdxRef.current === null) return;
 					const idx = dragIdxRef.current;
 					dragIdxRef.current = null;
@@ -773,14 +801,21 @@ window.__ModuleLoader__.load({
 				};
 				const onTrackDown = (ev) => {
 					if (choices.length === 0) return;
-					dragIdxRef.current = idxFromEvent(ev);
+					const el = trackRef.current;
+					if (el === null) return;
+					const rect = el.getBoundingClientRect();
+					dragRectRef.current = rect;
+					const frac = fracFromEvent(ev, rect);
+					dragFracRef.current = frac;
+					paintPos(frac);
+					dragIdxRef.current = idxFromFrac(frac);
 					setHoverIdx(dragIdxRef.current);
+					setMoving(true);
 					window.addEventListener("pointermove", onWinMove);
 					window.addEventListener("pointerup", onWinUp);
 					window.addEventListener("pointercancel", onWinCancel);
 					window.addEventListener("blur", onWinCancel);
-				};
-				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? curGroup.name + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
+				};				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? curGroup.name + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
 				return react.createElement("div", {
 					ref: rootRef,
 					className: "sk5-root"
@@ -883,8 +918,7 @@ window.__ModuleLoader__.load({
 				}, react.createElement("span", { className: "ue-particles", "aria-hidden": "true" }, react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null)), react.createElement("div", {
 					className: "sk5-fill ue-fill",
 					style: {
-						width: fillWidth,
-						opacity: fillHidden ? 0 : 1
+												opacity: fillHidden ? 0 : 1
 					}
 				}), !inMax ? choices.map((c, i) => react.createElement("span", {
 					key: c.key,
@@ -899,7 +933,7 @@ window.__ModuleLoader__.load({
 					"aria-hidden": "true"
 				}, react.createElement("circle", { cx: 2, cy: 2, r: 2, fill: "currentColor" }))))) : null, react.createElement("div", {
 					className: "sk5-handle ue-handle" + (inMax ? " sk5-handleMax" : "") + (moving ? " sk5-handleMoving" : ""),
-					style: { left: handleLeft },
+					style: void 0,
 					onPointerDown: () => setMoving(true)
 				})), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null)) : null);
 			}));
