@@ -64,13 +64,14 @@ window.__ModuleLoader__.load({
 		/** Ultra skin: purple gradient track, sparkles, Ultra title. Visual only. */
 				const ULTRA_CSS = `
 /* ── Ultra 面板 V2 ───────────────────────────────────────────── */
-.sk5-drop.sk5-effort.ue-panel{width:342px;padding:16px 16px 14px;border-radius:18px;border:1px solid rgba(15,23,42,.07);background:var(--dsw-alias-bg-elevated,#fff);box-shadow:0 18px 44px rgba(15,23,42,.14),0 2px 8px rgba(15,23,42,.06);}
-.ue-head{display:grid;grid-template-columns:28px minmax(0,1fr) 28px;align-items:center;gap:8px;margin-bottom:16px;}
+.sk5-drop{bottom:calc(100% + var(--ue-drop-lift,8px))!important;}
+.sk5-drop.sk5-effort.ue-panel{width:min(360px,calc(100vw - 40px));padding:18px 18px 16px;border-radius:20px;border:1px solid rgba(15,23,42,.07);background:var(--dsw-alias-bg-elevated,#fff);box-shadow:0 24px 60px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.06);}
+.ue-head{display:grid;grid-template-columns:30px minmax(0,1fr) 30px;align-items:center;gap:10px;margin-bottom:18px;}
 .ue-bolt{display:flex;align-items:center;justify-content:center;width:28px;height:28px;color:#7c3aed;}
 .ue-bolt svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;}
 .ue-center{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;}
-.ue-ultra{font-size:24px;line-height:1.15;font-weight:700;letter-spacing:.2px;background:linear-gradient(92deg,#6d28d9 0%,#a855f7 55%,#7c3aed 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
-.ue-model{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:2px 7px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary,#0f172a);font-size:15px;line-height:20px;cursor:pointer;transition:background .15s ease;}
+.ue-ultra{font-size:26px;line-height:1.15;font-weight:700;letter-spacing:.2px;background:linear-gradient(92deg,#6d28d9 0%,#a855f7 55%,#7c3aed 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.ue-model{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:2px 7px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary,#0f172a);font-size:16px;line-height:22px;cursor:pointer;transition:background .15s ease;}
 .ue-model:hover{background:rgba(124,58,237,.08);}
 .ue-model:focus-visible{outline:2px solid rgba(124,58,237,.5);outline-offset:2px;}
 .ue-model[disabled]{opacity:.5;cursor:default;}
@@ -86,31 +87,33 @@ window.__ModuleLoader__.load({
 .ue-resetFlash{background:rgba(124,58,237,.16);color:#7c3aed;}
 .ue-reset svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
 /* 轨道 */
-.ue-labelsRow{display:flex;justify-content:space-between;margin:0 2px 8px;font-size:12px;line-height:16px;color:var(--dsw-alias-label-secondary,rgba(15,23,42,.55));}
+.ue-labelsRow{display:flex;justify-content:space-between;margin:0 2px 10px;font-size:11px;line-height:14px;letter-spacing:.01em;color:var(--dsw-alias-label-secondary,rgba(15,23,42,.5));}
+.ue-track .sk5-dotHit{align-items:center!important;}
+.ue-track .sk5-dot{margin-top:0!important;}
 .ue-tip{position:absolute;bottom:calc(100% + 6px);left:0;transform:translateX(-50%);padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.96);border:1px solid rgba(124,58,237,.18);box-shadow:0 4px 14px rgba(76,29,149,.18);color:#6d28d9;font-size:11px;line-height:16px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s linear;z-index:9;}
-.ue-track{position:relative;border-radius:999px;background:linear-gradient(90deg,#ece9ff 0%,#e4defb 100%);cursor:pointer;touch-action:none;outline:none;overflow:hidden;isolation:isolate;}
+.ue-track{position:relative;height:30px;border-radius:999px!important;background:linear-gradient(90deg,#ece9ff 0%,#e4defb 100%);cursor:pointer;touch-action:none;outline:none;overflow:hidden;isolation:isolate;}
 .ue-track:focus-visible{box-shadow:0 0 0 3px rgba(124,58,237,.26);}
 .ue-trackMax{background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;}
-.ue-fill{position:absolute;left:0;top:0;bottom:0;width:calc(10px + (100% - 20px) * var(--ue-pos,0));border-radius:999px;background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;transition:width .2s cubic-bezier(.22,.61,.36,1);z-index:1;}
+.ue-fill{position:absolute;left:0;top:0;bottom:0;width:calc(26px + (100% - 26px) * var(--ue-pos,0));border-radius:999px!important;background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;transition:width .2s cubic-bezier(.22,.61,.36,1);z-index:1;}
 .ue-trackMax .ue-fill{opacity:0!important;}
 /* 粒子层 */
 .ue-particles{position:absolute;inset:0;border-radius:999px;overflow:hidden;pointer-events:none;z-index:2;}
-.ue-particles i{position:absolute;width:3px;height:3px;border-radius:50%;background:radial-gradient(circle,#fff 0%,rgba(255,255,255,.85) 55%,rgba(255,255,255,0) 100%);filter:blur(.3px);opacity:.55;animation:ue-twinkle 3.4s ease-in-out infinite;}
-.ue-particles i:nth-child(1){left:5%;top:34%;animation-delay:-.2s}
-.ue-particles i:nth-child(2){left:13%;top:62%;width:2px;height:2px;animation-delay:-1.1s}
-.ue-particles i:nth-child(3){left:21%;top:42%;animation-delay:-2.3s}
-.ue-particles i:nth-child(4){left:30%;top:66%;width:2px;height:2px;animation-delay:-.7s}
-.ue-particles i:nth-child(5){left:38%;top:30%;animation-delay:-1.8s}
-.ue-particles i:nth-child(6){left:47%;top:58%;width:2px;height:2px;animation-delay:-2.9s}
-.ue-particles i:nth-child(7){left:56%;top:38%;animation-delay:-.4s}
-.ue-particles i:nth-child(8){left:65%;top:64%;width:2px;height:2px;animation-delay:-1.5s}
-.ue-particles i:nth-child(9){left:74%;top:34%;animation-delay:-2.6s}
-.ue-particles i:nth-child(10){left:82%;top:60%;width:2px;height:2px;animation-delay:-.9s}
-.ue-particles i:nth-child(11){left:89%;top:40%;animation-delay:-2s}
-.ue-particles i:nth-child(12){left:95%;top:64%;width:2px;height:2px;animation-delay:-1.3s}
+.ue-particles i{position:absolute;border-radius:50%;background:radial-gradient(circle,#fff 0%,rgba(255,255,255,.9) 45%,rgba(255,255,255,0) 100%);opacity:.5;pointer-events:none;animation:ue-twinkle 3.8s ease-in-out infinite;}
+.ue-particles i:nth-child(1){left:4%;top:32%;width:2px;height:2px;filter:blur(.2px);animation-delay:-.4s}
+.ue-particles i:nth-child(2){left:9%;top:64%;width:3.5px;height:3.5px;filter:blur(.4px);animation-delay:-1.6s}
+.ue-particles i:nth-child(3){left:16%;top:41%;width:1.5px;height:1.5px;animation-delay:-2.7s}
+.ue-particles i:nth-child(4){left:23%;top:58%;width:2.5px;height:2.5px;filter:blur(.3px);animation-delay:-.9s}
+.ue-particles i:nth-child(5){left:31%;top:28%;width:1.5px;height:1.5px;animation-delay:-2.2s}
+.ue-particles i:nth-child(6){left:39%;top:69%;width:2px;height:2px;animation-delay:-3.1s}
+.ue-particles i:nth-child(7){left:47%;top:38%;width:3px;height:3px;filter:blur(.35px);animation-delay:-.2s}
+.ue-particles i:nth-child(8){left:55%;top:61%;width:1.5px;height:1.5px;animation-delay:-1.1s}
+.ue-particles i:nth-child(9){left:63%;top:26%;width:2.5px;height:2.5px;filter:blur(.25px);animation-delay:-2.9s}
+.ue-particles i:nth-child(10){left:71%;top:57%;width:1.5px;height:1.5px;animation-delay:-1.9s}
+.ue-particles i:nth-child(11){left:82%;top:34%;width:3px;height:3px;filter:blur(.4px);animation-delay:-.7s}
+.ue-particles i:nth-child(12){left:92%;top:66%;width:2px;height:2px;animation-delay:-2.4s}
 @keyframes ue-twinkle{0%,100%{opacity:.22;transform:translateY(0) scale(.85)}50%{opacity:.95;transform:translateY(-1px) scale(1.18)}}
 /* 手柄 */
-.sk5-track .ue-handle{position:absolute!important;top:50%!important;bottom:auto!important;left:calc(10px + (100% - 20px) * var(--ue-pos,0))!important;width:20px!important;height:20px!important;margin-top:-10px!important;margin-left:0!important;border-radius:50%!important;background:#fff!important;box-shadow:0 2px 8px rgba(15,23,42,.28);z-index:4;transform:translateX(-50%);will-change:left;transition:left .2s cubic-bezier(.22,.61,.36,1),transform .16s ease,box-shadow .16s ease;}
+.sk5-track .ue-handle{position:absolute!important;top:50%!important;bottom:auto!important;left:calc(13px + (100% - 26px) * var(--ue-pos,0))!important;width:26px!important;height:26px!important;margin-top:-13px!important;margin-left:0!important;border-radius:50%!important;background:#fff!important;box-shadow:0 1px 2px rgba(15,23,42,.14),0 4px 12px rgba(15,23,42,.22),0 0 0 .5px rgba(15,23,42,.06);z-index:4;transform:translateX(-50%);will-change:left;transition:left .2s cubic-bezier(.22,.61,.36,1),transform .16s ease,box-shadow .16s ease;}
 .sk5-track .ue-handle:hover{transform:translateX(-50%) scale(1.04);}
 .ue-trackMoving .ue-handle{transform:translateX(-50%) scale(1.16)!important;box-shadow:0 4px 18px rgba(80,60,200,.5)!important;transition:transform .16s ease,box-shadow .16s ease!important;}
 .ue-trackMoving .ue-fill{transition:none!important;}
@@ -390,11 +393,32 @@ window.__ModuleLoader__.load({
 				const tipTextRef = react.useRef(null);
 				const tipIdxRef = react.useRef(-1);
 				const tipBoxRef = react.useRef(null);
+				/** 面板锚点在座位（位于输入框内部），只上移 6px 会压住输入框；这里量出输入框高度再抬升。 */
+				react.useLayoutEffect(() => {
+					const root = rootRef.current;
+					if (root === null) return;
+					if (menu === null) {
+						root.style.removeProperty("--ue-drop-lift");
+						return;
+					}
+					const rootRect = root.getBoundingClientRect();
+					let node = root.parentElement;
+					let lift = 8;
+					for (let i = 0; i < 6 && node !== null; i++, node = node.parentElement) {
+						const r = node.getBoundingClientRect();
+						if (r.height >= 70) {
+							lift = Math.max(8, rootRect.top - r.top + 8);
+							break;
+						}
+					}
+					root.style.setProperty("--ue-drop-lift", lift + "px");
+				}, [menu]);
 				/** This session's shared directory — the official selector's own data source. */
 				const directory = react.useMemo(() => directoryOf(sessionId), [sessionId]);
 				const state = react.useSyncExternalStore(react.useCallback((listener) => directory === null ? () => {} : directory.store.subscribe(listener), [directory]), react.useCallback(() => directory === null ? NO_DIRECTORY_STATE : directory.store.getSnapshot(), [directory]));
 				/** Composer trigger row owns this width; the slider handle spans half of it. */
-				const HANDLE_W = 20;
+				const HANDLE_W = 26;
+				const TRACK_H = 30;
 				const load = () => {
 					if (directory !== null) directory.load().catch(() => {});
 				};
@@ -688,7 +712,7 @@ window.__ModuleLoader__.load({
 				if (directory === null) return null;
 				const insetPx = HANDLE_W / 2;
 				const posFrac = posPct / 100;
-				const dotLeft = (i) => "calc(10px + (100% - 20px) * " + (choices.length > 1 ? i / (choices.length - 1) : 0) + ")";
+				const dotLeft = (i) => "calc(" + HANDLE_W / 2 + "px + (100% - " + HANDLE_W + "px) * " + (choices.length > 1 ? i / (choices.length - 1) : 0) + ")";
 				/**
 				* Level dots are laid out in whole device pixels. Their proportional
 				* `left` is fractional by nature, and a 6-device-pixel circle that
@@ -704,7 +728,7 @@ window.__ModuleLoader__.load({
 					return Math.round(insetDev + (grid.trackWDev - 2 * insetDev) * frac) / dpr + "px";
 				};
 				const dotTopSnapped = grid === null ? void 0 : Math.round((grid.trackHeight * dpr - dotDev) / 2) / dpr + "px";
-				const handleLeft = "calc(10px + (100% - 20px) * " + posFrac + ")";
+				const handleLeft = "calc(" + HANDLE_W / 2 + "px + (100% - " + HANDLE_W + "px) * " + posFrac + ")";
 				const fillWidth = handleLeft;
 				const fillHidden = inMax && atMaxPos;
 				const fillSolid = "color-mix(in srgb, var(--dsw-alias-label-primary) 42%, transparent)";
@@ -749,8 +773,8 @@ window.__ModuleLoader__.load({
 					onPickEffort(choices[next].effort);
 				};
 				const fracFromEvent = (ev, rect) => {
-					const usable = Math.max(rect.width - 20, 1);
-					return Math.max(0, Math.min(1, (ev.clientX - rect.left - 10) / usable));
+					const usable = Math.max(rect.width - HANDLE_W, 1);
+					return Math.max(0, Math.min(1, (ev.clientX - rect.left - HANDLE_W / 2) / usable));
 				};
 				const idxFromFrac = (frac) => Math.max(0, Math.min(choices.length - 1, Math.round(frac * (choices.length - 1))));
 				/**
@@ -794,7 +818,7 @@ window.__ModuleLoader__.load({
 					const rect = dragRectRef.current;
 					const box = tipBoxRef.current;
 					if (rect !== null && box !== null) {
-						tip.style.left = rect.left - box.left + 10 + (rect.width - 20) * frac + "px";
+						tip.style.left = rect.left - box.left + HANDLE_W / 2 + (rect.width - HANDLE_W) * frac + "px";
 					}
 					if (near !== tipIdxRef.current) {
 						tipIdxRef.current = near;
@@ -964,7 +988,7 @@ window.__ModuleLoader__.load({
 					"aria-valuemax": Math.max(0, choices.length - 1),
 					"aria-valuenow": safePosIdx,
 					"aria-valuetext": displayLabel,
-					style: grid === null ? void 0 : { height: grid.trackHeight + "px" },
+					style: { height: TRACK_H + "px" },
 					onPointerDown: onTrackDown,
 					onKeyDown: onTrackKeyDown
 				}, react.createElement("span", { className: "ue-particles", "aria-hidden": "true" }, react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null)), react.createElement("div", {
