@@ -109,18 +109,20 @@ window.__ModuleLoader__.load({
 .ue-particles i:nth-child(12){left:95%;top:64%;width:2px;height:2px;animation-delay:-1.3s}
 @keyframes ue-twinkle{0%,100%{opacity:.22;transform:translateY(0) scale(.85)}50%{opacity:.95;transform:translateY(-1px) scale(1.18)}}
 /* 手柄 */
-.ue-handle{position:absolute;top:50%;width:20px;height:20px;margin-top:-10px;margin-left:-10px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.28);z-index:4;transition:transform .16s ease,box-shadow .16s ease;}
-.ue-handle:hover{transform:scale(1.04);}
-.ue-trackMoving .ue-handle{transform:scale(1.14);box-shadow:0 4px 16px rgba(80,60,200,.45);}
+.sk5-track .ue-handle{position:absolute!important;top:50%!important;bottom:auto!important;width:20px!important;height:20px!important;margin-top:-10px!important;margin-left:0!important;border-radius:50%!important;background:#fff!important;box-shadow:0 2px 8px rgba(15,23,42,.28);z-index:4;transform:translateX(-50%);transition:transform .16s ease,box-shadow .16s ease;}
+.sk5-track .ue-handle:hover{transform:translateX(-50%) scale(1.04);}
+.ue-trackMoving .ue-handle{transform:translateX(-50%) scale(1.16)!important;box-shadow:0 4px 18px rgba(80,60,200,.5)!important;}
 .ue-trackMax .ue-handle{box-shadow:0 0 0 6px rgba(168,85,247,.18),0 3px 12px rgba(90,40,200,.5);}
 /* 终点动画：手柄弹跳 + 右侧光晕 + 粒子增亮 */
-.ue-burst .ue-handle{animation:ue-pop .26s cubic-bezier(.34,1.56,.64,1);}
-.ue-burst{box-shadow:0 0 0 2px rgba(168,85,247,.35),0 0 20px rgba(139,92,246,.55);}
+.ue-burst .ue-handle{animation:ue-pop .34s cubic-bezier(.34,1.56,.64,1)!important;}
+.ue-burst .ue-handle::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(168,85,247,.75);animation:ue-ring .55s ease-out forwards;pointer-events:none;}
+@keyframes ue-ring{0%{transform:scale(.8);opacity:.9}100%{transform:scale(2.1);opacity:0}}
+.ue-burst{box-shadow:0 0 0 3px rgba(168,85,247,.4),0 0 26px rgba(139,92,246,.7)!important;}
 .ue-burst::after{content:"";position:absolute;top:-40%;right:-8%;width:66%;height:180%;background:radial-gradient(circle at 68% 50%,rgba(168,85,247,.78) 0%,rgba(139,92,246,.42) 38%,rgba(168,85,247,0) 72%);pointer-events:none;z-index:3;animation:ue-glow .52s ease-out;}
 .ue-burst .ue-particles i{animation:ue-boost .62s ease-out;}
-@keyframes ue-pop{0%{transform:scale(1)}45%{transform:scale(1.28)}100%{transform:scale(1)}}
-@keyframes ue-glow{0%{opacity:0;transform:translateX(14%) scale(.92)}35%{opacity:1}100%{opacity:0;transform:translateX(-8%) scale(1.06)}}
-@keyframes ue-boost{0%,100%{opacity:.4}40%{opacity:1;filter:blur(0) brightness(1.7)}}
+@keyframes ue-pop{0%{transform:translateX(-50%) scale(1)}45%{transform:translateX(-50%) scale(1.36)}100%{transform:translateX(-50%) scale(1)}}
+@keyframes ue-glow{0%{opacity:0;transform:translateX(18%) scale(.9)}30%{opacity:1}100%{opacity:0;transform:translateX(-14%) scale(1.1)}}
+@keyframes ue-boost{0%,100%{opacity:.35;transform:scale(1)}35%{opacity:1;transform:scale(1.9);filter:blur(0) brightness(2)}}
 /* 模型菜单（面板内） */
 .ue-models{margin:-2px -4px 0;padding:0 4px;max-height:320px;overflow-y:auto;overscroll-behavior:contain;}
 .ue-modelsTitle{margin:2px 2px 6px;font-size:12px;line-height:16px;color:rgba(15,23,42,.5);}
@@ -136,7 +138,7 @@ window.__ModuleLoader__.load({
 .ue-check{flex:none;color:#7c3aed;font-size:14px;line-height:1;}
 /* 减少动画偏好 */
 @media (prefers-reduced-motion: reduce){
-.ue-particles i,.ue-burst .ue-handle,.ue-burst::after,.ue-burst .ue-particles i,.ue-fill,.ue-handle{animation:none!important;transition:none!important;}
+.ue-particles i,.ue-burst .ue-handle,.ue-burst .ue-handle::after,.ue-burst::after,.ue-burst .ue-particles i,.ue-fill,.ue-handle{animation:none!important;transition:none!important;}
 .ue-trackMax .ue-handle{box-shadow:0 0 0 3px rgba(168,85,247,.35),0 2px 8px rgba(90,40,200,.4);}
 }
 `;		const NS = "ui-skin-switcher";
