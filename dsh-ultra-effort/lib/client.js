@@ -82,6 +82,8 @@ window.__ModuleLoader__.load({
 .sk5-root .ue-lv-max{color:var(--ue-purple);}
 .sk5-root .ue-lv-norm{color:var(--ue-blue);}
 .sk5-root .ue-lv-def{color:rgba(15,23,42,.45);}
+.sk5-root .ue-lv-text{color:var(--dsw-alias-label-primary,#0f172a);}
+.sk5-root .ue-resetHidden{visibility:hidden;pointer-events:none;}
 /* 面板 */
 .sk5-root .sk5-drop{bottom:calc(100% + 8px);right:var(--ue-drop-right,0px);}
 .sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:var(--dsw-alias-bg-elevated,#fff);box-shadow:0 12px 32px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.06);overflow:hidden;}
@@ -111,6 +113,8 @@ window.__ModuleLoader__.load({
 /* Ultra 渐变 + 揭示 */
 .sk5-root .ue-ultraLayer{position:absolute;inset:0;border-radius:12px;background:linear-gradient(90deg,color-mix(in srgb,#3a83f7 60%,#924ff7) 0%,#924ff7 55%,color-mix(in srgb,#924ff7 72%,#3a83f7) 100%);opacity:0;pointer-events:none;z-index:1;}
 .sk5-root .ue-trackMax .ue-ultraLayer{opacity:1;animation:ue-reveal 2s cubic-bezier(.19,1,.22,1) both;}
+.sk5-root .ue-ultraLayer::after{content:"";position:absolute;inset:0;border-radius:12px;background-image:radial-gradient(ellipse 50% 120% at 50% 50%,rgba(196,160,255,.55) 0%,rgba(196,160,255,0) 72%);background-size:40% 100%;background-repeat:no-repeat;background-position:-12% 50%;animation:ue-sheen 10s ease-in-out infinite alternate;pointer-events:none;}
+@keyframes ue-sheen{0%{background-position:-12% 50%}100%{background-position:112% 50%}}
 @keyframes ue-reveal{0%{-webkit-mask-position:110% 0;mask-position:110% 0}100%{-webkit-mask-position:0 0;mask-position:0 0}}
 .sk5-root .ue-ultraLayer{-webkit-mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);-webkit-mask-size:220% 100%;-webkit-mask-repeat:no-repeat;mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);mask-size:220% 100%;mask-repeat:no-repeat;}
 /* 持续流动光点 */
@@ -190,6 +194,7 @@ window.__ModuleLoader__.load({
 .sk5-root .ue-head,.sk5-root .ue-sliderArea,.sk5-root .ue-models{animation:none;opacity:1;translate:0 0;}
 .sk5-root .ue-ultraLayer,.sk5-root .ue-stream i,.sk5-root .ue-burstLayer span,.sk5-root .ue-tick,.sk5-root .ue-handle,.sk5-root .ue-fill{animation:none;transition:none;}
 .sk5-root .ue-trackMax .ue-ultraLayer{-webkit-mask-image:none;mask-image:none;}
+.sk5-root .ue-ultraLayer::after{animation:none;background-position:60% 50%;}
 }
 `;		const NS = "ui-skin-switcher";
 		/** Plugin-owned copy: `zh` is the key-set source of truth, `en` mirrors it. */
@@ -639,7 +644,10 @@ window.__ModuleLoader__.load({
 				const reasoning = curModel !== void 0 ? curModel.reasoning : void 0;
 				const effectiveEffort = current !== null && current.reasoningEffort !== void 0 ? current.reasoningEffort : reasoning !== void 0 && reasoning.defaultEffort !== void 0 ? reasoning.defaultEffort : void 0;
 				const defaultEffort = reasoning !== void 0 ? reasoning.defaultEffort : void 0;
-				const atDefaultEffort = effectiveEffort === defaultEffort;
+				/** 重置目标 = 当前模型的 defaultEffort；两者归一化后相等即视为“已在默认档”。 */
+				const normEffort = (v) => (v === void 0 || v === null ? "" : String(v).toLowerCase());
+				const atDefaultEffort = normEffort(effectiveEffort) === normEffort(defaultEffort);
+				/** 当前选中的是“默认”档（仅当模型未声明 defaultEffort 时才会出现该档）——用于标题取正文色。 */
 				const choices = reasoning === void 0 ? [] : [...reasoning.defaultEffort === void 0 ? [{
 					key: "default",
 					effort: void 0,
@@ -701,7 +709,8 @@ window.__ModuleLoader__.load({
 				const levelTone = inMax ? "ue-lv-max" : (atDefaultEffort ? "ue-lv-def" : "ue-lv-norm");
 				/** 面板标题语调色：最高档紫、其余一律蓝（Codex 原型）。 */
 
-				const titleTone = inMax ? "ue-lv-max" : "ue-lv-norm";
+				const isDefaultChoice = choices.length > 0 && choices[safePosIdx].key === "default";
+				const titleTone = inMax ? "ue-lv-max" : (isDefaultChoice ? "ue-lv-text" : "ue-lv-norm");
 				/** 端点动画：仅在“首次进入终点”时触发一次，离开后复位可重播。 */
 				react.useEffect(() => {
 					if (!inMax) {
@@ -1053,9 +1062,11 @@ window.__ModuleLoader__.load({
 					"aria-haspopup": "listbox",
 					"aria-expanded": panelView === "model",
 					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
-				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("span", { className: "ue-modelChev", "aria-hidden": "true" }, "›"))), atDefaultEffort ? null : react.createElement("button", {
+				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("span", { className: "ue-modelChev", "aria-hidden": "true" }, "›"))), react.createElement("button", {
 					type: "button",
-					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : ""),
+					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetHidden" : ""),
+					"aria-hidden": atDefaultEffort ? "true" : void 0,
+					tabIndex: atDefaultEffort ? -1 : 0,
 					title: "重置为默认",
 					"aria-label": "重置为默认推理强度",
 					disabled: locked || busy || current === null || reasoning === void 0,
