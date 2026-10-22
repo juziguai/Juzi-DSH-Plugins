@@ -63,103 +63,131 @@ window.__ModuleLoader__.load({
 		/** Dictionary namespace owned by this plugin. */
 		/** Ultra skin: purple gradient track, sparkles, Ultra title. Visual only. */
 				const ULTRA_CSS = `
-/* ── Ultra 面板 V6 ─────────────────────────────────────────────
-   覆盖策略：全部以 .sk5-root 前缀提高特异性（0,2,0 起），不使用 important 声明；
-   上游 base 表里与之冲突的 important 标记已移除（见 build/apply-v6.ps1 第 2 步）。
-   本表中的 important 声明数量：0。
+/* ── Ultra 面板 V7 · Codex 原型对齐 ─────────────────────────────
+   尺寸基准：面板 266×~100、padding 4、头部 min-height 56、滑杆行 32。
+   选择器统一 .sk5-root 前缀提高特异性，不使用 important 声明。
    ───────────────────────────────────────────────────────────── */
-.sk5-root .sk5-drop{bottom:calc(100% + var(--ue-drop-lift,8px));right:var(--ue-drop-right,0px);}
-.sk5-root .sk5-drop.ue-panel{width:min(360px,calc(100vw - 40px));padding:18px 18px 16px;border-radius:20px;border:1px solid rgba(15,23,42,.10);background:var(--dsw-alias-bg-elevated,#fff);box-shadow:0 0 0 1px rgba(15,23,42,.05),0 24px 60px rgba(15,23,42,.20),0 3px 12px rgba(15,23,42,.08);}
-.sk5-root .sk5-drop.ue-panel.ue-compact{padding:12px 14px 10px;border-radius:16px;}
-.sk5-root .ue-compact .ue-head{margin-bottom:10px;grid-template-columns:26px minmax(0,1fr) 26px;gap:8px;}
-.sk5-root .ue-compact .ue-ultra{font-size:21px;}
-.sk5-root .ue-compact .ue-model{font-size:14px;line-height:20px;}
-.sk5-root .ue-compact .ue-labelsRow{margin-bottom:6px;}
-.sk5-root .ue-ultra{-webkit-user-select:none;user-select:none;}
+.sk5-root{--ue-blue:#3a83f7;--ue-purple:#924ff7;--ue-tertiary:rgba(15,23,42,.38);--ue-secondary:rgba(15,23,42,.55);--ue-track:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 10%,transparent);--ue-motion:cubic-bezier(.23,1,.32,1);}
+/* 触发器：模型名 + 档位名 + ▾ 合并成一个按钮 */
+.sk5-root .ue-trigger{display:inline-flex;align-items:center;gap:4px;max-width:260px;padding:2px 6px;border:0;border-radius:8px;background:transparent;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#0f172a);cursor:pointer;transition:background .12s ease;}
+.sk5-root .ue-trigger:hover{background:rgba(15,23,42,.06);}
+.sk5-root.ue-open .ue-trigger{background:rgba(15,23,42,.08);}
+.sk5-root .ue-trigger[disabled]{opacity:.5;cursor:default;}
+.sk5-root .ue-triggerModel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-triggerLevel{flex:none;font-weight:500;}
+.sk5-root .ue-triggerChev{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;opacity:.45;transition:transform .18s var(--ue-motion);}
+.sk5-root.ue-open .ue-triggerChev{transform:rotate(180deg);}
+/* 档位配色 */
+.sk5-root .ue-lv-max{color:var(--ue-purple);}
+.sk5-root .ue-lv-norm{color:var(--ue-blue);}
+.sk5-root .ue-lv-def{color:rgba(15,23,42,.45);}
+/* 面板 */
+.sk5-root .sk5-drop{bottom:calc(100% + 8px);right:var(--ue-drop-right,0px);}
+.sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:var(--dsw-alias-bg-elevated,#fff);box-shadow:0 12px 32px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.06);overflow:hidden;}
 /* 头部 */
-.sk5-root .ue-head{display:grid;grid-template-columns:30px minmax(0,1fr) 30px;align-items:center;gap:10px;margin-bottom:18px;}
-.sk5-root .ue-bolt{display:flex;align-items:center;justify-content:center;width:30px;height:30px;color:#7c3aed;}
-.sk5-root .ue-bolt svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;}
-.sk5-root .ue-center{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0;}
-.sk5-root .ue-titleRow{display:flex;align-items:baseline;justify-content:center;gap:8px;min-width:0;}
-.sk5-root .ue-ultra{font-size:26px;line-height:1.1;font-weight:700;letter-spacing:.2px;background:linear-gradient(92deg,#6d28d9 0%,#a855f7 55%,#7c3aed 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
-.sk5-root .ue-level{flex:none;font-size:11px;line-height:16px;padding:1px 7px;border-radius:999px;background:rgba(124,58,237,.10);color:#7c3aed;font-weight:600;letter-spacing:.02em;animation:ue-levelIn .18s ease;}
-@keyframes ue-levelIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
-.sk5-root .ue-model{display:inline-flex;align-items:flex-start;justify-content:center;gap:3px;max-width:100%;padding:2px 7px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary,#0f172a);font-size:15px;line-height:20px;text-align:center;cursor:pointer;transition:background .15s ease;}
-.sk5-root .ue-model:hover{background:rgba(124,58,237,.08);}
-.sk5-root .ue-model:focus-visible{outline:2px solid rgba(124,58,237,.6);outline-offset:2px;}
-.sk5-root .ue-model[disabled]{opacity:.5;cursor:default;}
-.sk5-root .ue-modelName{min-width:0;white-space:normal;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.sk5-root .ue-chev{width:13px;height:13px;flex:none;margin-top:4px;opacity:.5;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease;}
-.sk5-root .ue-modelOpen .ue-chev{transform:rotate(90deg);}
-.sk5-root .ue-reset{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:0;border-radius:999px;background:transparent;color:rgba(15,23,42,.45);cursor:pointer;transition:background .15s ease,color .15s ease,transform .15s ease,opacity .15s ease;}
-.sk5-root .ue-reset:hover{background:rgba(15,23,42,.06);color:rgba(15,23,42,.72);}
-.sk5-root .ue-reset:active{transform:scale(.9);}
-.sk5-root .ue-reset:focus-visible{outline:2px solid rgba(124,58,237,.6);outline-offset:2px;}
-.sk5-root .ue-reset[disabled]{opacity:.35;cursor:default;}
-.sk5-root .ue-resetIdle{opacity:.5;}
-.sk5-root .ue-resetFlash{background:rgba(124,58,237,.16);color:#7c3aed;}
-.sk5-root .ue-reset svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
-/* 标签 */
-.sk5-root .ue-labelsRow{display:flex;justify-content:space-between;margin:0 2px 10px;font-size:11px;line-height:14px;letter-spacing:.01em;color:var(--dsw-alias-label-secondary,rgba(15,23,42,.5));}
-/* 轨道 */
-.sk5-root .ue-track{position:relative;height:30px;border-radius:999px;background:linear-gradient(90deg,#ece9ff 0%,#e4defb 100%);cursor:pointer;touch-action:none;outline:none;overflow:hidden;isolation:isolate;}
-.sk5-root .ue-trackMax{background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%);}
-.sk5-root .ue-fill{position:absolute;left:0;top:0;bottom:0;width:calc(26px + (100% - 26px) * var(--ue-pos,0));border-radius:999px;background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%);transition:width .2s cubic-bezier(.22,.61,.36,1);z-index:1;}
+.sk5-root .ue-head{position:relative;display:flex;align-items:center;justify-content:center;min-height:46px;padding:2px 36px 4px;}
+.sk5-root .ue-center{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;max-width:100%;}
+.sk5-root .ue-title{font-size:16px;line-height:22px;font-weight:500;letter-spacing:.01em;}
+.sk5-root .ue-model{display:inline-flex;align-items:center;gap:2px;max-width:100%;padding:2px 4px;border:0;border-radius:6px;background:transparent;color:var(--ue-secondary);font-size:12px;line-height:16px;font-weight:400;cursor:pointer;transition:background .12s ease;}
+.sk5-root .ue-model:hover{background:rgba(15,23,42,.06);}
+.sk5-root .ue-model:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:1px;}
+.sk5-root .ue-modelName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-modelChev{flex:none;opacity:.55;font-size:12px;line-height:1;}
+.sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--ue-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease;}
+.sk5-root .ue-icon:hover{background:rgba(15,23,42,.06);color:rgba(15,23,42,.6);}
+.sk5-root .ue-icon:active{transform:translateY(-50%) scale(.94);}
+.sk5-root .ue-icon:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:1px;}
+.sk5-root .ue-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
+.sk5-root .ue-bolt{left:2px;}
+.sk5-root .ue-reset{right:2px;}
+.sk5-root .ue-resetFlash{background:rgba(146,79,247,.14);color:var(--ue-purple);}
+/* 滑杆区 */
+.sk5-root .ue-sliderArea{position:relative;margin-inline:2px;padding:1px 6px 2px;}
+.sk5-root .ue-sliderRow{position:relative;height:32px;display:flex;align-items:center;}
+.sk5-root .ue-track{position:relative;width:100%;height:24px;border-radius:12px;background:var(--ue-track);box-shadow:inset 0 0 0 .5px rgba(15,23,42,.12);cursor:pointer;touch-action:none;outline:none;overflow:visible;isolation:isolate;transition:background .2s ease;}
+.sk5-root .ue-fill{position:absolute;left:0;top:0;bottom:0;width:calc(28px + (100% - 28px) * var(--ue-pos,0));border-radius:12px;background:var(--ue-blue);transition:width .3s var(--ue-motion),opacity .2s ease;z-index:1;}
 .sk5-root .ue-trackMax .ue-fill{opacity:0;}
-.sk5-root .ue-particles{position:absolute;inset:0;border-radius:999px;overflow:hidden;pointer-events:none;z-index:2;}
-.sk5-root .ue-particles i{position:absolute;border-radius:50%;background:radial-gradient(circle,#fff 0%,rgba(255,255,255,.9) 45%,rgba(255,255,255,0) 100%);opacity:.5;pointer-events:none;animation:ue-twinkle 3.8s ease-in-out infinite;}
-.sk5-root .ue-particles i:nth-child(1){left:4%;top:32%;width:2px;height:2px;filter:blur(.2px);animation-delay:-.4s}
-.sk5-root .ue-particles i:nth-child(2){left:9%;top:64%;width:3.5px;height:3.5px;filter:blur(.4px);animation-delay:-1.6s}
-.sk5-root .ue-particles i:nth-child(3){left:16%;top:41%;width:1.5px;height:1.5px;animation-delay:-2.7s}
-.sk5-root .ue-particles i:nth-child(4){left:23%;top:58%;width:2.5px;height:2.5px;filter:blur(.3px);animation-delay:-.9s}
-.sk5-root .ue-particles i:nth-child(5){left:31%;top:28%;width:1.5px;height:1.5px;animation-delay:-2.2s}
-.sk5-root .ue-particles i:nth-child(6){left:39%;top:69%;width:2px;height:2px;animation-delay:-3.1s}
-.sk5-root .ue-particles i:nth-child(7){left:47%;top:38%;width:3px;height:3px;filter:blur(.35px);animation-delay:-.2s}
-.sk5-root .ue-particles i:nth-child(8){left:55%;top:61%;width:1.5px;height:1.5px;animation-delay:-1.1s}
-.sk5-root .ue-particles i:nth-child(9){left:63%;top:26%;width:2.5px;height:2.5px;filter:blur(.25px);animation-delay:-2.9s}
-.sk5-root .ue-particles i:nth-child(10){left:71%;top:57%;width:1.5px;height:1.5px;animation-delay:-1.9s}
-.sk5-root .ue-particles i:nth-child(11){left:82%;top:34%;width:3px;height:3px;filter:blur(.4px);animation-delay:-.7s}
-.sk5-root .ue-particles i:nth-child(12){left:92%;top:66%;width:2px;height:2px;animation-delay:-2.4s}
-@keyframes ue-twinkle{0%,100%{opacity:.22;transform:translateY(0) scale(.85)}50%{opacity:.95;transform:translateY(-1px) scale(1.18)}}
+/* Ultra 渐变 + 揭示 */
+.sk5-root .ue-ultraLayer{position:absolute;inset:0;border-radius:12px;background:linear-gradient(90deg,color-mix(in srgb,#3a83f7 60%,#924ff7) 0%,#924ff7 55%,color-mix(in srgb,#924ff7 72%,#3a83f7) 100%);opacity:0;pointer-events:none;z-index:1;}
+.sk5-root .ue-trackMax .ue-ultraLayer{opacity:1;animation:ue-reveal 2s cubic-bezier(.19,1,.22,1) both;}
+@keyframes ue-reveal{0%{-webkit-mask-position:110% 0;mask-position:110% 0}100%{-webkit-mask-position:0 0;mask-position:0 0}}
+.sk5-root .ue-ultraLayer{-webkit-mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);-webkit-mask-size:220% 100%;-webkit-mask-repeat:no-repeat;mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);mask-size:220% 100%;mask-repeat:no-repeat;}
+/* 持续流动光点 */
+.sk5-root .ue-stream{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .35s ease;z-index:2;}
+.sk5-root .ue-trackMax .ue-stream{opacity:1;}
+.sk5-root .ue-stream i{position:absolute;width:3px;height:3px;border-radius:999px;background:#ffffffb8;box-shadow:0 0 5px #ffffff57;animation:ue-flow 3.6s linear infinite;}
+.sk5-root .ue-stream i:nth-child(1){top:28%;animation-delay:-.2s}
+.sk5-root .ue-stream i:nth-child(2){top:58%;animation-delay:-1.1s}
+.sk5-root .ue-stream i:nth-child(3){top:40%;animation-delay:-2.0s}
+.sk5-root .ue-stream i:nth-child(4){top:68%;animation-delay:-2.8s}
+.sk5-root .ue-stream i:nth-child(5){top:34%;animation-delay:-1.6s}
+.sk5-root .ue-stream i:nth-child(6){top:52%;animation-delay:-.7s}
+.sk5-root .ue-stream i:nth-child(7){top:46%;animation-delay:-2.4s}
+.sk5-root .ue-stream i:nth-child(8){top:62%;animation-delay:-3.2s}
+@keyframes ue-flow{0%{left:102%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:-2%;opacity:0}}
+/* 迸发 */
+.sk5-root .ue-burstLayer{position:absolute;left:0;top:50%;width:1px;height:1px;pointer-events:none;z-index:3;opacity:0;}
+.sk5-root .ue-track.ue-burst .ue-burstLayer{opacity:1;}
+.sk5-root .ue-burstLayer span{position:absolute;left:0;top:0;width:5px;height:5px;border-radius:999px;background:var(--ue-purple);transform:translate(-50%,-50%) scale(.2);opacity:0;}
+.sk5-root .ue-track.ue-burst .ue-burstLayer span{animation:ue-burst .62s cubic-bezier(.25,1,.5,1) both;}
+.sk5-root .ue-burstLayer span:nth-child(4n+3){background:color-mix(in srgb,var(--ue-purple) 82%,var(--ue-blue));}
+.sk5-root .ue-burstLayer span:nth-child(4n+1):not(:first-child){background:color-mix(in srgb,var(--ue-purple) 68%,var(--ue-blue));}
+.sk5-root .ue-burstLayer span:nth-child(1){--x:-3px;--y:-34px}
+.sk5-root .ue-burstLayer span:nth-child(2){--x:15px;--y:-29px;animation-delay:8ms}
+.sk5-root .ue-burstLayer span:nth-child(3){--x:30px;--y:-19px}
+.sk5-root .ue-burstLayer span:nth-child(4){--x:34px;--y:-2px;animation-delay:12ms}
+.sk5-root .ue-burstLayer span:nth-child(5){--x:26px;--y:20px}
+.sk5-root .ue-burstLayer span:nth-child(6){--x:12px;--y:31px;animation-delay:10ms}
+.sk5-root .ue-burstLayer span:nth-child(7){--x:-6px;--y:34px}
+.sk5-root .ue-burstLayer span:nth-child(8){--x:-22px;--y:26px;animation-delay:14ms}
+.sk5-root .ue-burstLayer span:nth-child(9){--x:-32px;--y:9px}
+.sk5-root .ue-burstLayer span:nth-child(10){--x:-32px;--y:-10px;animation-delay:8ms}
+.sk5-root .ue-burstLayer span:nth-child(11){--x:-21px;--y:-26px}
+.sk5-root .ue-burstLayer span:nth-child(12){--x:7px;--y:-24px;animation-delay:6ms}
+.sk5-root .ue-burstLayer span:nth-child(13){--x:24px;--y:-9px}
+.sk5-root .ue-burstLayer span:nth-child(14){--x:20px;--y:10px;animation-delay:10ms}
+.sk5-root .ue-burstLayer span:nth-child(15){--x:-9px;--y:21px}
+.sk5-root .ue-burstLayer span:nth-child(16){--x:-25px;--y:-5px;animation-delay:12ms}
+@keyframes ue-burst{0%{opacity:1;transform:translate(-50%,-50%) scale(.2)}100%{opacity:0;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(.55)}}
+/* 刻度点 */
+.sk5-root .ue-tick{position:absolute;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 50%,transparent);pointer-events:none;transition:transform .12s ease,opacity .2s ease;z-index:3;}
+.sk5-root .ue-tickOn{background:rgba(255,255,255,.3);}
+.sk5-root .ue-trackMax .ue-tick{opacity:0;}
+.sk5-root .ue-track:hover .ue-tick{transform:scale(1.6);}
 /* 手柄 */
-.sk5-root .sk5-track .ue-handle{position:absolute;top:50%;bottom:auto;left:calc(13px + (100% - 26px) * var(--ue-pos,0));width:26px;height:26px;margin-top:-13px;margin-left:0;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.14),0 4px 12px rgba(15,23,42,.22),0 0 0 .5px rgba(15,23,42,.06);z-index:4;transform:translateX(-50%);will-change:left;transition:left .2s cubic-bezier(.22,.61,.36,1),transform .16s ease,box-shadow .16s ease;}
-.sk5-root .sk5-track .ue-handle:hover{transform:translateX(-50%) scale(1.04);}
-.sk5-root .ue-trackMoving .ue-handle{transform:translateX(-50%) scale(1.16);box-shadow:0 4px 18px rgba(80,60,200,.5);transition:transform .16s ease,box-shadow .16s ease;}
-.sk5-root .ue-trackMoving .ue-fill{transition:none;}
-.sk5-root .ue-trackMax .ue-handle{box-shadow:0 0 0 6px rgba(168,85,247,.18),0 3px 12px rgba(90,40,200,.5);}
-/* 终点动画 */
-.sk5-root .ue-burst{box-shadow:0 0 0 3px rgba(168,85,247,.40),0 0 26px rgba(139,92,246,.7);}
-.sk5-root .ue-burst .ue-handle{animation:ue-pop .34s cubic-bezier(.34,1.56,.64,1);}
-.sk5-root .ue-burst .ue-handle::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid rgba(168,85,247,.75);animation:ue-ring .55s ease-out forwards;pointer-events:none;}
-.sk5-root .ue-burst::after{content:"";position:absolute;top:-40%;right:-8%;width:66%;height:180%;background:radial-gradient(circle at 68% 50%,rgba(168,85,247,.78) 0%,rgba(139,92,246,.42) 38%,rgba(168,85,247,0) 72%);pointer-events:none;z-index:3;animation:ue-glow .52s ease-out;}
-.sk5-root .ue-burst .ue-particles i{animation:ue-boost .62s ease-out;}
-@keyframes ue-pop{0%{transform:translateX(-50%) scale(1)}45%{transform:translateX(-50%) scale(1.36)}100%{transform:translateX(-50%) scale(1)}}
-@keyframes ue-ring{0%{transform:scale(.8);opacity:.9}100%{transform:scale(2.1);opacity:0}}
-@keyframes ue-glow{0%{opacity:0;transform:translateX(18%) scale(.9)}30%{opacity:1}100%{opacity:0;transform:translateX(-14%) scale(1.1)}}
-@keyframes ue-boost{0%,100%{opacity:.35;transform:scale(1)}35%{opacity:1;transform:scale(1.9);filter:blur(0) brightness(2)}}
-/* 焦点环：用 outline，避免与 ue-burst 的 box-shadow 冲突 */
-.sk5-root .ue-track:focus-visible{outline:2px solid rgba(124,58,237,.75);outline-offset:3px;border-radius:999px;}
-.sk5-root:not(.ue-kb) .ue-track:focus-visible{outline:none;}
-/* 档位气泡 */
-.sk5-root .ue-tip{position:absolute;bottom:calc(100% + 6px);left:0;transform:translateX(-50%);padding:2px 9px;border-radius:999px;background:rgba(255,255,255,.96);border:1px solid rgba(124,58,237,.18);box-shadow:0 4px 14px rgba(76,29,149,.18);color:#6d28d9;font-size:11px;line-height:16px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s linear;z-index:9;}
-/* 模型菜单 */
-.sk5-root .ue-models{margin:-2px -4px 0;padding:0 4px;max-height:320px;overflow-y:auto;overscroll-behavior:contain;}
-.sk5-root .ue-modelsTitle{margin:2px 2px 6px;font-size:12px;line-height:16px;color:rgba(15,23,42,.5);}
-.sk5-root .ue-group{margin-top:6px;}
-.sk5-root .ue-groupName{margin:8px 2px 4px;font-size:11px;line-height:14px;letter-spacing:.06em;text-transform:uppercase;color:rgba(15,23,42,.42);}
-.sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .12s ease;}
+.sk5-root .ue-handle{position:absolute;box-sizing:border-box;top:50%;left:calc(14px + (100% - 28px) * var(--ue-pos,0));width:28px;height:28px;margin:-14px 0 0 0;border-radius:999px;background:#fff;border:.5px solid rgba(15,23,42,.28);box-shadow:0 0 2px rgba(0,0,0,.1);transform:translateX(-50%);z-index:4;will-change:left;transition:left .3s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;}
+.sk5-root .ue-moving .ue-handle{transition:left .15s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;transform:translateX(-50%) scale(1.14);box-shadow:0 0 2px rgba(0,0,0,.1),0 2px 8px rgba(15,23,42,.18);}
+.sk5-root .ue-track:focus-visible{outline:none;}
+.sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid rgba(58,131,247,.85);outline-offset:1px;}
+.sk5-root:not(.ue-kb) .ue-track:focus-visible .ue-handle{outline:none;}
+/* 端点标签：按住 150ms 才出现 */
+.sk5-root .ue-labels{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;padding:0 6px;pointer-events:none;opacity:0;transition:opacity .16s ease;font-size:10px;line-height:14px;color:rgba(15,23,42,.55);z-index:5;}
+.sk5-root .ue-sliderArea.ue-labelsOn .ue-labels{opacity:1;}
+.sk5-root .ue-labels span{background:rgba(255,255,255,.82);border-radius:6px;padding:0 4px;}
+/* 内容进场 */
+.sk5-root .ue-head{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 40ms both;}
+.sk5-root .ue-sliderArea{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 56ms both;}
+@keyframes ue-enter{to{opacity:1;translate:0 0}}
+/* 模型列表 */
+.sk5-root .ue-models{margin:2px -2px 0;padding:0 2px 2px;max-height:320px;overflow-y:auto;overscroll-behavior:contain;animation:ue-enter .2s var(--ue-motion) 40ms both;}
+.sk5-root .ue-modelsTitle{margin:2px 4px 6px;font-size:12px;line-height:16px;color:rgba(15,23,42,.5);}
+.sk5-root .ue-group{margin-top:4px;}
+.sk5-root .ue-groupName{margin:6px 4px 2px;font-size:11px;line-height:14px;letter-spacing:.06em;text-transform:uppercase;color:rgba(15,23,42,.42);}
+.sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:8px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .12s ease;}
 .sk5-root .ue-row:hover{background:rgba(15,23,42,.05);}
-.sk5-root .ue-row:focus-visible{outline:2px solid rgba(124,58,237,.6);outline-offset:-2px;}
-.sk5-root .ue-rowActive{background:rgba(124,58,237,.09);}
+.sk5-root .ue-row:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:-2px;}
+.sk5-root .ue-rowActive{background:rgba(58,131,247,.10);}
 .sk5-root .ue-rowText{display:flex;flex-direction:column;min-width:0;}
-.sk5-root .ue-rowName{font-size:14px;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-rowDesc{margin-top:1px;font-size:11px;line-height:15px;color:rgba(15,23,42,.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-check{flex:none;color:#7c3aed;font-size:14px;line-height:1;}
+.sk5-root .ue-rowName{font-size:13px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-rowDesc{margin-top:1px;font-size:11px;line-height:14px;color:rgba(15,23,42,.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-check{flex:none;color:var(--ue-blue);font-size:13px;line-height:1;}
+/* 屏幕阅读器 */
+.sk5-root .ue-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}
 /* 减少动画 */
 @media (prefers-reduced-motion: reduce){
-.sk5-root .ue-particles i,.sk5-root .ue-burst .ue-handle,.sk5-root .ue-burst .ue-handle::after,.sk5-root .ue-burst::after,.sk5-root .ue-burst .ue-particles i,.sk5-root .ue-fill,.sk5-root .ue-handle,.sk5-root .ue-level{animation:none;transition:none;}
-.sk5-root .ue-trackMax .ue-handle{box-shadow:0 0 0 3px rgba(168,85,247,.35),0 2px 8px rgba(90,40,200,.4);}
+.sk5-root .ue-head,.sk5-root .ue-sliderArea,.sk5-root .ue-models{animation:none;opacity:1;translate:0 0;}
+.sk5-root .ue-ultraLayer,.sk5-root .ue-stream i,.sk5-root .ue-burstLayer span,.sk5-root .ue-tick,.sk5-root .ue-handle,.sk5-root .ue-fill{animation:none;transition:none;}
+.sk5-root .ue-trackMax .ue-ultraLayer{-webkit-mask-image:none;mask-image:none;}
 }
 `;		const NS = "ui-skin-switcher";
 		/** Plugin-owned copy: `zh` is the key-set source of truth, `en` mirrors it. */
@@ -410,6 +438,8 @@ window.__ModuleLoader__.load({
 				const tipBoxRef = react.useRef(null);
 				const panelRef = react.useRef(null);
 				const openedByKeyboardRef = react.useRef(false);
+				const pressTimerRef = react.useRef(null);
+				const [showLabels, setShowLabels] = react.useState(false);
 				/**
 				 * 面板定位（V6）：
 				 * 1) 垂直：抬到输入框之上，留 8px；
@@ -437,14 +467,15 @@ window.__ModuleLoader__.load({
 							}
 						}
 						const vw = window.innerWidth;
-						const composerTop = composer ? composer.top : r.top;
-						root.style.setProperty("--ue-drop-lift", Math.max(8, r.top - composerTop + 8) + "px");
+						/** V7：面板贴在触发器上方 8px（可覆盖输入框文本区），不再整体抬到输入框之上。 */
+						root.style.setProperty("--ue-drop-lift", "8px");
 						if (panel === null) return;
 						const pw = panel.getBoundingClientRect().width;
-						const targetRight = composer ? composer.right : r.right;
+						/** 右缘对齐发送按钮右缘（composer 外框内约 8px 内缩）。 */
+						const targetRight = (composer ? composer.right : r.right) - 8;
 						const right = Math.min(Math.max(targetRight, 8 + pw), vw - 8);
 						root.style.setProperty("--ue-drop-right", (r.right - right) + "px");
-						const avail = Math.max(160, composerTop - 16);
+						const avail = Math.max(120, r.top - 16);
 						/** 先量原始高度，放不下才压缩间距，仍放不下才滚动。 */
 						panel.classList.remove("ue-compact");
 						panel.style.maxHeight = "none";
@@ -604,7 +635,9 @@ window.__ModuleLoader__.load({
 				const curModel = current === null ? void 0 : findModel(groups, current.provider, current.model);
 				const modelLabel = curModel !== void 0 ? curModel.name : current !== null && current.model !== "" ? current.model : tr("trigger.fallbackModel");
 				const reasoning = curModel !== void 0 ? curModel.reasoning : void 0;
-				const effectiveEffort = current !== null && current.reasoningEffort !== void 0 ? current.reasoningEffort : reasoning !== void 0 && reasoning.defaultEffort !== void 0 ? reasoning.defaultEffort : void 0;
+				const effectiveEffort = current !== null && current.reasoningEffort !== void 0 ? current.reasoningEffort : reasoning !== void 0 && reasoning.defaultEffort !== void 0 ? reasoning.defaultEffort : void 0;
+				const defaultEffort = reasoning !== void 0 ? reasoning.defaultEffort : void 0;
+				const atDefaultEffort = effectiveEffort === defaultEffort;
 				const choices = reasoning === void 0 ? [] : [...reasoning.defaultEffort === void 0 ? [{
 					key: "default",
 					effort: void 0,
@@ -620,6 +653,8 @@ window.__ModuleLoader__.load({
 				const safePosIdx = choices.length > 0 ? Math.max(0, Math.min(choices.length - 1, posIdx)) : 0;
 				/** 面板内常驻档位名：与滑动/键盘位置同源。 */
 				const levelLabel = choices.length > 0 ? choices[safePosIdx].label : tr("effort.default");
+
+				const tickLeft = (i) => "calc(14px + (100% - 28px) * " + (choices.length > 1 ? i / (choices.length - 1) : 0) + ")";
 				const atMaxPos = choices.length > 1 && safePosIdx === choices.length - 1;
 				const displayIdx = settledIdx === null ? activeIdx : settledIdx;
 				const safeDisplayIdx = choices.length > 0 ? Math.max(0, Math.min(choices.length - 1, displayIdx)) : 0;
@@ -655,6 +690,11 @@ window.__ModuleLoader__.load({
 				]);
 				/** V2: 端点状态跟随交互位置（hover/drag），而不是等待提交回写后的显示位置。 */
 				const inMax = choices.length > 1 && safePosIdx === choices.length - 1;
+				/** 触发器色调：最高档紫、默认档灰、其余蓝。 */
+				const levelTone = inMax ? "ue-lv-max" : (atDefaultEffort ? "ue-lv-def" : "ue-lv-norm");
+				/** 面板标题语调色：最高档紫、其余一律蓝（Codex 原型）。 */
+
+				const titleTone = inMax ? "ue-lv-max" : "ue-lv-norm";
 				/** 端点动画：仅在“首次进入终点”时触发一次，离开后复位可重播。 */
 				react.useEffect(() => {
 					if (!inMax) {
@@ -818,9 +858,6 @@ window.__ModuleLoader__.load({
 						...effort === void 0 ? {} : { reasoningEffort: effort }
 					}, true);
 				};
-				/** 当前模型的默认推理程度；undefined 表示“默认档”。 */
-				const defaultEffort = reasoning !== void 0 ? reasoning.defaultEffort : void 0;
-				const atDefaultEffort = effectiveEffort === defaultEffort;
 				const onReset = () => {
 					if (current === null || reasoning === void 0) return;
 					setResetFlash(true);
@@ -931,6 +968,8 @@ window.__ModuleLoader__.load({
 					dragIdxRef.current = null;
 					setMoving(false);
 					stopDrag();
+					if (pressTimerRef.current !== null) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; }
+					setShowLabels(false);
 					if (tipRef.current !== null) tipRef.current.style.opacity = "0";
 					tipIdxRef.current = -1;
 					const c = choices[idx];
@@ -942,6 +981,8 @@ window.__ModuleLoader__.load({
 				const onWinCancel = () => {
 					dragIdxRef.current = null;
 					setMoving(false);
+					if (pressTimerRef.current !== null) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; }
+					setShowLabels(false);
 					stopDrag();
 					setHoverIdx(null);
 				};
@@ -959,6 +1000,8 @@ window.__ModuleLoader__.load({
 					dragIdxRef.current = idxFromFrac(frac);
 					setHoverIdx(dragIdxRef.current);
 					setMoving(true);
+					if (pressTimerRef.current !== null) clearTimeout(pressTimerRef.current);
+					pressTimerRef.current = setTimeout(() => setShowLabels(true), 150);
 					window.addEventListener("pointermove", onWinMove);
 					window.addEventListener("pointerup", onWinUp);
 					window.addEventListener("pointercancel", onWinCancel);
@@ -966,52 +1009,36 @@ window.__ModuleLoader__.load({
 				};				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? curGroup.name + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
 				return react.createElement("div", {
 					ref: rootRef,
-					className: "sk5-root"
-				}, react.createElement("div", { className: "sk5-triggers" }, react.createElement("button", {
-					type: "button",
-					className: "sk5-trigger",
-					disabled: locked || busyKind === "model",
-					title: triggerTitle,
-					"aria-haspopup": "menu",
-					"aria-expanded": menu === "model",
-					onClick: () => setMenu((m) => m === "model" ? null : "model")
-				}, react.createElement("span", { className: "sk5-triggerName" }, modelLabel)), reasoning !== void 0 && choices.length > 0 ? react.createElement("button", {
+					className: "sk5-root" + (menu !== null ? " ue-open" : "")
+				}, react.createElement("button", {
 					ref: effortTriggerRef,
 					type: "button",
-					className: "sk5-trigger sk5-triggerEffort",
+					className: "ue-trigger",
 					disabled: locked || busy || current === null,
-					title: tr("effort.title"),
+					title: triggerTitle,
 					"aria-haspopup": "menu",
 					"aria-expanded": menu === "effort",
 					onClick: (ev) => {
 						openedByKeyboardRef.current = ev.detail === 0;
 						setMenu((m) => m === "effort" ? null : "effort");
 					}
-				}, react.createElement("span", {
-					key: displayLabel,
-					style: { animation: "sk5-nameBlur .28s ease" }
-				}, displayLabel)) : null), menu === "model" ? react.createElement("div", {
-					className: "sk5-drop sk5-model",
-					role: "menu",
-					"aria-label": tr("trigger.selectModel")
-				}, react.createElement("div", { className: "sk5-modelsTitle" }, tr("menu.models")), react.createElement("div", { className: "sk5-list" }, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", { key: g.id }, react.createElement("div", { className: "sk5-group" }, g.name), g.models.map((m) => {
-					const active = current !== null && current.provider === g.id && current.model === m.id;
-					return react.createElement("button", {
-						key: m.id,
-						type: "button",
-						role: "menuitem",
-						className: "sk5-row",
-						disabled: busy,
-						onClick: () => onPickModel(m, g)
-					}, react.createElement("span", { style: { minWidth: 0 } }, react.createElement("div", null, m.name), m.description !== void 0 ? react.createElement("div", { className: "sk5-rowDesc" }, m.description) : null), active ? react.createElement("span", { className: "sk5-check" }, "✓") : null);
-				}))) : null)) : null, menu === "effort" ? react.createElement("div", {
+				}, react.createElement("span", { className: "ue-triggerModel" }, modelLabel), react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel), react.createElement("svg", {
+					className: "ue-triggerChev",
+					viewBox: "0 0 16 16",
+					"aria-hidden": "true"
+				}, react.createElement("path", { d: "M4 6l4 4 4-4" }))), react.createElement("span", {
+					className: "ue-sr",
+					role: "status",
+					"aria-live": "polite"
+				}, displayLabel + "，第 " + (safePosIdx + 1) + " 项，共 " + Math.max(choices.length, 1) + " 项"), menu === "effort" ? react.createElement("div", {
 					ref: panelRef,
 					className: "sk5-drop sk5-effort ue-panel",
 					role: "menu",
-					"aria-label": tr("effort.title")
-				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", { className: "ue-bolt", "aria-hidden": "true" }, react.createElement("svg", {
-					viewBox: "0 0 24 24"
-				}, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-titleRow" }, react.createElement("div", { className: "ue-ultra" }, "Ultra"), react.createElement("span", { key: levelLabel, className: "ue-level" }, levelLabel)), react.createElement("button", {
+					"aria-label": "选择推理强度"
+				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", {
+					className: "ue-icon ue-bolt",
+					"aria-hidden": "true"
+				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + titleTone }, displayLabel), react.createElement("button", {
 					type: "button",
 					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : ""),
 					disabled: locked || busy,
@@ -1019,21 +1046,14 @@ window.__ModuleLoader__.load({
 					"aria-haspopup": "listbox",
 					"aria-expanded": panelView === "model",
 					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
-				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("svg", {
-					className: "ue-chev",
-					viewBox: "0 0 16 16",
-					"aria-hidden": "true"
-				}, react.createElement("path", { d: "M6 3.5 10.5 8 6 12.5" })))), react.createElement("button", {
+				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("span", { className: "ue-modelChev", "aria-hidden": "true" }, "›"))), atDefaultEffort ? null : react.createElement("button", {
 					type: "button",
-					className: "ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetIdle" : ""),
+					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : ""),
 					title: "重置为默认",
-					"aria-label": "重置为默认推理程度",
+					"aria-label": "重置为默认推理强度",
 					disabled: locked || busy || current === null || reasoning === void 0,
 					onClick: onReset
-				}, react.createElement("svg", {
-					viewBox: "0 0 16 16",
-					"aria-hidden": "true"
-				}, react.createElement("path", { d: "M13.2 6.2A5.6 5.6 0 1 0 13.4 9.4" }), react.createElement("path", { d: "M13.6 2.4v4h-4" })))), react.createElement("span", { ref: tipRef, className: "ue-tip", "aria-hidden": "true" }, react.createElement("span", { ref: tipTextRef, className: "ue-tipText" }, "")), panelView === "model" ? react.createElement("div", {
+				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M13.2 6.2A5.6 5.6 0 1 0 13.4 9.4" }), react.createElement("path", { d: "M13.6 2.4v4h-4" })))), panelView === "model" ? react.createElement("div", {
 					className: "ue-models",
 					role: "listbox",
 					"aria-label": tr("trigger.selectModel")
@@ -1054,40 +1074,23 @@ window.__ModuleLoader__.load({
 							setPanelView("effort");
 						}
 					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, m.name), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
-				}))) : null) : react.createElement(react.Fragment, null, react.createElement("div", { className: "ue-labelsRow" }, react.createElement("span", { className: "ue-endLabel" }, "Faster"), react.createElement("span", { className: "ue-endLabel" }, "Smarter")), react.createElement("div", {
+				}))) : null) : react.createElement("div", { className: "ue-sliderArea" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("div", { className: "ue-sliderRow" }, react.createElement("div", {
 					ref: trackRef,
-					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (burst ? " ue-burst" : "") + (moving ? " ue-trackMoving" : ""),
+					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (moving ? " ue-moving" : "") + (burst ? " ue-burst" : "") + (showLabels ? " ue-labelsOn" : ""),
 					role: "slider",
 					tabIndex: 0,
-					"aria-label": tr("effort.title"),
+					"aria-label": "推理强度",
 					"aria-valuemin": 0,
 					"aria-valuemax": Math.max(0, choices.length - 1),
 					"aria-valuenow": safePosIdx,
 					"aria-valuetext": displayLabel,
-					style: { height: TRACK_H + "px" },
 					onPointerDown: onTrackDown,
 					onKeyDown: onTrackKeyDown
-				}, react.createElement("span", { className: "ue-particles", "aria-hidden": "true" }, react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null)), react.createElement("div", {
-					className: "sk5-fill ue-fill",
-					style: {
-												opacity: fillHidden ? 0 : 1
-					}
-				}), !inMax ? choices.map((c, i) => react.createElement("span", {
+				}, react.createElement("div", { className: "ue-fill" }), react.createElement("div", { className: "ue-ultraLayer", "aria-hidden": "true" }), react.createElement("div", { className: "ue-stream", "aria-hidden": "true" }, react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null)), react.createElement("div", { className: "ue-burstLayer", "aria-hidden": "true" }, react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null)), choices.map((c, i) => react.createElement("span", {
 					key: c.key,
-					className: "sk5-dotHit",
-					style: { left: dotLeftSnapped(i) }
-				}, react.createElement("span", {
-					className: "sk5-dot" + (i === choices.length - 1 ? " sk5-dotMax" : ""),
-					style: { marginTop: dotTopSnapped }
-				}, react.createElement("svg", {
-					className: "sk5-dotShape",
-					viewBox: "0 0 4 4",
-					"aria-hidden": "true"
-				}, react.createElement("circle", { cx: 2, cy: 2, r: 2, fill: "currentColor" }))))) : null, react.createElement("div", {
-					className: "sk5-handle ue-handle" + (inMax ? " sk5-handleMax" : "") + (moving ? " sk5-handleMoving" : ""),
-					style: void 0,
-					onPointerDown: () => setMoving(true)
-				})), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null)) : null);
+					className: "ue-tick" + (i <= safePosIdx ? " ue-tickOn" : ""),
+					style: { left: tickLeft(i) }
+				})), react.createElement("div", { className: "ue-handle" }))), react.createElement("div", { className: "ue-labels" }, react.createElement("span", null, "Faster"), react.createElement("span", null, "Smarter"))), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null) : null);
 			}));
 		}
 		//#endregion

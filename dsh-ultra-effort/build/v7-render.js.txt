@@ -1,0 +1,84 @@
+				return react.createElement("div", {
+					ref: rootRef,
+					className: "sk5-root" + (menu !== null ? " ue-open" : "")
+				}, react.createElement("button", {
+					ref: effortTriggerRef,
+					type: "button",
+					className: "ue-trigger",
+					disabled: locked || busy || current === null,
+					title: triggerTitle,
+					"aria-haspopup": "menu",
+					"aria-expanded": menu === "effort",
+					onClick: (ev) => {
+						openedByKeyboardRef.current = ev.detail === 0;
+						setMenu((m) => m === "effort" ? null : "effort");
+					}
+				}, react.createElement("span", { className: "ue-triggerModel" }, modelLabel), react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel), react.createElement("svg", {
+					className: "ue-triggerChev",
+					viewBox: "0 0 16 16",
+					"aria-hidden": "true"
+				}, react.createElement("path", { d: "M4 6l4 4 4-4" }))), react.createElement("span", {
+					className: "ue-sr",
+					role: "status",
+					"aria-live": "polite"
+				}, displayLabel + "，第 " + (safePosIdx + 1) + " 项，共 " + Math.max(choices.length, 1) + " 项"), menu === "effort" ? react.createElement("div", {
+					ref: panelRef,
+					className: "sk5-drop sk5-effort ue-panel",
+					role: "menu",
+					"aria-label": "选择推理强度"
+				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", {
+					className: "ue-icon ue-bolt",
+					"aria-hidden": "true"
+				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + levelTone }, displayLabel), react.createElement("button", {
+					type: "button",
+					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : ""),
+					disabled: locked || busy,
+					title: triggerTitle,
+					"aria-haspopup": "listbox",
+					"aria-expanded": panelView === "model",
+					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
+				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("span", { className: "ue-modelChev", "aria-hidden": "true" }, "›"))), atDefaultEffort ? null : react.createElement("button", {
+					type: "button",
+					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : ""),
+					title: "重置为默认",
+					"aria-label": "重置为默认推理强度",
+					disabled: locked || busy || current === null || reasoning === void 0,
+					onClick: onReset
+				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M13.2 6.2A5.6 5.6 0 1 0 13.4 9.4" }), react.createElement("path", { d: "M13.6 2.4v4h-4" })))), panelView === "model" ? react.createElement("div", {
+					className: "ue-models",
+					role: "listbox",
+					"aria-label": tr("trigger.selectModel")
+				}, react.createElement("div", { className: "ue-modelsTitle" }, tr("trigger.selectModel")), !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", {
+					key: g.id,
+					className: "ue-group"
+				}, react.createElement("div", { className: "ue-groupName" }, g.name), g.models.map((m) => {
+					const isCur = current !== null && current.provider === g.id && current.model === m.id;
+					return react.createElement("button", {
+						key: m.id,
+						type: "button",
+						role: "option",
+						"aria-selected": isCur,
+						className: "ue-row" + (isCur ? " ue-rowActive" : ""),
+						disabled: busy,
+						onClick: () => {
+							onPickModel(m, g);
+							setPanelView("effort");
+						}
+					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, m.name), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
+				}))) : null) : react.createElement("div", { className: "ue-sliderArea" }, react.createElement("div", { className: "ue-sliderRow" }, react.createElement("div", {
+					ref: trackRef,
+					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (moving ? " ue-moving" : "") + (burst ? " ue-burst" : "") + (showLabels ? " ue-labelsOn" : ""),
+					role: "slider",
+					tabIndex: 0,
+					"aria-label": "推理强度",
+					"aria-valuemin": 0,
+					"aria-valuemax": Math.max(0, choices.length - 1),
+					"aria-valuenow": safePosIdx,
+					"aria-valuetext": displayLabel,
+					onPointerDown: onTrackDown,
+					onKeyDown: onTrackKeyDown
+				}, react.createElement("div", { className: "ue-fill" }), react.createElement("div", { className: "ue-ultraLayer", "aria-hidden": "true" }), react.createElement("div", { className: "ue-stream", "aria-hidden": "true" }, react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null)), react.createElement("div", { className: "ue-burstLayer", "aria-hidden": "true" }, react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null), react.createElement("span", null)), choices.map((c, i) => react.createElement("span", {
+					key: c.key,
+					className: "ue-tick" + (i <= safePosIdx ? " ue-tickOn" : ""),
+					style: { left: tickLeft(i) }
+				})), react.createElement("div", { className: "ue-handle" }))), react.createElement("div", { className: "ue-labels" }, react.createElement("span", null, "Faster"), react.createElement("span", null, "Smarter"))), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null) : null);
