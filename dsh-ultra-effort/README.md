@@ -17,15 +17,37 @@ Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-
 
 交互逻辑、数据通道、无障碍标签全部沿用上游，未改动。
 
+## V2 重构（2026-10-22）
+
+在 forked 代码上做的结构性改造（不再只是换皮）：
+
+| 能力 | 实现 |
+|---|---|
+| 三栏头部 | `CSS Grid: 28px / 1fr / 28px`，左闪电、中「Ultra + 模型名 + chevron」、右重置；中栏始终居中（实测偏移 0px） |
+| 面板内模型菜单 | 点模型名在面板内切换到列表：标题「选择模型」+ 真实目录分组 + 当前项 ✓ + 悬停高亮 + 滚动 |
+| 重置 | 读取当前模型 `reasoning.defaultEffort` 回写；已是默认时只做视觉反馈、不发请求；不动模型 |
+| 端点动画 | 进入最高档触发一次：手柄 `ue-pop` 260ms + 右侧 `ue-glow` 520ms + 粒子 `ue-boost` 620ms；保持不重播，离开后重新武装 |
+| 粒子 | 12 个纯 CSS 光点，不同位置/大小/延迟，`ue-twinkle` 3.4s 循环；不参与 React 状态 |
+| 手柄反馈 | 拖动时 `scale(1.14)` + 阴影增强；最高档常驻紫色光环 |
+| 键盘 | 滑杆 `role="slider"`，方向键逐档、Home/End 到两端；`aria-valuemin/max/now/valuetext` |
+| 无障碍 | 重置/模型按钮均有 `aria-label`/`aria-expanded`；`:focus-visible` 描边 |
+| 减少动画 | `prefers-reduced-motion: reduce` 下关闭全部 keyframes，保留静态状态（最高档光圈） |
+| 响应式 | 1100px 视口下不溢出、不产生横向滚动 |
+
+根因修复：`inMax` 原先取自「提交后稳定下来的显示档位」（要等 `selectModel` 往返），导致端点动画滞后且无法重播；改为跟随交互位置（hover/drag），动画即时且幂等。
+
+截图：`docs/v2-mid.png`、`docs/v2-max.png`、`docs/v2-burst.png`、`docs/v2-menu.png`。
+
 ## 文件
 
 | 文件 | 作用 |
 |---|---|
 | `lib/index.js` | 宿主半身（空 `apply`，只为了让 loader 发现插件行） |
-| `lib/client.js` | 浏览器半身：座位 UI + 滑块 + Ultra 皮肤 |
+| `lib/client.js` | 浏览器半身：座位 UI + 面板 + 滑块 + 动画 |
 | `package.json` | `dsh.bundle.patch` + `dsh.client.inject` 声明 |
 | `cordis.patch.yml` | 往 profile 插入 `ui-ultra-effort` 行 |
-| `build/patch-client.ps1` | 重新打皮肤补丁时用的脚本（保留可复现） |
+| `build/apply-v2.ps1` | V2 结构改造脚本（在 forked bundle 上可重放） |
+| `build/patch-client.ps1` | V1 皮肤补丁脚本（历史） |
 | `LICENSE` | 上游 MIT 许可证 |
 
 ## 安装

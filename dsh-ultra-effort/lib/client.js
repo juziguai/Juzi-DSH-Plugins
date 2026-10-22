@@ -62,23 +62,83 @@ window.__ModuleLoader__.load({
 		];
 		/** Dictionary namespace owned by this plugin. */
 		/** Ultra skin: purple gradient track, sparkles, Ultra title. Visual only. */
-		const ULTRA_CSS = `
-.jz-titleRow{position:relative;justify-content:center;align-items:center;gap:8px;}.sk5-effort .sk5-help{display:none;}.sk5-effort .sk5-effortValue{position:absolute;right:10px;top:4px;font-size:12px;color:#8b5cf6!important;background:rgba(139,92,246,.12);border-radius:999px;padding:1px 8px;}
-.jz-ultra{display:inline-flex;align-items:center;gap:6px;font-size:20px;font-weight:700;letter-spacing:.2px;background:linear-gradient(92deg,#5b21b6 0%,#8b5cf6 45%,#4f46e5 100%);-webkit-background-clip:text;background-clip:text;color:transparent!important;}
-.jz-bolt{width:15px;height:15px;fill:#8b5cf6;flex:none;}
-.jz-sub{margin:-2px 0 10px;text-align:center;width:100%;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,rgba(0,0,0,.55));}
-.sk5-effort .sk5-effortValue{color:#7c3aed!important;font-weight:600;}
-.sk5-track{position:relative;background:linear-gradient(90deg,#ede9fe 0%,#ddd6fe 100%)!important;border-radius:999px!important;}
-.sk5-track::after{content:"";position:absolute;inset:0;border-radius:999px;pointer-events:none;background-image:radial-gradient(circle at 16% 34%,rgba(255,255,255,.95) 0 1.1px,transparent 1.7px),radial-gradient(circle at 31% 63%,rgba(255,255,255,.85) 0 1px,transparent 1.6px),radial-gradient(circle at 45% 29%,rgba(255,255,255,.9) 0 1.2px,transparent 1.8px),radial-gradient(circle at 59% 60%,rgba(255,255,255,.8) 0 1px,transparent 1.6px),radial-gradient(circle at 72% 36%,rgba(255,255,255,.95) 0 1.1px,transparent 1.7px),radial-gradient(circle at 85% 58%,rgba(255,255,255,.85) 0 1px,transparent 1.6px);animation:jz-twinkle 2.6s ease-in-out infinite;}
-@keyframes jz-twinkle{0%,100%{opacity:.5}50%{opacity:1}}
-.sk5-fill{background:linear-gradient(90deg,#4f46e5 0%,#7c3aed 45%,#a855f7 100%)!important;border-radius:999px!important;box-shadow:0 0 10px rgba(139,92,246,.45);}
-.sk5-handle{background:#fff!important;box-shadow:0 2px 8px rgba(76,29,149,.32),0 0 0 1px rgba(124,58,237,.10)!important;}
-.sk5-handleMax{box-shadow:0 0 0 6px rgba(168,85,247,.16),0 2px 12px rgba(124,58,237,.5)!important;}
-.sk5-dot{background:#fff!important;opacity:.8;}
-.sk5-matrix{display:none!important;}
-.sk5-track:has(.sk5-handleMax){background:linear-gradient(90deg,#4f46e5 0%,#7c3aed 45%,#a855f7 100%)!important;}
-.sk5-track:has(.sk5-handleMax) .sk5-fill{opacity:0!important;}
-.sk5-handle,.sk5-handleMax{width:20px!important;height:20px!important;border-radius:50%!important;}
+				const ULTRA_CSS = `
+/* ── Ultra 面板 V2 ───────────────────────────────────────────── */
+.sk5-drop.sk5-effort.ue-panel{width:342px;padding:16px 16px 14px;border-radius:18px;border:1px solid rgba(15,23,42,.07);background:var(--dsw-alias-bg-elevated,#fff);box-shadow:0 18px 44px rgba(15,23,42,.14),0 2px 8px rgba(15,23,42,.06);}
+.ue-head{display:grid;grid-template-columns:28px minmax(0,1fr) 28px;align-items:center;gap:8px;margin-bottom:16px;}
+.ue-bolt{display:flex;align-items:center;justify-content:center;width:28px;height:28px;color:#7c3aed;}
+.ue-bolt svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;}
+.ue-center{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;}
+.ue-ultra{font-size:24px;line-height:1.15;font-weight:700;letter-spacing:.2px;background:linear-gradient(92deg,#6d28d9 0%,#a855f7 55%,#7c3aed 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.ue-model{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:2px 7px;border:0;border-radius:8px;background:transparent;color:var(--dsw-alias-label-primary,#0f172a);font-size:15px;line-height:20px;cursor:pointer;transition:background .15s ease;}
+.ue-model:hover{background:rgba(124,58,237,.08);}
+.ue-model:focus-visible{outline:2px solid rgba(124,58,237,.5);outline-offset:2px;}
+.ue-model[disabled]{opacity:.5;cursor:default;}
+.ue-modelName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+.ue-chev{width:13px;height:13px;flex:none;opacity:.5;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease;}
+.ue-modelOpen .ue-chev{transform:rotate(90deg);}
+.ue-reset{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:0;border-radius:999px;background:transparent;color:rgba(15,23,42,.45);cursor:pointer;transition:background .15s ease,color .15s ease,transform .15s ease,opacity .15s ease;}
+.ue-reset:hover{background:rgba(15,23,42,.06);color:rgba(15,23,42,.72);}
+.ue-reset:active{transform:scale(.9);}
+.ue-reset:focus-visible{outline:2px solid rgba(124,58,237,.5);outline-offset:2px;}
+.ue-reset[disabled]{opacity:.35;cursor:default;}
+.ue-resetIdle{opacity:.5;}
+.ue-resetFlash{background:rgba(124,58,237,.16);color:#7c3aed;}
+.ue-reset svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;}
+/* 轨道 */
+.ue-labelsRow{display:flex;justify-content:space-between;margin:0 2px 8px;font-size:12px;line-height:16px;color:var(--dsw-alias-label-secondary,rgba(15,23,42,.55));}
+.ue-track{position:relative;border-radius:999px;background:linear-gradient(90deg,#ece9ff 0%,#e4defb 100%);cursor:pointer;touch-action:none;outline:none;overflow:hidden;isolation:isolate;}
+.ue-track:focus-visible{box-shadow:0 0 0 3px rgba(124,58,237,.26);}
+.ue-trackMax{background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;}
+.ue-fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#3b34c9 0%,#6f4ff2 46%,#a855f7 100%)!important;transition:width .12s linear;z-index:1;}
+.ue-trackMax .ue-fill{opacity:0!important;}
+/* 粒子层 */
+.ue-particles{position:absolute;inset:0;border-radius:999px;overflow:hidden;pointer-events:none;z-index:2;}
+.ue-particles i{position:absolute;width:3px;height:3px;border-radius:50%;background:radial-gradient(circle,#fff 0%,rgba(255,255,255,.85) 55%,rgba(255,255,255,0) 100%);filter:blur(.3px);opacity:.55;animation:ue-twinkle 3.4s ease-in-out infinite;}
+.ue-particles i:nth-child(1){left:5%;top:34%;animation-delay:-.2s}
+.ue-particles i:nth-child(2){left:13%;top:62%;width:2px;height:2px;animation-delay:-1.1s}
+.ue-particles i:nth-child(3){left:21%;top:42%;animation-delay:-2.3s}
+.ue-particles i:nth-child(4){left:30%;top:66%;width:2px;height:2px;animation-delay:-.7s}
+.ue-particles i:nth-child(5){left:38%;top:30%;animation-delay:-1.8s}
+.ue-particles i:nth-child(6){left:47%;top:58%;width:2px;height:2px;animation-delay:-2.9s}
+.ue-particles i:nth-child(7){left:56%;top:38%;animation-delay:-.4s}
+.ue-particles i:nth-child(8){left:65%;top:64%;width:2px;height:2px;animation-delay:-1.5s}
+.ue-particles i:nth-child(9){left:74%;top:34%;animation-delay:-2.6s}
+.ue-particles i:nth-child(10){left:82%;top:60%;width:2px;height:2px;animation-delay:-.9s}
+.ue-particles i:nth-child(11){left:89%;top:40%;animation-delay:-2s}
+.ue-particles i:nth-child(12){left:95%;top:64%;width:2px;height:2px;animation-delay:-1.3s}
+@keyframes ue-twinkle{0%,100%{opacity:.22;transform:translateY(0) scale(.85)}50%{opacity:.95;transform:translateY(-1px) scale(1.18)}}
+/* 手柄 */
+.ue-handle{position:absolute;top:50%;width:20px;height:20px;margin-top:-10px;margin-left:-10px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(15,23,42,.28);z-index:4;transition:transform .16s ease,box-shadow .16s ease;}
+.ue-handle:hover{transform:scale(1.04);}
+.ue-trackMoving .ue-handle{transform:scale(1.14);box-shadow:0 4px 16px rgba(80,60,200,.45);}
+.ue-trackMax .ue-handle{box-shadow:0 0 0 6px rgba(168,85,247,.18),0 3px 12px rgba(90,40,200,.5);}
+/* 终点动画：手柄弹跳 + 右侧光晕 + 粒子增亮 */
+.ue-burst .ue-handle{animation:ue-pop .26s cubic-bezier(.34,1.56,.64,1);}
+.ue-burst{box-shadow:0 0 0 2px rgba(168,85,247,.35),0 0 20px rgba(139,92,246,.55);}
+.ue-burst::after{content:"";position:absolute;top:-40%;right:-8%;width:66%;height:180%;background:radial-gradient(circle at 68% 50%,rgba(168,85,247,.78) 0%,rgba(139,92,246,.42) 38%,rgba(168,85,247,0) 72%);pointer-events:none;z-index:3;animation:ue-glow .52s ease-out;}
+.ue-burst .ue-particles i{animation:ue-boost .62s ease-out;}
+@keyframes ue-pop{0%{transform:scale(1)}45%{transform:scale(1.28)}100%{transform:scale(1)}}
+@keyframes ue-glow{0%{opacity:0;transform:translateX(14%) scale(.92)}35%{opacity:1}100%{opacity:0;transform:translateX(-8%) scale(1.06)}}
+@keyframes ue-boost{0%,100%{opacity:.4}40%{opacity:1;filter:blur(0) brightness(1.7)}}
+/* 模型菜单（面板内） */
+.ue-models{margin:-2px -4px 0;padding:0 4px;max-height:320px;overflow-y:auto;overscroll-behavior:contain;}
+.ue-modelsTitle{margin:2px 2px 6px;font-size:12px;line-height:16px;color:rgba(15,23,42,.5);}
+.ue-group{margin-top:6px;}
+.ue-groupName{margin:8px 2px 4px;font-size:11px;line-height:14px;letter-spacing:.06em;text-transform:uppercase;color:rgba(15,23,42,.42);}
+.ue-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:8px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .12s ease;}
+.ue-row:hover{background:rgba(15,23,42,.05);}
+.ue-row:focus-visible{outline:2px solid rgba(124,58,237,.5);outline-offset:-2px;}
+.ue-rowActive{background:rgba(124,58,237,.09);}
+.ue-rowText{display:flex;flex-direction:column;min-width:0;}
+.ue-rowName{font-size:14px;line-height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ue-rowDesc{margin-top:1px;font-size:11px;line-height:15px;color:rgba(15,23,42,.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ue-check{flex:none;color:#7c3aed;font-size:14px;line-height:1;}
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce){
+.ue-particles i,.ue-burst .ue-handle,.ue-burst::after,.ue-burst .ue-particles i,.ue-fill,.ue-handle{animation:none!important;transition:none!important;}
+.ue-trackMax .ue-handle{box-shadow:0 0 0 3px rgba(168,85,247,.35),0 2px 8px rgba(90,40,200,.4);}
+}
 `;		const NS = "ui-skin-switcher";
 		/** Plugin-owned copy: `zh` is the key-set source of truth, `en` mirrors it. */
 		const DICTS = {
@@ -312,6 +372,12 @@ window.__ModuleLoader__.load({
 				const busyRef = react.useRef(false);
 				const pendingRef = react.useRef(null);
 				const [settledIdx, setSettledIdx] = react.useState(null);
+				/** V2: 面板内视图（effort | model）、终点动画、重置反馈。 */
+				const [panelView, setPanelView] = react.useState("effort");
+				const [burst, setBurst] = react.useState(false);
+				const [resetFlash, setResetFlash] = react.useState(false);
+				const burstRef = react.useRef(false);
+				const resetTimerRef = react.useRef(null);
 				/** This session's shared directory — the official selector's own data source. */
 				const directory = react.useMemo(() => directoryOf(sessionId), [sessionId]);
 				const state = react.useSyncExternalStore(react.useCallback((listener) => directory === null ? () => {} : directory.store.subscribe(listener), [directory]), react.useCallback(() => directory === null ? NO_DIRECTORY_STATE : directory.store.getSnapshot(), [directory]));
@@ -334,6 +400,14 @@ window.__ModuleLoader__.load({
 					document.addEventListener("mousedown", handler);
 					return () => document.removeEventListener("mousedown", handler);
 				}, [menu]);
+				react.useEffect(() => {
+					if (menu !== "effort") {
+						setPanelView("effort");
+					}
+				}, [menu]);
+				react.useEffect(() => () => {
+					if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
+				}, []);
 				react.useEffect(() => {
 					if (menu !== "effort") return;
 					const measure = () => {
@@ -459,7 +533,21 @@ window.__ModuleLoader__.load({
 					current?.provider,
 					current?.model
 				]);
-				const inMax = choices.length > 1 && safeDisplayIdx === choices.length - 1;
+				/** V2: 端点状态跟随交互位置（hover/drag），而不是等待提交回写后的显示位置。 */
+				const inMax = choices.length > 1 && safePosIdx === choices.length - 1;
+				/** 端点动画：仅在“首次进入终点”时触发一次，离开后复位可重播。 */
+				react.useEffect(() => {
+					if (!inMax) {
+						burstRef.current = false;
+						setBurst(false);
+						return;
+					}
+					if (burstRef.current) return;
+					burstRef.current = true;
+					setBurst(true);
+					const id = setTimeout(() => setBurst(false), 680);
+					return () => clearTimeout(id);
+				}, [inMax]);
 				const matrixVisible = inMax && atMaxPos;
 				const posPct = choices.length > 1 ? posIdx / (choices.length - 1) * 100 : 0;
 				const matrixCells = react.useMemo(() => {
@@ -604,6 +692,29 @@ window.__ModuleLoader__.load({
 						...effort === void 0 ? {} : { reasoningEffort: effort }
 					}, true);
 				};
+				/** 当前模型的默认推理程度；undefined 表示“默认档”。 */
+				const defaultEffort = reasoning !== void 0 ? reasoning.defaultEffort : void 0;
+				const atDefaultEffort = effectiveEffort === defaultEffort;
+				const onReset = () => {
+					if (current === null || reasoning === void 0) return;
+					setResetFlash(true);
+					if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
+					resetTimerRef.current = setTimeout(() => setResetFlash(false), 260);
+					if (effectiveEffort !== defaultEffort) onPickEffort(defaultEffort);
+				};
+				/** 滑杆键盘控制：方向键逐档、Home/End 到两端。 */
+				const onTrackKeyDown = (ev) => {
+					if (choices.length < 2) return;
+					let next = null;
+					if (ev.key === "ArrowRight" || ev.key === "ArrowUp") next = Math.min(choices.length - 1, safePosIdx + 1);
+					else if (ev.key === "ArrowLeft" || ev.key === "ArrowDown") next = Math.max(0, safePosIdx - 1);
+					else if (ev.key === "Home") next = 0;
+					else if (ev.key === "End") next = choices.length - 1;
+					else return;
+					ev.preventDefault();
+					setHoverIdx(next);
+					onPickEffort(choices[next].effort);
+				};
 				const idxFromEvent = (ev) => {
 					const el = trackRef.current;
 					if (el === null || choices.length < 2) return 0;
@@ -691,67 +802,74 @@ window.__ModuleLoader__.load({
 						onClick: () => onPickModel(m, g)
 					}, react.createElement("span", { style: { minWidth: 0 } }, react.createElement("div", null, m.name), m.description !== void 0 ? react.createElement("div", { className: "sk5-rowDesc" }, m.description) : null), active ? react.createElement("span", { className: "sk5-check" }, "✓") : null);
 				}))) : null)) : null, menu === "effort" ? react.createElement("div", {
-					className: "sk5-drop sk5-effort",
+					className: "sk5-drop sk5-effort ue-panel",
 					role: "menu",
 					"aria-label": tr("effort.title")
-				}, react.createElement("div", { className: "sk5-titleRow" }, react.createElement("span", { className: "sk5-effortLabel jz-ultra" }, react.createElement("svg", { className: "jz-bolt", viewBox: "0 0 24 24", "aria-hidden": "true" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" })), "Ultra"), react.createElement("span", {
-					ref: effortValueRef,
-					key: displayLabel,
-					className: "sk5-effortValue" + (choices.length > 1 && inMax ? " sk5-effortValueMax" : ""),
-					style: { animation: "sk5-nameBlur .28s ease" }
-				}, displayLabel), react.createElement("div", { className: "sk5-help" }, react.createElement("button", {
+				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", { className: "ue-bolt", "aria-hidden": "true" }, react.createElement("svg", {
+					viewBox: "0 0 24 24"
+				}, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-ultra" }, "Ultra"), react.createElement("button", {
 					type: "button",
-					className: "sk5-helpBtn",
-					"aria-label": tr("help.aria")
-				}, react.createElement("svg", {
-					className: "sk5-helpRing",
+					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : ""),
+					disabled: locked || busy,
+					title: triggerTitle,
+					"aria-haspopup": "listbox",
+					"aria-expanded": panelView === "model",
+					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
+				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("svg", {
+					className: "ue-chev",
 					viewBox: "0 0 16 16",
 					"aria-hidden": "true"
-				}, react.createElement("circle", {
-					cx: 8,
-					cy: 8,
-					r: 7.35,
-					fill: "none",
-					stroke: "currentColor",
-					strokeWidth: .75
-				})), react.createElement("span", { className: "sk5-helpQ" }, "?")), react.createElement("div", { className: "sk5-helpTip" }, react.createElement("div", { className: "sk5-helpTitle" }, tr("effort.title")), react.createElement("div", { className: "sk5-helpText" }, tr("help.text"))))), react.createElement("div", { className: "jz-sub" }, "使用额度消耗更快"), react.createElement("div", { className: "sk5-labelsRow" }, react.createElement("span", { className: "sk5-endLabel" }, "Faster"), react.createElement("span", { className: "sk5-endLabel" }, "Smarter")), react.createElement("div", {
+				}, react.createElement("path", { d: "M6 3.5 10.5 8 6 12.5" })))), react.createElement("button", {
+					type: "button",
+					className: "ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetIdle" : ""),
+					title: "重置为默认",
+					"aria-label": "重置为默认推理程度",
+					disabled: locked || busy || current === null || reasoning === void 0,
+					onClick: onReset
+				}, react.createElement("svg", {
+					viewBox: "0 0 16 16",
+					"aria-hidden": "true"
+				}, react.createElement("path", { d: "M13.2 6.2A5.6 5.6 0 1 0 13.4 9.4" }), react.createElement("path", { d: "M13.6 2.4v4h-4" })))), panelView === "model" ? react.createElement("div", {
+					className: "ue-models",
+					role: "listbox",
+					"aria-label": tr("trigger.selectModel")
+				}, react.createElement("div", { className: "ue-modelsTitle" }, tr("trigger.selectModel")), !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", {
+					key: g.id,
+					className: "ue-group"
+				}, react.createElement("div", { className: "ue-groupName" }, g.name), g.models.map((m) => {
+					const isCur = current !== null && current.provider === g.id && current.model === m.id;
+					return react.createElement("button", {
+						key: m.id,
+						type: "button",
+						role: "option",
+						"aria-selected": isCur,
+						className: "ue-row" + (isCur ? " ue-rowActive" : ""),
+						disabled: busy,
+						onClick: () => {
+							onPickModel(m, g);
+							setPanelView("effort");
+						}
+					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, m.name), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
+				}))) : null) : react.createElement(react.Fragment, null, react.createElement("div", { className: "ue-labelsRow" }, react.createElement("span", { className: "ue-endLabel" }, "Faster"), react.createElement("span", { className: "ue-endLabel" }, "Smarter")), react.createElement("div", {
 					ref: trackRef,
-					className: "sk5-track",
+					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (burst ? " ue-burst" : "") + (moving ? " ue-trackMoving" : ""),
+					role: "slider",
+					tabIndex: 0,
+					"aria-label": tr("effort.title"),
+					"aria-valuemin": 0,
+					"aria-valuemax": Math.max(0, choices.length - 1),
+					"aria-valuenow": safePosIdx,
+					"aria-valuetext": displayLabel,
 					style: grid === null ? void 0 : { height: grid.trackHeight + "px" },
-					onPointerDown: onTrackDown
-				}, react.createElement("div", {
-					className: "sk5-fill" + (posPct > 96 ? " sk5-fillEnd" : ""),
+					onPointerDown: onTrackDown,
+					onKeyDown: onTrackKeyDown
+				}, react.createElement("span", { className: "ue-particles", "aria-hidden": "true" }, react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null)), react.createElement("div", {
+					className: "sk5-fill ue-fill",
 					style: {
 						width: fillWidth,
-						background: fillSolid,
 						opacity: fillHidden ? 0 : 1
 					}
-				}), matrixVisible && grid !== null ? react.createElement("div", {
-					className: "sk5-matrix",
-					style: {
-						gridTemplateColumns: "repeat(" + grid.c + "," + grid.sq + "px)",
-						gridTemplateRows: "repeat(" + grid.r + "," + grid.sq + "px)",
-						gap: grid.gap + "px",
-						padding: grid.padTop + "px " + grid.padRight + "px " + grid.padBottom + "px " + grid.padLeft + "px",
-						justifyContent: "start",
-						alignContent: "start"
-					}
-				}, matrixCells.map((sq) => react.createElement("div", {
-					key: sq.key,
-					className: "sk5-cell",
-					style: { animationDelay: sq.appearDelay }
-				}, react.createElement("div", {
-					className: "sk5-sq",
-					style: {
-						background: "var(--dsw-static-deepseek-500)",
-						opacity: sq.fade,
-						animationDelay: sq.animationDelay,
-						animationDuration: sq.flashDuration,
-						borderRadius: grid.radius + "px",
-						"--flash-light": sq.flashLight,
-						"--flash-deep": sq.flashDeep
-					}
-				})))) : null, !inMax ? choices.map((c, i) => react.createElement("span", {
+				}), !inMax ? choices.map((c, i) => react.createElement("span", {
 					key: c.key,
 					className: "sk5-dotHit",
 					style: { left: dotLeftSnapped(i) }
@@ -762,16 +880,11 @@ window.__ModuleLoader__.load({
 					className: "sk5-dotShape",
 					viewBox: "0 0 4 4",
 					"aria-hidden": "true"
-				}, react.createElement("circle", {
-					cx: 2,
-					cy: 2,
-					r: 2,
-					fill: "currentColor"
-				}))))) : null, react.createElement("div", {
-					className: "sk5-handle" + (inMax ? " sk5-handleMax" : "") + (moving ? " sk5-handleMoving" : ""),
+				}, react.createElement("circle", { cx: 2, cy: 2, r: 2, fill: "currentColor" }))))) : null, react.createElement("div", {
+					className: "sk5-handle ue-handle" + (inMax ? " sk5-handleMax" : "") + (moving ? " sk5-handleMoving" : ""),
 					style: { left: handleLeft },
 					onPointerDown: () => setMoving(true)
-				})), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null) : null);
+				})), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null)) : null);
 			}));
 		}
 		//#endregion

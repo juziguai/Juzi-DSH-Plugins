@@ -1,0 +1,84 @@
+menu === "effort" ? react.createElement("div", {
+					className: "sk5-drop sk5-effort ue-panel",
+					role: "menu",
+					"aria-label": tr("effort.title")
+				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", { className: "ue-bolt", "aria-hidden": "true" }, react.createElement("svg", {
+					viewBox: "0 0 24 24"
+				}, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-ultra" }, "Ultra"), react.createElement("button", {
+					type: "button",
+					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : ""),
+					disabled: locked || busy,
+					title: triggerTitle,
+					"aria-haspopup": "listbox",
+					"aria-expanded": panelView === "model",
+					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
+				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("svg", {
+					className: "ue-chev",
+					viewBox: "0 0 16 16",
+					"aria-hidden": "true"
+				}, react.createElement("path", { d: "M6 3.5 10.5 8 6 12.5" })))), react.createElement("button", {
+					type: "button",
+					className: "ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetIdle" : ""),
+					title: "重置为默认",
+					"aria-label": "重置为默认推理程度",
+					disabled: locked || busy || current === null || reasoning === void 0,
+					onClick: onReset
+				}, react.createElement("svg", {
+					viewBox: "0 0 16 16",
+					"aria-hidden": "true"
+				}, react.createElement("path", { d: "M13.2 6.2A5.6 5.6 0 1 0 13.4 9.4" }), react.createElement("path", { d: "M13.6 2.4v4h-4" })))), panelView === "model" ? react.createElement("div", {
+					className: "ue-models",
+					role: "listbox",
+					"aria-label": tr("trigger.selectModel")
+				}, react.createElement("div", { className: "ue-modelsTitle" }, tr("trigger.selectModel")), !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", {
+					key: g.id,
+					className: "ue-group"
+				}, react.createElement("div", { className: "ue-groupName" }, g.name), g.models.map((m) => {
+					const isCur = current !== null && current.provider === g.id && current.model === m.id;
+					return react.createElement("button", {
+						key: m.id,
+						type: "button",
+						role: "option",
+						"aria-selected": isCur,
+						className: "ue-row" + (isCur ? " ue-rowActive" : ""),
+						disabled: busy,
+						onClick: () => {
+							onPickModel(m, g);
+							setPanelView("effort");
+						}
+					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, m.name), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
+				}))) : null) : react.createElement(React.Fragment, null, react.createElement("div", { className: "ue-labelsRow" }, react.createElement("span", { className: "ue-endLabel" }, "Faster"), react.createElement("span", { className: "ue-endLabel" }, "Smarter")), react.createElement("div", {
+					ref: trackRef,
+					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (burst ? " ue-burst" : "") + (moving ? " ue-trackMoving" : ""),
+					role: "slider",
+					tabIndex: 0,
+					"aria-label": tr("effort.title"),
+					"aria-valuemin": 0,
+					"aria-valuemax": Math.max(0, choices.length - 1),
+					"aria-valuenow": safePosIdx,
+					"aria-valuetext": displayLabel,
+					style: grid === null ? void 0 : { height: grid.trackHeight + "px" },
+					onPointerDown: onTrackDown,
+					onKeyDown: onTrackKeyDown
+				}, react.createElement("span", { className: "ue-particles", "aria-hidden": "true" }, react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null), react.createElement("i", null)), react.createElement("div", {
+					className: "sk5-fill ue-fill",
+					style: {
+						width: fillWidth,
+						opacity: fillHidden ? 0 : 1
+					}
+				}), !inMax ? choices.map((c, i) => react.createElement("span", {
+					key: c.key,
+					className: "sk5-dotHit",
+					style: { left: dotLeftSnapped(i) }
+				}, react.createElement("span", {
+					className: "sk5-dot" + (i === choices.length - 1 ? " sk5-dotMax" : ""),
+					style: { marginTop: dotTopSnapped }
+				}, react.createElement("svg", {
+					className: "sk5-dotShape",
+					viewBox: "0 0 4 4",
+					"aria-hidden": "true"
+				}, react.createElement("circle", { cx: 2, cy: 2, r: 2, fill: "currentColor" }))))) : null, react.createElement("div", {
+					className: "sk5-handle ue-handle" + (inMax ? " sk5-handleMax" : "") + (moving ? " sk5-handleMoving" : ""),
+					style: { left: handleLeft },
+					onPointerDown: () => setMoving(true)
+				})), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null)) : null);
