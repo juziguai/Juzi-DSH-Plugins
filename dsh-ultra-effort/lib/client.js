@@ -81,7 +81,7 @@ window.__ModuleLoader__.load({
 /* 档位配色 */
 .sk5-root .ue-lv-max{color:var(--ue-purple);}
 .sk5-root .ue-lv-norm{color:var(--ue-blue);}
-.sk5-root .ue-lv-def{color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 45%,transparent);}
+.sk5-root .ue-lv-def{color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);}
 .sk5-root .ue-lv-text{color:var(--dsw-alias-label-primary,#0f172a);}
 .sk5-root .ue-resetHidden{visibility:hidden;pointer-events:none;}
 /* 面板 */
@@ -98,8 +98,8 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-model:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:1px;}
 .sk5-root .ue-modelName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sk5-root .ue-modelChev{flex:none;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.5;transition:transform .18s var(--ue-motion);}
-.sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--ue-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease;}
-.sk5-root .ue-icon:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}
+.sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 45%,transparent);cursor:pointer;transition:background .12s ease,color .12s ease;}
+.sk5-root .ue-icon:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 60%,transparent);}
 .sk5-root .ue-icon:active{transform:translateY(-50%) scale(.94);}
 .sk5-root .ue-icon:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:1px;}
 .sk5-root .ue-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
@@ -168,7 +168,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 85%,transparent);outline-offset:1px;}
 .sk5-root:not(.ue-kb) .ue-track:focus-visible .ue-handle{outline:none;}
 /* 端点标签：按住 150ms 才出现 */
-.sk5-root .ue-labels{position:absolute;left:8px;right:8px;bottom:2px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;opacity:0;transition:opacity .15s var(--ue-motion);font-size:11px;line-height:14px;color:var(--ue-tertiary);z-index:6;}
+.sk5-root .ue-labels{position:absolute;left:8px;right:8px;bottom:2px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;opacity:0;transition:opacity .15s var(--ue-motion);font-size:11px;line-height:14px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);z-index:6;}
 .sk5-root .ue-labels.ue-labelsOn{opacity:1;}
 .sk5-root .ue-model.ue-modelHidden{opacity:0;pointer-events:none;}
 .sk5-root .ue-model{transition:opacity .15s var(--ue-motion),background .12s ease;}
