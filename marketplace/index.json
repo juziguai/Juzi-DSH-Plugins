@@ -51,15 +51,15 @@
       },
       "versions": [
         {
-          "version": "0.1.1",
-          "publishTimestamp": 1792761732,
+          "version": "0.1.2",
+          "publishTimestamp": 1792762519,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "efd40cc1e54b041e81cc408ed2f94dc28e70563e",
+            "commit": "a368f401c9e0d9e1cb2223a5fa52d3bb74c0dbb5",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -71,8 +71,8 @@
         "zh-cn": "模型版本角标"
       },
       "description": {
-        "en": "Bundled model snapshot-date badges. Disable the official 1017 label plugin before enabling this replacement.",
-        "zh-cn": "使用随包提供的模型版本表显示快照日期。启用前需停用官方 1017 角标，避免独占插槽冲突。"
+        "en": "Model snapshot-date badges for the official selector and Ultra Effort 0.1.2+.",
+        "zh-cn": "为官方模型菜单与 Ultra Effort 0.1.2+ 显示快照日期角标。"
       },
       "author": "Juzi",
       "metadata": {
@@ -91,15 +91,15 @@
       },
       "versions": [
         {
-          "version": "0.1.0",
-          "publishTimestamp": 1792761732,
+          "version": "0.1.1",
+          "publishTimestamp": 1792762519,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "efd40cc1e54b041e81cc408ed2f94dc28e70563e",
+            "commit": "a368f401c9e0d9e1cb2223a5fa52d3bb74c0dbb5",
             "path": "plugins/dsh-model-version-badge"
           }
         }
@@ -133,14 +133,14 @@
       "versions": [
         {
           "version": "1.1.1",
-          "publishTimestamp": 1792761732,
+          "publishTimestamp": 1792762519,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "efd40cc1e54b041e81cc408ed2f94dc28e70563e",
+            "commit": "a368f401c9e0d9e1cb2223a5fa52d3bb74c0dbb5",
             "path": "plugins/dsh-deepseek-tools"
           }
         }
