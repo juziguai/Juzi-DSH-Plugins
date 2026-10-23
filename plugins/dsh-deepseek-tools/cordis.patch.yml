@@ -1,0 +1,5 @@
+- insert:
+    - id: juzi-deepseek-tools
+      name: '@juzi/dsh-deepseek-tools'
+      config:
+        python: python

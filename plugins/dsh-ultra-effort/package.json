@@ -28,5 +28,11 @@
       "platform": "web"
     }
   },
-  "license": "MIT"
+  "license": "MIT",
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ]
 }

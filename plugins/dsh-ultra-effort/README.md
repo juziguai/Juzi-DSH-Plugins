@@ -46,8 +46,8 @@ Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-
 | `lib/client.js` | 浏览器半身：座位 UI + 面板 + 滑块 + 动画 |
 | `package.json` | `dsh.bundle.patch` + `dsh.client.inject` 声明 |
 | `cordis.patch.yml` | 往 profile 插入 `ui-ultra-effort` 行 |
-| `build/apply-v2.ps1` | V2 结构改造脚本（在 forked bundle 上可重放） |
-| `build/patch-client.ps1` | V1 皮肤补丁脚本（历史） |
+| `archive/legacy-patches/apply-v2.ps1` | V2 结构改造脚本（历史记录，不作为构建入口） |
+| `archive/legacy-patches/patch-client.ps1` | V1 皮肤补丁脚本（历史） |
 | `LICENSE` | 上游 MIT 许可证 |
 
 ## 安装
@@ -55,13 +55,13 @@ Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-
 本地路径安装（profile 已配好，一般不需要再执行）：
 
 ```powershell
-dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DeepSeek-Tools\dsh-ultra-effort"
+dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-ultra-effort"
 ```
 
 桌面端 profile 走 `link:` 依赖：
 
 ```json
-"@juzi/dsh-ultra-effort": "link:D:/Tools/AI/Juzi-Skill/Juzi-DeepSeek-Tools/dsh-ultra-effort"
+"@juzi/dsh-ultra-effort": "link:D:/Tools/AI/Juzi-Skill/Juzi-DSH-Plugins/plugins/dsh-ultra-effort"
 ```
 
 并把 `@juzi/dsh-ultra-effort` 加进 `dsh.profile.bundles`，然后
@@ -77,3 +77,7 @@ dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DeepSeek-Tools\dsh-ult
 - 只在模型声明了 `reasoningEfforts` 时出现强度滑块；没声明就只显示模型按钮。
 - 与上游一样以 `priority: -1` 注册到 `conversation.input.model`，同一 profile 里不要同时启用
   `@domitor-syh/dsh-ui-skin-switcher`，否则两个座位会抢同一个槽位。
+
+## 维护入口
+
+当前可维护实现是 `lib/client.js`。`archive/legacy-patches/` 仅保留历史材料，禁止按版本依次重放；它们依赖当时的代码和路径，不能构建当前版本。

@@ -1,0 +1,11 @@
+# Bundle layer contributed by @juzi/dsh-model-version-badge.
+# Replaces the fixed "1017" label with a structured snapshot-date badge,
+# using the official model versions published on:
+#   https://api-docs.deepseek.com/zh-cn/quick_start/pricing
+#
+# The official @deepseek-ai/dsh-client-ui-deepseek-model-label-1017 plugin must be
+# disabled in the profile patch, because conversation.input.model.label is a
+# single-occupancy slot. See README.md for details.
+- insert:
+    - id: ui-model-version-badge
+      name: '@juzi/dsh-model-version-badge'

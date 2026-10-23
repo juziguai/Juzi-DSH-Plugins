@@ -1,19 +1,18 @@
+# Dependencies and generated caches
+node_modules/
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 venv/
-
-# 本地计数与锁文件（真实路径在 ~/.claude，这里只是防误提交）
+# Local task state, secrets and runtime data
+.codex/
+.env
+.env.*
+!.env.example
 deepseek-tools-usage.json
-*.lock
 *.tmp
-
-# dsh-ultra-effort 开发文档/规格/验收截图（本地保留，不入库）；README 在插件根目录，仍入库
-dsh-ultra-effort/docs/
-# 插件备份文件
 *.bak*
-
-# client.js 版本备份（本地留档，不入库）
-dsh-ultra-effort/lib/*.bak-*
-dsh-ultra-effort/build/apply-v1[2-9]*.ps1
+# Historical local artifacts; source patches already tracked remain preserved
+plugins/dsh-ultra-effort/docs/
+plugins/dsh-ultra-effort/archive/legacy-patches/apply-v1[2-9]*.ps1
