@@ -326,9 +326,15 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 			ctx.slots.inject("conversation.input.model", () => ctx.slots.register({
 				name: "conversation.input.model",
 				priority: -1,
-				locale: NS
+				locale: NS,
+				children: { "conversation.input.model.label": { kind: "single", scope: "session", inline: true } }
 			}, (props) => {
-				const { locked, sessionId, t } = props;
+				const { locked, sessionId, t, renderSlot } = props;
+				const renderModelLabel = (group, model, placement, selected) => renderSlot(
+					"conversation.input.model.label",
+					{ provider: { id: group.id, name: providerLabel(group) }, model, placement, selected },
+					{ fallback: model.name }
+				);
 				/**
 				* Read one dictionary key through the framework-injected `t` seat; the
 				* Chinese table backs a host that shipped no locale service.
@@ -960,7 +966,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 						if (menu === "effort") { requestClose(); return; }
 						setMenu("effort");
 					}
-				}, react.createElement("span", { className: "ue-triggerModel" }, modelLabel), react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel), react.createElement("svg", {
+				}, react.createElement("span", { className: "ue-triggerModel" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel, "trigger", true)), react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel), react.createElement("svg", {
 					className: "ue-triggerChev",
 					viewBox: "0 0 16 16",
 					"aria-hidden": "true"
@@ -991,7 +997,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					"aria-haspopup": "listbox",
 					"aria-expanded": panelView === "model",
 					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
-				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("svg", { className: "ue-modelChev", viewBox: "0 0 16 16", "aria-hidden": "true" }, react.createElement("path", { d: "M4 6l4 4 4-4" })))), react.createElement("button", {
+				}, react.createElement("span", { className: "ue-modelName" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel, "menu", true)), react.createElement("svg", { className: "ue-modelChev", viewBox: "0 0 16 16", "aria-hidden": "true" }, react.createElement("path", { d: "M4 6l4 4 4-4" })))), react.createElement("button", {
 					type: "button",
 					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetHidden" : ""),
 					"aria-hidden": atDefaultEffort ? "true" : void 0,
@@ -1021,7 +1027,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 							onPickModel(m, g);
 							setPanelView("effort");
 						}
-					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, m.name), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
+					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, renderModelLabel(g, m, "option", isCur)), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
 				}))) : null) : react.createElement("div", { className: "ue-sliderArea" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("div", { className: "ue-sliderRow" }, react.createElement("div", {
 					ref: trackRef,
 					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (moving ? " ue-moving" : "") + (burst ? " ue-burst" : "") + (showLabels ? " ue-labelsOn" : ""),

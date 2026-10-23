@@ -3,6 +3,10 @@
 给 DeepSeek Harness（DSH）输入框做的「Ultra 推理档位」控件：把模型选择 + 思考强度做成
 一枚座位，强度面板是紫色渐变轨道 + 星点动画 + "Ultra" 标题，副标题提示"使用额度消耗更快"。
 
+## 模型版本角标
+
+Ultra 0.1.1 在输入框、面板标题和模型选项中使用官方 `conversation.input.model.label` 插槽。安装并启用 Model Version Badge 后显示日期角标；没有标签插件时保留模型名称。若已安装 Ultra 0.1.0，需要更新 Ultra 才能生效，单独重装角标插件不能修复旧菜单。
+
 ## 来源
 
 Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-syh/dsh-ui-skin-switcher)（MIT）。
