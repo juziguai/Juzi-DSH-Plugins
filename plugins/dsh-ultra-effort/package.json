@@ -1,7 +1,7 @@
 {
   "name": "@juzi/dsh-ultra-effort",
   "description": "Ultra reasoning-effort seat for DeepSeek Harness: composer model + purple gradient effort slider with Ultra tier",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "main": "lib/index.js",

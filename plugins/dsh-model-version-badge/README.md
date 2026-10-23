@@ -26,12 +26,12 @@ https://api-docs.deepseek.com/zh-cn/quick_start/pricing
 
 ## 机制
 
-与官方 1017 插件完全同构：
+0.1.1 版标签集成：
 
-1. 浏览器侧向 `conversation.input.model.label` 插槽注册一个纯展示组件
-2. 该插槽 `kind: single`（独占），因此必须停用官方 1017 插件
+1. 浏览器侧向官方 `conversation.input.model.label` 和 Ultra `juzi.ultra.model.label` 分别注册纯展示组件
+2. 使用优先级 -1 覆盖官方默认角标，无须停用官方插件；禁用本插件后官方显示恢复
 3. 组件拿到 `provider` / `model` 两个 props，只做查表，不发请求、不缓存、不改模型选择
-4. 一次注册同时作用于三处：输入框触发按钮、菜单当前值行、模型选项行
+4. 在对应控件内同时作用于三处：输入框触发按钮、菜单当前值行、模型选项行
 5. 查不到映射时原样返回 `model.name`（无角标）
 
 与官方的差异：
@@ -49,12 +49,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build\update-versions.ps1
 # 2. 装进 web profile
 dsh plugin --profile web add "link:D:/Tools/AI/Juzi-Skill/Juzi-DSH-Plugins/plugins/dsh-model-version-badge"
 
-# 3. 停用官方 1017 插件（single 插槽冲突）
-#    在 C:\Users\juzi\.dsh\profiles\web\cordis.patch.yml 追加：
-#      - id: ui-deepseek-model-label-1017
-#        disabled: true
-
-# 4. 重启 dsh web
+# 3. 与 Ultra 一起使用时，Ultra 需为 0.1.2 或更新版本
 ```
 
 注意：`dsh plugin add` 在 Windows 上必须用 `link:D:/...`（正斜杠）或 `file:` 加正斜杠；用 `file:D:\...` 会被 pnpm 当成相对路径。

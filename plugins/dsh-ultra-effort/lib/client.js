@@ -327,11 +327,11 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				name: "conversation.input.model",
 				priority: -1,
 				locale: NS,
-				children: { "conversation.input.model.label": { kind: "single", scope: "session", inline: true } }
+				children: { "juzi.ultra.model.label": { kind: "single", scope: "session", inline: true } }
 			}, (props) => {
 				const { locked, sessionId, t, renderSlot } = props;
 				const renderModelLabel = (group, model, placement, selected) => renderSlot(
-					"conversation.input.model.label",
+					"juzi.ultra.model.label",
 					{ provider: { id: group.id, name: providerLabel(group) }, model, placement, selected },
 					{ fallback: model.name }
 				);

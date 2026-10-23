@@ -18,7 +18,11 @@ jobs:
         with:
           python-version: '3.13'
       - run: python -m pip install -r plugins/dsh-deepseek-tools/requirements.txt
+      - name: Install official slot registry for integration tests
+        run: npm install --prefix "$RUNNER_TEMP/slot-runtime" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-client-ui-slots@0.2.1-rc.2
       - run: npm test
+        env:
+          DSH_SLOT_CORE_MODULE: ${{ runner.temp }}/slot-runtime/node_modules/@deepseek-ai/dsh-client-ui-slots/lib/index.js
       - name: Install official market validator in temporary tools directory
         run: npm install --prefix "$RUNNER_TEMP/market-validator" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-plugin-market-index@0.2.1-rc.2
       - name: Validate market against pinned source

@@ -25,8 +25,8 @@
       "path": "plugins/dsh-model-version-badge",
       "title": { "en": "Model Version Badge", "zh-cn": "模型版本角标" },
       "description": {
-        "en": "Bundled model snapshot-date badges. Disable the official 1017 label plugin before enabling this replacement.",
-        "zh-cn": "使用随包提供的模型版本表显示快照日期。启用前需停用官方 1017 角标，避免独占插槽冲突。"
+        "en": "Model snapshot-date badges for the official selector and Ultra Effort 0.1.2+.",
+        "zh-cn": "为官方模型菜单与 Ultra Effort 0.1.2+ 显示快照日期角标。"
       },
       "author": "Juzi",
       "metadata": { "category": "interface", "keywords": ["model", "version", "badge", "版本角标"] }

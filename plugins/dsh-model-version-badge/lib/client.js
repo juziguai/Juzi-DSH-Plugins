@@ -84,17 +84,11 @@ window.__ModuleLoader__.load({
 		/** Services consumed from the Browser assembly. */
 		const inject = ["slots"];
 
-		/**
-		 * Register the label decorator into the composer's model-label slot.
-		 * The slot is `single`-occupancy, so the profile must disable
-		 * @deepseek-ai/dsh-client-ui-deepseek-model-label-1017 while this is active.
-		 *
-		 * @param ctx - Client plugin context.
-		 */
+		/** Each model control owns its child slot; priority -1 shadows the built-in label. */
 		function apply(ctx) {
-			ctx.slots.inject("conversation.input.model.label", () => ctx.slots.register({
-				name: "conversation.input.model.label"
-			}, ModelVersionBadge));
+			for (const name of ["conversation.input.model.label", "juzi.ultra.model.label"]) {
+				ctx.slots.inject(name, () => ctx.slots.register({ name, priority: -1 }, ModelVersionBadge));
+			}
 		}
 		//#endregion
 
