@@ -178,10 +178,12 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 @keyframes ue-enter{to{opacity:1;translate:0 0}}
 @keyframes ue-list-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* 模型列表 */
-.sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent) transparent;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
-.sk5-root .ue-models::-webkit-scrollbar{width:4px;height:4px;}
-.sk5-root .ue-models::-webkit-scrollbar-track{background:transparent;}
-.sk5-root .ue-models::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent);border-radius:999px;}
+.sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
+.sk5-root .ue-models::-webkit-scrollbar,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar{width:6px;height:6px;}
+.sk5-root .ue-models::-webkit-scrollbar-track,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-track{background:transparent;}
+.sk5-root .ue-models::-webkit-scrollbar-thumb,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 20%,transparent);border-radius:999px;}
+.sk5-root .ue-models::-webkit-scrollbar-thumb:hover,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 32%,transparent);}
+.sk5-root .ue-models::-webkit-scrollbar-button,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-button{display:none;width:0;height:0;}
 
 .sk5-root .ue-group{margin-top:16px;}
 .sk5-root .ue-group:first-child{margin-top:2px;}
