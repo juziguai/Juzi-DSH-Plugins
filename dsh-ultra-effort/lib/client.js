@@ -86,6 +86,7 @@ window.__ModuleLoader__.load({
 .sk5-root .ue-resetHidden{visibility:hidden;pointer-events:none;}
 /* 面板 */
 .sk5-root .sk5-drop{bottom:calc(100% + 8px);right:var(--ue-drop-right,0px);}
+.sk5-root .ue-panel[data-state="closing"]{opacity:0;transform:translateY(4px) scale(.98);pointer-events:none;transition:opacity .15s ease,transform .15s ease;transform-origin:bottom right;}
 .sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 12px 32px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 16%,transparent),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);
 body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.4);}overflow:hidden;}
 /* 头部 */
@@ -204,6 +205,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 /* 减少动画 */
 @media (prefers-reduced-motion: reduce){
 .sk5-root .ue-head,.sk5-root .ue-sliderArea,.sk5-root .ue-models{animation:none;opacity:1;translate:0 0;transform:none;}
+.sk5-root .ue-panel[data-state="closing"]{transition:none;}
 .sk5-root .ue-modelChev,.sk5-root .ue-triggerChev{transition:none;}
 .sk5-root .ue-model[aria-expanded="true"] .ue-modelChev{transform:none;}
 .sk5-root .ue-ultraLayer,.sk5-root .ue-stream i,.sk5-root .ue-burstLayer span,.sk5-root .ue-tick,.sk5-root .ue-handle,.sk5-root .ue-fill{animation:none;transition:none;}
@@ -333,6 +335,31 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				*/
 				const tr = (key) => typeof t === "function" ? t(key) : DICTS.zh[key] ?? key;
 				const [menu, setMenu] = react.useState(null);
+				const [closing, setClosing] = react.useState(false);
+				const closeTimerRef = react.useRef(null);
+				const closingRef = react.useRef(false);
+				/** 统一关闭入口：150ms 退出动画后再卸载；reduce 下同步卸载。 */
+				const requestClose = (focusTrigger) => {
+					if (focusTrigger !== false) {
+						skipFocusReturnRef.current = true;
+						if (effortTriggerRef.current !== null) effortTriggerRef.current.focus({ preventScroll: true });
+					}
+					if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+						closingRef.current = false;
+						setClosing(false);
+						setMenu(null);
+						return;
+					}
+					closingRef.current = true;
+					setClosing(true);
+					if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
+					closeTimerRef.current = setTimeout(() => {
+						closeTimerRef.current = null;
+						closingRef.current = false;
+						setMenu(null);
+						setClosing(false);
+					}, 150);
+				};
 				const [busyKind, setBusy] = react.useState(null);
 				const busy = busyKind !== null;
 				const [error, setError] = react.useState(null);
@@ -488,11 +515,11 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 						if (rootRef.current === null || rootRef.current.contains(ev.target)) return;
 						/** 阻止浏览器把焦点移到被点元素，交给关闭逻辑回收给触发按钮。 */
 						ev.preventDefault();
-						setMenu(null);
+						requestClose();
 					};
 					/** V2: Escape 先在面板内退出模型列表，再关闭整个面板。 */
 					const onKey = (ev) => {
-            if (ev.key !== "Escape" || menu !== "effort") return;
+            if (ev.key !== "Escape" || menu !== "effort" || closingRef.current) return;
             ev.preventDefault();
             ev.stopPropagation();
 						if (menu === "effort" && panelView === "model") {
@@ -500,7 +527,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 							ev.stopPropagation();
 							return;
 						}
-						setMenu(null);
+						requestClose();
 						setPanelView("effort");
 					};
 					document.addEventListener("mousedown", handler);
@@ -518,6 +545,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				}, [menu]);
 				react.useEffect(() => () => {
 					if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
+					if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
 					if (dragRafRef.current !== null) cancelAnimationFrame(dragRafRef.current);
 					if (pressTimerRef.current !== null) clearTimeout(pressTimerRef.current);
 					const el = dragElRef.current;
@@ -573,7 +601,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 							pendingRef.current = null;
 							return;
 						}
-						if (!keepOpen) setMenu(null);
+						if (!keepOpen) requestClose();
 						effortMemory.set(sel.provider + "\0" + sel.model, sel.reasoningEffort);
 						const next = pendingRef.current;
 						if (next !== null && next !== sel) {
@@ -913,7 +941,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 						requestAnimationFrame(() => {
 							if (rootEl.contains(document.activeElement)) return;
 							skipFocusReturnRef.current = true;
-							setMenu(null);
+							requestClose(false);
 						});
 					}
 				}, react.createElement("button", {
@@ -926,7 +954,11 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					"aria-expanded": menu === "effort",
 					onClick: (ev) => {
 						openedByKeyboardRef.current = ev.detail === 0;
-						setMenu((m) => m === "effort" ? null : "effort");
+						if (closeTimerRef.current !== null) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+						closingRef.current = false;
+						setClosing(false);
+						if (menu === "effort") { requestClose(); return; }
+						setMenu("effort");
 					}
 				}, react.createElement("span", { className: "ue-triggerModel" }, modelLabel), react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel), react.createElement("svg", {
 					className: "ue-triggerChev",
@@ -939,10 +971,11 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				}, tr("sr.level").replace("{label}", displayLabel).replace("{i}", String(safePosIdx + 1)).replace("{n}", String(Math.max(choices.length, 1)))), react.createElement("span", {
 					className: "ue-sr",
 					id: hintIdRef.current
-				}, tr("hint.slider")), menu === "effort" ? react.createElement("div", {
+				}, tr("hint.slider")), (menu === "effort" || closing) ? react.createElement("div", {
 					ref: panelRef,
 					id: panelIdRef.current,
-					className: "sk5-drop sk5-effort ue-panel",
+					"data-state": closing ? "closing" : "open",
+					className: "sk5-drop sk5-effort ue-panel" + (closing ? " ue-closing" : ""),
 					role: "dialog",
 					"aria-label": tr("panel.aria")
 				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", {
