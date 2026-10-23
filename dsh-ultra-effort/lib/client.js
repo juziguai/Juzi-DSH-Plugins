@@ -355,6 +355,8 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				/** 拖拽连续跟随：不经过 React 状态，直接写 CSS 变量。 */
 				const dragFracRef = react.useRef(0);
 				const dragRectRef = react.useRef(null);
+				const dragElRef = react.useRef(null);
+				const dragPointerIdRef = react.useRef(null);
 				const dragRafRef = react.useRef(null);
 				const tipRef = react.useRef(null);
 				const tipTextRef = react.useRef(null);
@@ -490,7 +492,9 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					};
 					/** V2: Escape 先在面板内退出模型列表，再关闭整个面板。 */
 					const onKey = (ev) => {
-						if (ev.key !== "Escape") return;
+            if (ev.key !== "Escape" || menu !== "effort") return;
+            ev.preventDefault();
+            ev.stopPropagation();
 						if (menu === "effort" && panelView === "model") {
 							setPanelView("effort");
 							ev.stopPropagation();
@@ -500,19 +504,33 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 						setPanelView("effort");
 					};
 					document.addEventListener("mousedown", handler);
-					document.addEventListener("keydown", onKey);
+					window.addEventListener("keydown", onKey, true);
 					return () => {
 						document.removeEventListener("mousedown", handler);
-						document.removeEventListener("keydown", onKey);
+						window.removeEventListener("keydown", onKey, true);
 					};
 				}, [menu, panelView]);
 				react.useEffect(() => {
 					if (menu !== "effort") {
+						stopDrag();
 						setPanelView("effort");
 					}
 				}, [menu]);
 				react.useEffect(() => () => {
 					if (resetTimerRef.current !== null) clearTimeout(resetTimerRef.current);
+					if (dragRafRef.current !== null) cancelAnimationFrame(dragRafRef.current);
+					if (pressTimerRef.current !== null) clearTimeout(pressTimerRef.current);
+					const el = dragElRef.current;
+					if (el !== null) {
+						el.removeEventListener("pointermove", onWinMove);
+						el.removeEventListener("pointerup", onWinUp);
+						el.removeEventListener("pointercancel", onWinCancel);
+						el.removeEventListener("lostpointercapture", onWinCancel);
+						if (dragPointerIdRef.current !== null && el.hasPointerCapture(dragPointerIdRef.current)) {
+							try { el.releasePointerCapture(dragPointerIdRef.current); } catch (e) { /* already released */ }
+						}
+					}
+					window.removeEventListener("blur", onWinCancel);
 				}, []);
 				
 				react.useEffect(() => {
@@ -818,9 +836,18 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					}
 				};
 				const stopDrag = () => {
-					window.removeEventListener("pointermove", onWinMove);
-					window.removeEventListener("pointerup", onWinUp);
-					window.removeEventListener("pointercancel", onWinCancel);
+					const el = dragElRef.current;
+					if (el !== null) {
+						el.removeEventListener("pointermove", onWinMove);
+						el.removeEventListener("pointerup", onWinUp);
+						el.removeEventListener("pointercancel", onWinCancel);
+						el.removeEventListener("lostpointercapture", onWinCancel);
+						if (dragPointerIdRef.current !== null && el.hasPointerCapture(dragPointerIdRef.current)) {
+							try { el.releasePointerCapture(dragPointerIdRef.current); } catch (e) { /* already released */ }
+						}
+						dragElRef.current = null;
+						dragPointerIdRef.current = null;
+					}
 					window.removeEventListener("blur", onWinCancel);
 					if (dragRafRef.current !== null) {
 						cancelAnimationFrame(dragRafRef.current);
@@ -855,6 +882,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					if (choices.length === 0) return;
 					const el = trackRef.current;
 					if (el === null) return;
+					if (ev.button !== 0) return;
 					const rect = el.getBoundingClientRect();
 					dragRectRef.current = rect;
 					const tipEl = tipRef.current;
@@ -867,9 +895,13 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					setMoving(true);
 					if (pressTimerRef.current !== null) clearTimeout(pressTimerRef.current);
 					pressTimerRef.current = setTimeout(() => setShowLabels(true), 150);
-					window.addEventListener("pointermove", onWinMove);
-					window.addEventListener("pointerup", onWinUp);
-					window.addEventListener("pointercancel", onWinCancel);
+					dragElRef.current = el;
+					dragPointerIdRef.current = ev.pointerId;
+					try { el.setPointerCapture(ev.pointerId); } catch (e) { /* capture unsupported */ }
+					el.addEventListener("pointermove", onWinMove);
+					el.addEventListener("pointerup", onWinUp);
+					el.addEventListener("pointercancel", onWinCancel);
+					el.addEventListener("lostpointercapture", onWinCancel);
 					window.addEventListener("blur", onWinCancel);
 				};				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? curGroup.name + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
 				return react.createElement("div", {
