@@ -51,15 +51,15 @@
       },
       "versions": [
         {
-          "version": "0.1.0",
-          "publishTimestamp": 1792760028,
+          "version": "0.1.1",
+          "publishTimestamp": 1792761732,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "5e024caef1a869e09c01e2b7060b2a43d5b2a7af",
+            "commit": "efd40cc1e54b041e81cc408ed2f94dc28e70563e",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -92,14 +92,14 @@
       "versions": [
         {
           "version": "0.1.0",
-          "publishTimestamp": 1792760028,
+          "publishTimestamp": 1792761732,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "5e024caef1a869e09c01e2b7060b2a43d5b2a7af",
+            "commit": "efd40cc1e54b041e81cc408ed2f94dc28e70563e",
             "path": "plugins/dsh-model-version-badge"
           }
         }
@@ -133,14 +133,14 @@
       "versions": [
         {
           "version": "1.1.1",
-          "publishTimestamp": 1792760028,
+          "publishTimestamp": 1792761732,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "5e024caef1a869e09c01e2b7060b2a43d5b2a7af",
+            "commit": "efd40cc1e54b041e81cc408ed2f94dc28e70563e",
             "path": "plugins/dsh-deepseek-tools"
           }
         }
