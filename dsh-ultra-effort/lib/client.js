@@ -193,8 +193,8 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-rowHasDesc{min-height:44px;}
 .sk5-root .ue-row:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 5%,transparent);}
 .sk5-root .ue-row:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:-2px;}
-.sk5-root .ue-row.ue-rowActive{background:var(--ue-brand,#3a83f7);}
-.sk5-root .ue-row.ue-rowActive:hover{background:var(--ue-brand,#3a83f7);}
+.sk5-root .ue-row.ue-rowActive{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 12%,transparent);}
+.sk5-root .ue-row.ue-rowActive:hover{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 16%,transparent);}
 .sk5-root .ue-rowText{display:flex;flex-direction:column;min-width:0;}
 .sk5-root .ue-rowName{font-size:13px;line-height:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sk5-root .ue-rowDesc{margin-top:2px;font-size:11px;line-height:15px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
