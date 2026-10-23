@@ -95,13 +95,13 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-model{display:inline-flex;align-items:center;gap:2px;max-width:100%;padding:2px 4px;border:0;border-radius:6px;background:transparent;color:var(--ue-secondary);font-size:12px;line-height:16px;font-weight:400;cursor:pointer;transition:background .12s ease;}
 .sk5-root .ue-model:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}
 .sk5-root .ue-model[aria-expanded="true"] .ue-modelChev{transform:rotate(180deg);}
-.sk5-root .ue-model:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:1px;}
+.sk5-root .ue-model:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}
 .sk5-root .ue-modelName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sk5-root .ue-modelChev{flex:none;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.5;transition:transform .18s var(--ue-motion);}
 .sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 45%,transparent);cursor:pointer;transition:background .12s ease,color .12s ease;}
 .sk5-root .ue-icon:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 60%,transparent);}
 .sk5-root .ue-icon:active{transform:translateY(-50%) scale(.94);}
-.sk5-root .ue-icon:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:1px;}
+.sk5-root .ue-icon:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}
 .sk5-root .ue-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
 .sk5-root .ue-bolt{left:2px;}
 .sk5-root .ue-reset{right:2px;}
@@ -165,7 +165,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-handle{corner-shape:round;border-radius:999px;position:absolute;box-sizing:border-box;top:50%;left:calc(14px + (100% - 28px) * var(--ue-pos,0));width:28px;height:28px;margin:-14px 0 0 0;border-radius:999px;background:#fff;border:.5px solid color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 28%,transparent);box-shadow:0 0 2px rgba(0,0,0,.1);transform:translateX(-50%);z-index:4;will-change:left;transition:left .3s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;}
 .sk5-root .ue-moving .ue-handle{transition:left .15s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;transform:translateX(-50%) scale(1.14);box-shadow:0 0 2px rgba(0,0,0,.1),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent);}
 .sk5-root .ue-track:focus-visible{outline:none;}
-.sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 85%,transparent);outline-offset:1px;}
+.sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}
 .sk5-root:not(.ue-kb) .ue-track:focus-visible .ue-handle{outline:none;}
 /* 端点标签：按住 150ms 才出现 */
 .sk5-root .ue-labels{position:absolute;left:8px;right:8px;bottom:2px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;opacity:0;transition:opacity .15s var(--ue-motion);font-size:11px;line-height:14px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);z-index:6;}
@@ -192,9 +192,9 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 14px);margin-left:14px;min-height:34px;padding:7px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .14s ease;}
 .sk5-root .ue-rowHasDesc{min-height:44px;}
 .sk5-root .ue-row:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 5%,transparent);}
-.sk5-root .ue-row:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:-2px;}
-.sk5-root .ue-row.ue-rowActive{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 12%,transparent);}
-.sk5-root .ue-row.ue-rowActive:hover{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 16%,transparent);}
+.sk5-root .ue-row:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:-2px;}
+.sk5-root .ue-row.ue-rowActive{background:var(--ue-brand,#3a83f7);}
+.sk5-root .ue-row.ue-rowActive:hover{background:var(--ue-brand,#3a83f7);}
 .sk5-root .ue-rowText{display:flex;flex-direction:column;min-width:0;}
 .sk5-root .ue-rowName{font-size:13px;line-height:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sk5-root .ue-rowDesc{margin-top:2px;font-size:11px;line-height:15px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -218,22 +218,32 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				"trigger.selectModel": "选择模型",
 				"effort.title": "思考强度",
 				"effort.default": "默认",
-				"menu.models": "模型",
+				"panel.aria": "选择推理强度",
+				"reset.title": "重置为默认",
+				"reset.aria": "重置为默认推理强度",
+				"slider.aria": "推理强度",
+				"label.faster": "更快",
+				"label.smarter": "更聪明",
+				"sr.level": "{label}，第 {i} 项，共 {n} 项",
+				"hint.slider": "使用左右方向键调整强度",
 				"status.loading": "加载中…",
-				"status.noModels": "暂无可用模型",
-				"help.aria": "思考强度说明",
-				"help.text": "调节模型推理深度，低强度回复快、内容简洁；高强度思考更全面，适合复杂问题，响应会稍慢。"
+				"status.noModels": "暂无可用模型"
 			},
 			en: {
 				"trigger.fallbackModel": "Model",
 				"trigger.selectModel": "Select model",
 				"effort.title": "Reasoning effort",
 				"effort.default": "Default",
-				"menu.models": "Models",
+				"panel.aria": "Reasoning effort",
+				"reset.title": "Reset to default",
+				"reset.aria": "Reset reasoning effort to default",
+				"slider.aria": "Reasoning effort",
+				"label.faster": "Faster",
+				"label.smarter": "Smarter",
+				"sr.level": "{label}, {i} of {n}",
+				"hint.slider": "Use the left and right arrow keys to adjust",
 				"status.loading": "Loading…",
-				"status.noModels": "No models available",
-				"help.aria": "About reasoning effort",
-				"help.text": "Adjusts how deeply the model reasons: lower effort answers faster and more concisely, while higher effort thinks more thoroughly for complex problems and responds a little slower."
+				"status.noModels": "No models available"
 			}
 		};
 		/** Insert one stylesheet and return its disposer. */
@@ -356,7 +366,9 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				const modelBtnRef = react.useRef(null);
 				const [focusIdx, setFocusIdx] = react.useState(-1);
 				const panelIdRef = react.useRef("ue-panel-" + Math.random().toString(36).slice(2, 8));
+				const hintIdRef = react.useRef("ue-hint-" + Math.random().toString(36).slice(2, 8));
 				const listInitRef = react.useRef(false);
+				const skipFocusReturnRef = react.useRef(false);
 				const openedByKeyboardRef = react.useRef(false);
 				const pressTimerRef = react.useRef(null);
 				const [showLabels, setShowLabels] = react.useState(false);
@@ -449,7 +461,8 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 							modelBtnRef.current.focus({ preventScroll: true });
 						}
 					} else if (menu === null && prev !== null) {
-						if (effortTriggerRef.current !== null) effortTriggerRef.current.focus({ preventScroll: true });
+						if (skipFocusReturnRef.current) skipFocusReturnRef.current = false;
+						else if (effortTriggerRef.current !== null) effortTriggerRef.current.focus({ preventScroll: true });
 					}
 				}, [menu, panelView]);
 				/** This session's shared directory — the official selector's own data source. */
@@ -861,14 +874,23 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 				};				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? curGroup.name + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
 				return react.createElement("div", {
 					ref: rootRef,
-					className: "sk5-root" + (menu !== null ? " ue-open" : "")
+					className: "sk5-root" + (menu !== null ? " ue-open" : ""),
+					onKeyDown: (ev) => {
+						if (ev.key !== "Tab") return;
+						const rootEl = ev.currentTarget;
+						requestAnimationFrame(() => {
+							if (rootEl.contains(document.activeElement)) return;
+							skipFocusReturnRef.current = true;
+							setMenu(null);
+						});
+					}
 				}, react.createElement("button", {
 					ref: effortTriggerRef,
 					type: "button",
 					className: "ue-trigger",
 					disabled: locked || busy || current === null,
 					title: triggerTitle,
-					"aria-haspopup": "menu",
+					"aria-haspopup": "dialog",
 					"aria-expanded": menu === "effort",
 					onClick: (ev) => {
 						openedByKeyboardRef.current = ev.detail === 0;
@@ -882,16 +904,19 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					className: "ue-sr",
 					role: "status",
 					"aria-live": "polite"
-				}, displayLabel + "，第 " + (safePosIdx + 1) + " 项，共 " + Math.max(choices.length, 1) + " 项"), menu === "effort" ? react.createElement("div", {
+				}, tr("sr.level").replace("{label}", displayLabel).replace("{i}", String(safePosIdx + 1)).replace("{n}", String(Math.max(choices.length, 1)))), react.createElement("span", {
+					className: "ue-sr",
+					id: hintIdRef.current
+				}, tr("hint.slider")), menu === "effort" ? react.createElement("div", {
 					ref: panelRef,
 					id: panelIdRef.current,
 					className: "sk5-drop sk5-effort ue-panel",
-					role: "menu",
-					"aria-label": "选择推理强度"
+					role: "dialog",
+					"aria-label": tr("panel.aria")
 				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", {
 					className: "ue-icon ue-bolt",
 					"aria-hidden": "true"
-				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, "Faster"), react.createElement("span", null, "Smarter")), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + titleTone }, displayLabel), react.createElement("button", {
+				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, tr("label.faster")), react.createElement("span", null, tr("label.smarter"))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + titleTone }, displayLabel), react.createElement("button", {
 					type: "button",
 					ref: modelBtnRef,
 					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : "") + (showLabels ? " ue-modelHidden" : ""),
@@ -906,8 +931,8 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetHidden" : ""),
 					"aria-hidden": atDefaultEffort ? "true" : void 0,
 					tabIndex: atDefaultEffort ? -1 : 0,
-					title: "重置为默认",
-					"aria-label": "重置为默认推理强度",
+					title: tr("reset.title"),
+					"aria-label": tr("reset.aria"),
 					disabled: locked || busy || current === null || reasoning === void 0,
 					onClick: onReset
 				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M2.8 6.2A5.6 5.6 0 1 1 2.6 9.4" }), react.createElement("path", { d: "M2.4 2.4v4h4" })))), panelView === "model" ? react.createElement("div", {
@@ -937,7 +962,8 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (moving ? " ue-moving" : "") + (burst ? " ue-burst" : "") + (showLabels ? " ue-labelsOn" : ""),
 					role: "slider",
 					tabIndex: 0,
-					"aria-label": "推理强度",
+					"aria-label": tr("slider.aria"),
+					"aria-describedby": hintIdRef.current,
 					"aria-valuemin": 0,
 					"aria-valuemax": Math.max(0, choices.length - 1),
 					"aria-valuenow": safePosIdx,
