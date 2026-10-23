@@ -113,7 +113,7 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-fill{corner-shape:round;position:absolute;left:0;top:0;bottom:0;width:calc(28px + (100% - 28px) * var(--ue-pos,0));border-radius:12px;background:var(--ue-blue);transition:width .3s var(--ue-motion),opacity .2s ease;z-index:1;}
 .sk5-root .ue-trackMax .ue-fill{opacity:0;}
 /* Ultra 渐变 + 揭示 */
-.sk5-root .ue-ultraLayer{position:absolute;inset:0;border-radius:12px;background:linear-gradient(90deg,color-mix(in srgb,#3a83f7 60%,#924ff7) 0%,#924ff7 55%,color-mix(in srgb,#924ff7 72%,#3a83f7) 100%);opacity:0;pointer-events:none;z-index:1;}
+.sk5-root .ue-ultraLayer{position:absolute;inset:0;border-radius:12px;transition:opacity .35s ease;background:linear-gradient(90deg,color-mix(in srgb,#3a83f7 60%,#924ff7) 0%,#924ff7 55%,color-mix(in srgb,#924ff7 72%,#3a83f7) 100%);opacity:0;pointer-events:none;z-index:1;}
 .sk5-root .ue-trackMax .ue-ultraLayer{opacity:1;animation:ue-reveal 2s cubic-bezier(.19,1,.22,1) both;}
 .sk5-root .ue-ultraLayer::after{content:"";position:absolute;inset:0;border-radius:12px;background-image:radial-gradient(ellipse 50% 120% at 50% 50%,rgba(196,160,255,.55) 0%,rgba(196,160,255,0) 72%);background-size:40% 100%;background-repeat:no-repeat;background-position:-12% 50%;animation:ue-sheen 10s ease-in-out infinite alternate;pointer-events:none;}
 @keyframes ue-sheen{0%{background-position:-12% 50%}100%{background-position:112% 50%}}
