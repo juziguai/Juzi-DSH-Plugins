@@ -32,6 +32,12 @@ npm test
 
 ## 插件市场
 
+在 DSH「插件 → 发现 → 索引源」添加：
+
+```text
+https://raw.githubusercontent.com/juziguai/Juzi-DSH-Plugins/main/marketplace/index.json
+```
+
 市场格式、接入前提和发布方法见 [市场指南](docs/marketplace.md)。安装者使用自己的专用 API Key，源码和索引不携带发布者凭证。
 
 ## Git 与版本

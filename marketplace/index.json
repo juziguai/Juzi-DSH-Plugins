@@ -1,0 +1,150 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Juzi DSH Plugins",
+    "zh-cn": "橘子 DSH 插件市场"
+  },
+  "description": {
+    "en": "Juzi's independently installable DeepSeek Harness plugins.",
+    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：模型与推理强度、版本角标、搜索与网页抓取。"
+  },
+  "metadata": {
+    "categories": {
+      "interface": {
+        "title": {
+          "en": "Interface",
+          "zh-cn": "界面增强"
+        }
+      },
+      "tools": {
+        "title": {
+          "en": "Tools",
+          "zh-cn": "工具服务"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "title": {
+        "en": "Ultra Effort",
+        "zh-cn": "Ultra 推理强度"
+      },
+      "description": {
+        "en": "Model selector and reasoning-effort slider. Do not enable alongside the upstream skin-switcher.",
+        "zh-cn": "模型选择与推理强度滑块，提供 Ultra 风格面板。不要与上游 skin-switcher 同时启用。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "interface",
+        "keywords": [
+          "model",
+          "reasoning",
+          "Ultra",
+          "推理强度"
+        ]
+      },
+      "name": "@juzi/dsh-ultra-effort",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+        "directory": "plugins/dsh-ultra-effort"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1792760028,
+          "engines": {
+            "dsh": ">=0.1.5-alpha.1"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+            "commit": "5e024caef1a869e09c01e2b7060b2a43d5b2a7af",
+            "path": "plugins/dsh-ultra-effort"
+          }
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "Model Version Badge",
+        "zh-cn": "模型版本角标"
+      },
+      "description": {
+        "en": "Bundled model snapshot-date badges. Disable the official 1017 label plugin before enabling this replacement.",
+        "zh-cn": "使用随包提供的模型版本表显示快照日期。启用前需停用官方 1017 角标，避免独占插槽冲突。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "interface",
+        "keywords": [
+          "model",
+          "version",
+          "badge",
+          "版本角标"
+        ]
+      },
+      "name": "@juzi/dsh-model-version-badge",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+        "directory": "plugins/dsh-model-version-badge"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1792760028,
+          "engines": {
+            "dsh": ">=0.1.5-alpha.1"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+            "commit": "5e024caef1a869e09c01e2b7060b2a43d5b2a7af",
+            "path": "plugins/dsh-model-version-badge"
+          }
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "DeepSeek Search & Fetch",
+        "zh-cn": "DeepSeek 搜索与抓取"
+      },
+      "description": {
+        "en": "Official Search/Fetch via MCP. Requires Python, requirements.txt dependencies and an API key; do not duplicate an existing deepseek MCP server.",
+        "zh-cn": "通过 MCP 提供官方搜索与网页抓取。需先准备 Python、requirements.txt 依赖和 API Key；不要与已有 deepseek MCP 服务重复注册。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "tools",
+        "keywords": [
+          "search",
+          "fetch",
+          "MCP",
+          "搜索",
+          "网页"
+        ]
+      },
+      "name": "@juzi/dsh-deepseek-tools",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+        "directory": "plugins/dsh-deepseek-tools"
+      },
+      "versions": [
+        {
+          "version": "1.1.1",
+          "publishTimestamp": 1792760028,
+          "engines": {
+            "dsh": ">=0.2.1-rc.2"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+            "commit": "5e024caef1a869e09c01e2b7060b2a43d5b2a7af",
+            "path": "plugins/dsh-deepseek-tools"
+          }
+        }
+      ]
+    }
+  ]
+}
