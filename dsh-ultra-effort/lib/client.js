@@ -68,11 +68,11 @@ window.__ModuleLoader__.load({
    选择器统一 .sk5-root 前缀提高特异性，不使用 important 声明。
    ───────────────────────────────────────────────────────────── */
 .sk5-root .sk5-drop{font-family:inherit;}
-.sk5-root{--ue-blue:#3a83f7;--ue-purple:#924ff7;--ue-tertiary:rgba(15,23,42,.38);--ue-secondary:rgba(15,23,42,.55);--ue-track:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 10%,transparent);--ue-motion:cubic-bezier(.23,1,.32,1);}
+.sk5-root{--ue-blue:#3a83f7;--ue-brand:#3a83f7;--ue-purple:#924ff7;--ue-hover:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);--ue-border:var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));--ue-tertiary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 38%,transparent);--ue-secondary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);--ue-track:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 10%,transparent);--ue-motion:cubic-bezier(.23,1,.32,1);}
 /* 触发器：模型名 + 档位名 + ▾ 合并成一个按钮 */
 .sk5-root .ue-trigger{display:inline-flex;align-items:center;gap:4px;max-width:260px;padding:2px 6px;border:0;border-radius:8px;background:transparent;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#0f172a);cursor:pointer;transition:background .14s ease;}
-.sk5-root .ue-trigger:hover{background:rgba(15,23,42,.06);}
-.sk5-root.ue-open .ue-trigger{background:rgba(15,23,42,.08);}
+.sk5-root .ue-trigger:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}
+.sk5-root.ue-open .ue-trigger{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 8%,transparent);}
 .sk5-root .ue-trigger[disabled]{opacity:.5;cursor:default;}
 .sk5-root .ue-triggerModel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sk5-root .ue-triggerLevel{flex:none;font-weight:500;}
@@ -81,26 +81,27 @@ window.__ModuleLoader__.load({
 /* 档位配色 */
 .sk5-root .ue-lv-max{color:var(--ue-purple);}
 .sk5-root .ue-lv-norm{color:var(--ue-blue);}
-.sk5-root .ue-lv-def{color:rgba(15,23,42,.45);}
+.sk5-root .ue-lv-def{color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 45%,transparent);}
 .sk5-root .ue-lv-text{color:var(--dsw-alias-label-primary,#0f172a);}
 .sk5-root .ue-resetHidden{visibility:hidden;pointer-events:none;}
 /* 面板 */
 .sk5-root .sk5-drop{bottom:calc(100% + 8px);right:var(--ue-drop-right,0px);}
-.sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:var(--dsw-alias-bg-elevated,#fff);box-shadow:0 12px 32px rgba(15,23,42,.16),0 2px 8px rgba(15,23,42,.06);overflow:hidden;}
+.sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 12px 32px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 16%,transparent),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);
+body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.4);}overflow:hidden;}
 /* 头部 */
 .sk5-root .ue-head{position:relative;display:flex;align-items:center;justify-content:center;min-height:46px;padding:2px 36px 4px;}
 .sk5-root .ue-center{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;max-width:100%;}
 .sk5-root .ue-title{font-size:16px;line-height:22px;font-weight:500;letter-spacing:.01em;}
 .sk5-root .ue-model{display:inline-flex;align-items:center;gap:2px;max-width:100%;padding:2px 4px;border:0;border-radius:6px;background:transparent;color:var(--ue-secondary);font-size:12px;line-height:16px;font-weight:400;cursor:pointer;transition:background .12s ease;}
-.sk5-root .ue-model:hover{background:rgba(15,23,42,.06);}
+.sk5-root .ue-model:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}
 .sk5-root .ue-model[aria-expanded="true"] .ue-modelChev{transform:rotate(180deg);}
-.sk5-root .ue-model:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:1px;}
+.sk5-root .ue-model:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:1px;}
 .sk5-root .ue-modelName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .sk5-root .ue-modelChev{flex:none;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.5;transition:transform .18s var(--ue-motion);}
 .sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--ue-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease;}
-.sk5-root .ue-icon:hover{background:rgba(15,23,42,.06);color:rgba(15,23,42,.6);}
+.sk5-root .ue-icon:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}
 .sk5-root .ue-icon:active{transform:translateY(-50%) scale(.94);}
-.sk5-root .ue-icon:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:1px;}
+.sk5-root .ue-icon:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:1px;}
 .sk5-root .ue-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
 .sk5-root .ue-bolt{left:2px;}
 .sk5-root .ue-reset{right:2px;}
@@ -108,7 +109,7 @@ window.__ModuleLoader__.load({
 /* 滑杆区 */
 .sk5-root .ue-sliderArea{position:relative;margin-inline:2px;padding:1px 6px 2px;}
 .sk5-root .ue-sliderRow{position:relative;height:32px;display:flex;align-items:center;}
-.sk5-root .ue-track{corner-shape:round;position:relative;width:100%;height:24px;border-radius:12px;background:var(--ue-track);box-shadow:inset 0 0 0 .5px rgba(15,23,42,.12);cursor:pointer;touch-action:none;outline:none;overflow:visible;isolation:isolate;transition:background .2s ease;}
+.sk5-root .ue-track{corner-shape:round;position:relative;width:100%;height:24px;border-radius:12px;background:var(--ue-track);box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent);cursor:pointer;touch-action:none;outline:none;overflow:visible;isolation:isolate;transition:background .2s ease;}
 .sk5-root .ue-fill{corner-shape:round;position:absolute;left:0;top:0;bottom:0;width:calc(28px + (100% - 28px) * var(--ue-pos,0));border-radius:12px;background:var(--ue-blue);transition:width .3s var(--ue-motion),opacity .2s ease;z-index:1;}
 .sk5-root .ue-trackMax .ue-fill{opacity:0;}
 /* Ultra 渐变 + 揭示 */
@@ -161,10 +162,10 @@ window.__ModuleLoader__.load({
 .sk5-root .ue-trackMax .ue-tick{opacity:0;}
 .sk5-root .ue-track:hover .ue-tick{transform:scale(1.6);}
 /* 手柄 */
-.sk5-root .ue-handle{corner-shape:round;border-radius:999px;position:absolute;box-sizing:border-box;top:50%;left:calc(14px + (100% - 28px) * var(--ue-pos,0));width:28px;height:28px;margin:-14px 0 0 0;border-radius:999px;background:#fff;border:.5px solid rgba(15,23,42,.28);box-shadow:0 0 2px rgba(0,0,0,.1);transform:translateX(-50%);z-index:4;will-change:left;transition:left .3s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;}
-.sk5-root .ue-moving .ue-handle{transition:left .15s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;transform:translateX(-50%) scale(1.14);box-shadow:0 0 2px rgba(0,0,0,.1),0 2px 8px rgba(15,23,42,.18);}
+.sk5-root .ue-handle{corner-shape:round;border-radius:999px;position:absolute;box-sizing:border-box;top:50%;left:calc(14px + (100% - 28px) * var(--ue-pos,0));width:28px;height:28px;margin:-14px 0 0 0;border-radius:999px;background:#fff;border:.5px solid color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 28%,transparent);box-shadow:0 0 2px rgba(0,0,0,.1);transform:translateX(-50%);z-index:4;will-change:left;transition:left .3s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;}
+.sk5-root .ue-moving .ue-handle{transition:left .15s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;transform:translateX(-50%) scale(1.14);box-shadow:0 0 2px rgba(0,0,0,.1),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent);}
 .sk5-root .ue-track:focus-visible{outline:none;}
-.sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid rgba(58,131,247,.85);outline-offset:1px;}
+.sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 85%,transparent);outline-offset:1px;}
 .sk5-root:not(.ue-kb) .ue-track:focus-visible .ue-handle{outline:none;}
 /* 端点标签：按住 150ms 才出现 */
 .sk5-root .ue-labels{position:absolute;left:8px;right:8px;bottom:2px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;opacity:0;transition:opacity .15s var(--ue-motion);font-size:11px;line-height:14px;color:var(--ue-tertiary);z-index:6;}
@@ -177,25 +178,25 @@ window.__ModuleLoader__.load({
 @keyframes ue-enter{to{opacity:1;translate:0 0}}
 @keyframes ue-list-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* 模型列表 */
-.sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.18) transparent;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
+.sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent) transparent;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
 .sk5-root .ue-models::-webkit-scrollbar{width:4px;height:4px;}
 .sk5-root .ue-models::-webkit-scrollbar-track{background:transparent;}
-.sk5-root .ue-models::-webkit-scrollbar-thumb{background:rgba(15,23,42,.18);border-radius:999px;}
+.sk5-root .ue-models::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent);border-radius:999px;}
 
 .sk5-root .ue-group{margin-top:16px;}
 .sk5-root .ue-group:first-child{margin-top:2px;}
 
-.sk5-root .ue-groupName{margin:0 2px 6px;font-size:13px;line-height:18px;font-weight:600;letter-spacing:0;text-transform:none;color:rgba(15,23,42,.58);cursor:default;user-select:none;}
+.sk5-root .ue-groupName{margin:0 2px 6px;font-size:13px;line-height:18px;font-weight:600;letter-spacing:0;text-transform:none;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 58%,transparent);cursor:default;user-select:none;}
 .sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 14px);margin-left:14px;min-height:34px;padding:7px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .14s ease;}
 .sk5-root .ue-rowHasDesc{min-height:44px;}
-.sk5-root .ue-row:hover{background:rgba(15,23,42,.05);}
-.sk5-root .ue-row:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:-2px;}
-.sk5-root .ue-row.ue-rowActive{background:rgba(58,131,247,.10);}
-.sk5-root .ue-row.ue-rowActive:hover{background:rgba(58,131,247,.12);}
+.sk5-root .ue-row:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 5%,transparent);}
+.sk5-root .ue-row:focus-visible{outline:2px solid color-mix(in srgb,var(--ue-brand,#3a83f7) 7%,transparent);outline-offset:-2px;}
+.sk5-root .ue-row.ue-rowActive{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 12%,transparent);}
+.sk5-root .ue-row.ue-rowActive:hover{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 16%,transparent);}
 .sk5-root .ue-rowText{display:flex;flex-direction:column;min-width:0;}
 .sk5-root .ue-rowName{font-size:13px;line-height:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-rowDesc{margin-top:2px;font-size:11px;line-height:15px;color:rgba(15,23,42,.48);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-check{flex:none;color:var(--ue-blue);font-size:14px;line-height:1;}
+.sk5-root .ue-rowDesc{margin-top:2px;font-size:11px;line-height:15px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-check{flex:none;color:var(--ue-brand,#3a83f7);font-size:14px;line-height:1;}
 /* 屏幕阅读器 */
 .sk5-root .ue-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}
 /* 减少动画 */
@@ -455,6 +456,12 @@ window.__ModuleLoader__.load({
 				const tipIdxRef = react.useRef(-1);
 				const tipBoxRef = react.useRef(null);
 				const panelRef = react.useRef(null);
+				const modelsRef = react.useRef(null);
+				const rowRefs = react.useRef([]);
+				const modelBtnRef = react.useRef(null);
+				const [focusIdx, setFocusIdx] = react.useState(-1);
+				const panelIdRef = react.useRef("ue-panel-" + Math.random().toString(36).slice(2, 8));
+				const listInitRef = react.useRef(false);
 				const openedByKeyboardRef = react.useRef(false);
 				const pressTimerRef = react.useRef(null);
 				const [showLabels, setShowLabels] = react.useState(false);
@@ -541,7 +548,11 @@ window.__ModuleLoader__.load({
 					if (menu === "effort" && panelView === "effort") {
 						const root = rootRef.current;
 						if (root !== null) root.classList.toggle("ue-kb", openedByKeyboardRef.current);
-						if (trackRef.current !== null) trackRef.current.focus({ preventScroll: true });
+						if (prev !== "effort") {
+							if (trackRef.current !== null) trackRef.current.focus({ preventScroll: true });
+						} else if (modelBtnRef.current !== null) {
+							modelBtnRef.current.focus({ preventScroll: true });
+						}
 					} else if (menu === null && prev !== null) {
 						if (effortTriggerRef.current !== null) effortTriggerRef.current.focus({ preventScroll: true });
 					}
@@ -669,6 +680,55 @@ window.__ModuleLoader__.load({
 				/** Selection failures are local; catalog failures live on the shared store. */
 				const shownError = error !== null ? error : state.error;
 				const loaded = state.status !== "idle";
+				/** 所有提供商的模型行拍平，供跨组键盘导航使用（不改变分组渲染）。 */
+				const flatRows = react.useMemo(() => groups.reduce((acc, g) => acc.concat(g.models.map((m) => ({ g, m }))), []), [groups]);
+				const flatIndexById = react.useMemo(() => { const map = new Map(); flatRows.forEach((r, i) => map.set(r.g.id + "\u0000" + r.m.id, i)); return map; }, [flatRows]);
+				const activeFlatIdx = flatRows.findIndex((r) => current !== null && r.g.id === current.provider && r.m.id === current.model);
+				/** 列表打开：聚焦当前选中行并滚到容器中部；每次打开只执行一次，避免抢焦点。 */
+				react.useEffect(() => {
+					if (panelView !== "model") {
+						listInitRef.current = false;
+						return;
+					}
+					if (!loaded || listInitRef.current) return;
+					listInitRef.current = true;
+					const idx = activeFlatIdx >= 0 ? activeFlatIdx : 0;
+					setFocusIdx(idx);
+					const container = modelsRef.current;
+					const row = rowRefs.current[idx];
+					if (container !== null && row !== null && row !== void 0) {
+						container.scrollTop = Math.max(0, row.offsetTop - container.clientHeight / 2 + row.offsetHeight / 2);
+						row.focus({ preventScroll: true });
+					}
+				}, [panelView, loaded, activeFlatIdx]);
+
+				/** 行键盘导航：跨组连续、不循环；Home/End；Enter/Space 选择。 */
+				const onRowKeyDown = (ev, i) => {
+					const n = flatRows.length;
+					if (n === 0) return;
+					let next = null;
+					if (ev.key === "ArrowDown") next = Math.min(n - 1, i + 1);
+					else if (ev.key === "ArrowUp") next = Math.max(0, i - 1);
+					else if (ev.key === "Home") next = 0;
+					else if (ev.key === "End") next = n - 1;
+					else if (ev.key === "Enter" || ev.key === " ") {
+						ev.preventDefault();
+						const r = flatRows[i];
+						if (r !== void 0) {
+							onPickModel(r.m, r.g);
+							setPanelView("effort");
+						}
+						return;
+					} else return;
+					ev.preventDefault();
+					setFocusIdx(next);
+					const container = modelsRef.current;
+					const row = rowRefs.current[next];
+					if (row !== null && row !== void 0) {
+						row.focus({ preventScroll: true });
+						if (container !== null) container.scrollTop = Math.max(0, row.offsetTop - container.clientHeight / 2 + row.offsetHeight / 2);
+					}
+				};
 				const curGroup = current === null ? void 0 : groups.find((g) => g.id === current.provider);
 				const curModel = current === null ? void 0 : findModel(groups, current.provider, current.model);
 				const modelLabel = curModel !== void 0 ? curModel.name : current !== null && current.model !== "" ? current.model : tr("trigger.fallbackModel");
@@ -770,7 +830,7 @@ window.__ModuleLoader__.load({
 					if (moving) return;
 					const el = trackRef.current;
 					if (el !== null) el.style.setProperty("--ue-pos", String(Math.max(0, Math.min(1, posPct / 100))));
-				}, [posPct, moving, menu, choices.length]);
+				}, [posPct, moving, menu, panelView, choices.length]);
 				const matrixCells = react.useMemo(() => {
 					if (!inMax || grid === null) return [];
 					/** Blend a colour toward its own luminance: same hue, less saturation. */
@@ -1087,6 +1147,7 @@ window.__ModuleLoader__.load({
 					"aria-live": "polite"
 				}, displayLabel + "，第 " + (safePosIdx + 1) + " 项，共 " + Math.max(choices.length, 1) + " 项"), menu === "effort" ? react.createElement("div", {
 					ref: panelRef,
+					id: panelIdRef.current,
 					className: "sk5-drop sk5-effort ue-panel",
 					role: "menu",
 					"aria-label": "选择推理强度"
@@ -1095,7 +1156,9 @@ window.__ModuleLoader__.load({
 					"aria-hidden": "true"
 				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, "Faster"), react.createElement("span", null, "Smarter")), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + titleTone }, displayLabel), react.createElement("button", {
 					type: "button",
+					ref: modelBtnRef,
 					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : "") + (showLabels ? " ue-modelHidden" : ""),
+					"aria-controls": panelIdRef.current,
 					disabled: locked || busy,
 					title: triggerTitle,
 					"aria-haspopup": "listbox",
@@ -1111,19 +1174,20 @@ window.__ModuleLoader__.load({
 					disabled: locked || busy || current === null || reasoning === void 0,
 					onClick: onReset
 				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M2.8 6.2A5.6 5.6 0 1 1 2.6 9.4" }), react.createElement("path", { d: "M2.4 2.4v4h4" })))), panelView === "model" ? react.createElement("div", {
+					ref: modelsRef,
 					className: "ue-models",
 					role: "listbox",
 					"aria-label": tr("trigger.selectModel")
-				}, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", {
-					key: g.id,
-					className: "ue-group"
-				}, react.createElement("div", { className: "ue-groupName" }, providerLabel(g)), g.models.map((m) => {
+				}, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g, gi) => react.createElement("div", { key: g.id, className: "ue-group", role: "group", "aria-labelledby": "ue-g-" + gi }, react.createElement("div", { className: "ue-groupName", id: "ue-g-" + gi }, providerLabel(g)), g.models.map((m) => {
 					const isCur = current !== null && current.provider === g.id && current.model === m.id;
 					return react.createElement("button", {
 						key: m.id,
 						type: "button",
 						role: "option",
 						"aria-selected": isCur,
+						ref: (el) => { rowRefs.current[flatIndexById.get(g.id + "\u0000" + m.id)] = el; },
+						tabIndex: (flatIndexById.get(g.id + "\u0000" + m.id) === focusIdx) ? 0 : -1,
+						onKeyDown: (ev) => onRowKeyDown(ev, flatIndexById.get(g.id + "\u0000" + m.id)),
 						className: "ue-row" + (isCur ? " ue-rowActive" : ""),
 						disabled: busy,
 						onClick: () => {
