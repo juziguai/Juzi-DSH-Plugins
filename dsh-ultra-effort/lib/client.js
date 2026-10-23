@@ -70,7 +70,7 @@ window.__ModuleLoader__.load({
 .sk5-root .sk5-drop{font-family:inherit;}
 .sk5-root{--ue-blue:#3a83f7;--ue-purple:#924ff7;--ue-tertiary:rgba(15,23,42,.38);--ue-secondary:rgba(15,23,42,.55);--ue-track:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 10%,transparent);--ue-motion:cubic-bezier(.23,1,.32,1);}
 /* 触发器：模型名 + 档位名 + ▾ 合并成一个按钮 */
-.sk5-root .ue-trigger{display:inline-flex;align-items:center;gap:4px;max-width:260px;padding:2px 6px;border:0;border-radius:8px;background:transparent;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#0f172a);cursor:pointer;transition:background .12s ease;}
+.sk5-root .ue-trigger{display:inline-flex;align-items:center;gap:4px;max-width:260px;padding:2px 6px;border:0;border-radius:8px;background:transparent;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#0f172a);cursor:pointer;transition:background .14s ease;}
 .sk5-root .ue-trigger:hover{background:rgba(15,23,42,.06);}
 .sk5-root.ue-open .ue-trigger{background:rgba(15,23,42,.08);}
 .sk5-root .ue-trigger[disabled]{opacity:.5;cursor:default;}
@@ -93,9 +93,10 @@ window.__ModuleLoader__.load({
 .sk5-root .ue-title{font-size:16px;line-height:22px;font-weight:500;letter-spacing:.01em;}
 .sk5-root .ue-model{display:inline-flex;align-items:center;gap:2px;max-width:100%;padding:2px 4px;border:0;border-radius:6px;background:transparent;color:var(--ue-secondary);font-size:12px;line-height:16px;font-weight:400;cursor:pointer;transition:background .12s ease;}
 .sk5-root .ue-model:hover{background:rgba(15,23,42,.06);}
+.sk5-root .ue-model[aria-expanded="true"] .ue-modelChev{transform:rotate(180deg);}
 .sk5-root .ue-model:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:1px;}
 .sk5-root .ue-modelName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-modelChev{flex:none;opacity:.55;font-size:12px;line-height:1;}
+.sk5-root .ue-modelChev{flex:none;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.5;transition:transform .18s var(--ue-motion);}
 .sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--ue-tertiary);cursor:pointer;transition:background .12s ease,color .12s ease;}
 .sk5-root .ue-icon:hover{background:rgba(15,23,42,.06);color:rgba(15,23,42,.6);}
 .sk5-root .ue-icon:active{transform:translateY(-50%) scale(.94);}
@@ -174,24 +175,32 @@ window.__ModuleLoader__.load({
 .sk5-root .ue-head{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 40ms both;}
 .sk5-root .ue-sliderArea{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 56ms both;}
 @keyframes ue-enter{to{opacity:1;translate:0 0}}
+@keyframes ue-list-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* 模型列表 */
-.sk5-root .ue-models{margin:2px -2px 0;padding:0 2px 2px;max-height:320px;overflow-y:auto;overscroll-behavior:contain;animation:ue-enter .2s var(--ue-motion) 40ms both;}
-.sk5-root .ue-modelsTitle{margin:2px 4px 6px;font-size:12px;line-height:16px;color:rgba(15,23,42,.5);}
-.sk5-root .ue-group{margin-top:4px;}
-.sk5-root .ue-groupName{margin:6px 4px 2px;font-size:11px;line-height:14px;letter-spacing:.06em;text-transform:uppercase;color:rgba(15,23,42,.42);}
-.sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:6px 8px;border:0;border-radius:8px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .12s ease;}
+.sk5-root .ue-models{margin:2px -2px 0;padding:0 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.18) transparent;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
+.sk5-root .ue-models::-webkit-scrollbar{width:4px;height:4px;}
+.sk5-root .ue-models::-webkit-scrollbar-track{background:transparent;}
+.sk5-root .ue-models::-webkit-scrollbar-thumb{background:rgba(15,23,42,.18);border-radius:999px;}
+.sk5-root .ue-modelsTitle{margin:4px 2px 8px;font-size:11px;line-height:14px;font-weight:500;letter-spacing:.02em;color:rgba(15,23,42,.45);}
+.sk5-root .ue-group{margin-top:12px;}
+.sk5-root .ue-modelsTitle + .ue-group{margin-top:2px;}
+.sk5-root .ue-groupName{margin:0 2px 4px;font-size:11px;line-height:15px;font-weight:500;letter-spacing:0;text-transform:none;color:rgba(15,23,42,.42);cursor:default;user-select:none;}
+.sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 14px);margin-left:14px;min-height:34px;padding:7px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .14s ease;}
+.sk5-root .ue-rowHasDesc{min-height:44px;}
 .sk5-root .ue-row:hover{background:rgba(15,23,42,.05);}
 .sk5-root .ue-row:focus-visible{outline:2px solid rgba(58,131,247,.7);outline-offset:-2px;}
 .sk5-root .ue-rowActive{background:rgba(58,131,247,.10);}
 .sk5-root .ue-rowText{display:flex;flex-direction:column;min-width:0;}
-.sk5-root .ue-rowName{font-size:13px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-rowDesc{margin-top:1px;font-size:11px;line-height:14px;color:rgba(15,23,42,.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-check{flex:none;color:var(--ue-blue);font-size:13px;line-height:1;}
+.sk5-root .ue-rowName{font-size:13px;line-height:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-rowDesc{margin-top:2px;font-size:11px;line-height:15px;color:rgba(15,23,42,.48);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-check{flex:none;color:var(--ue-blue);font-size:14px;line-height:1;}
 /* 屏幕阅读器 */
 .sk5-root .ue-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}
 /* 减少动画 */
 @media (prefers-reduced-motion: reduce){
-.sk5-root .ue-head,.sk5-root .ue-sliderArea,.sk5-root .ue-models{animation:none;opacity:1;translate:0 0;}
+.sk5-root .ue-head,.sk5-root .ue-sliderArea,.sk5-root .ue-models{animation:none;opacity:1;translate:0 0;transform:none;}
+.sk5-root .ue-modelChev,.sk5-root .ue-triggerChev{transition:none;}
+.sk5-root .ue-model[aria-expanded="true"] .ue-modelChev{transform:none;}
 .sk5-root .ue-ultraLayer,.sk5-root .ue-stream i,.sk5-root .ue-burstLayer span,.sk5-root .ue-tick,.sk5-root .ue-handle,.sk5-root .ue-fill{animation:none;transition:none;}
 .sk5-root .ue-trackMax .ue-ultraLayer{-webkit-mask-image:none;mask-image:none;}
 .sk5-root .ue-ultraLayer::after{animation:none;background-position:60% 50%;}
@@ -502,6 +511,26 @@ window.__ModuleLoader__.load({
 					return () => window.removeEventListener("resize", apply);
 				}, [menu, panelView]);
 
+				/** 视图切换（滑杆↔列表）时给面板高度做 FLIP 过渡，避免硬切。 */
+				const heightRef = react.useRef(null);
+				react.useLayoutEffect(() => {
+					const panel = panelRef.current;
+					if (panel === null) return;
+					const next = panel.scrollHeight;
+					const prev = heightRef.current;
+					heightRef.current = next;
+					if (prev === null || prev === next) return;
+					if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+					panel.style.height = prev + "px";
+					panel.style.transition = "height .28s cubic-bezier(.19,1,.22,1)";
+					void panel.offsetHeight;
+					panel.style.height = next + "px";
+					const id = setTimeout(() => {
+						panel.style.height = "";
+						panel.style.transition = "";
+					}, 300);
+					return () => clearTimeout(id);
+				}, [panelView, menu]);
 				/** 焦点：打开面板聚焦滑杆；关闭后回到触发按钮。 */
 				const prevMenuRef = react.useRef(null);
 				react.useEffect(() => {
@@ -709,6 +738,14 @@ window.__ModuleLoader__.load({
 				const levelTone = inMax ? "ue-lv-max" : (atDefaultEffort ? "ue-lv-def" : "ue-lv-norm");
 				/** 面板标题语调色：最高档紫、其余一律蓝（Codex 原型）。 */
 
+				/** 提供商显示名：仅做展示映射（与设置页一致），不改 groups 数据与选择回调。 */
+				const providerLabel = (g) => {
+					const key = (String(g.id) + " " + String(g.name)).toLowerCase();
+					if (key.indexOf("account") >= 0) return "DeepSeek 账号";
+					if (key.indexOf("workbuddy") >= 0 || key.indexOf("work-buddy") >= 0 || key.indexOf("work buddy") >= 0) return "WorkBuddy";
+					if (key.indexOf("deepseek") >= 0) return "DeepSeek";
+					return g.name;
+				};
 				const isDefaultChoice = choices.length > 0 && choices[safePosIdx].key === "default";
 				const titleTone = inMax ? "ue-lv-max" : (isDefaultChoice ? "ue-lv-text" : "ue-lv-norm");
 				/** 端点动画：仅在“首次进入终点”时触发一次，离开后复位可重播。 */
@@ -1062,7 +1099,7 @@ window.__ModuleLoader__.load({
 					"aria-haspopup": "listbox",
 					"aria-expanded": panelView === "model",
 					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
-				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("span", { className: "ue-modelChev", "aria-hidden": "true" }, "›"))), react.createElement("button", {
+				}, react.createElement("span", { className: "ue-modelName" }, modelLabel), react.createElement("svg", { className: "ue-modelChev", viewBox: "0 0 16 16", "aria-hidden": "true" }, react.createElement("path", { d: "M4 6l4 4 4-4" })))), react.createElement("button", {
 					type: "button",
 					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetHidden" : ""),
 					"aria-hidden": atDefaultEffort ? "true" : void 0,
@@ -1078,7 +1115,7 @@ window.__ModuleLoader__.load({
 				}, react.createElement("div", { className: "ue-modelsTitle" }, tr("trigger.selectModel")), !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", {
 					key: g.id,
 					className: "ue-group"
-				}, react.createElement("div", { className: "ue-groupName" }, g.name), g.models.map((m) => {
+				}, react.createElement("div", { className: "ue-groupName" }, providerLabel(g)), g.models.map((m) => {
 					const isCur = current !== null && current.provider === g.id && current.model === m.id;
 					return react.createElement("button", {
 						key: m.id,
