@@ -6,9 +6,7 @@
 1. 只封装 DeepSeek 官方两个只读 HTTP 接口，不引入额外搜索源：
    - POST https://api.deepseek.com/v1/tools/search
    - POST https://api.deepseek.com/v1/tools/fetch
-2. 鉴权按四级顺序解析，全部只读、不落盘、不打印：
-   DEEPSEEK_API_KEY 环境变量 -> ANTHROPIC_AUTH_TOKEN 环境变量
-   -> HKCU\\Environment 的 DEEPSEEK_API_KEY -> HKLM\\Environment 的同名项。
+2. 只读取 DEEPSEEK_API_KEY：进程环境变量 -> 用户环境注册表 -> 系统环境注册表。
    末两级是为了适配会清洗 *KEY*/*TOKEN* 环境变量的宿主（如 DSH 的 MCP
    客户端：stdio 子进程环境会删除匹配 /KEY|PASSWORD|SECRET|TOKEN/i 的变量）。
 3. stdout 是 MCP 协议通道，任何日志只能走 stderr；本文件不 print 到 stdout。
@@ -35,10 +33,28 @@ from mcp.server.fastmcp import FastMCP
 
 from usage_store import record_success
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
-# 允许通过环境变量切换到测试网关；默认就是官方地址。
+# 显式自定义网关必须可信且使用 HTTPS；不会跟随任何重定向。
 BASE_URL = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").rstrip("/")
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_HTTP = urllib.request.build_opener(_NoRedirect())
+
+
+def _endpoint(path: str) -> str:
+    parsed = urllib.parse.urlsplit(BASE_URL)
+    if (parsed.scheme != "https" or not parsed.hostname or parsed.username is not None
+            or parsed.password is not None or parsed.query or parsed.fragment
+            or any(char.isspace() for char in BASE_URL)):
+        raise ValueError("invalid API base")
+    _ = parsed.port
+    return f"{BASE_URL}{path}"
 
 
 def _env_float(name: str, default: float) -> float:
@@ -49,7 +65,7 @@ def _env_float(name: str, default: float) -> float:
     try:
         value = float(raw)
     except (TypeError, ValueError):
-        print(f"[deepseek-tools] {name}={raw!r} 不是数字，回退默认值 {default:g}。", file=sys.stderr)
+        print(f"[deepseek-tools] {name} 不是数字，回退默认值 {default:g}。", file=sys.stderr)
         return default
     return value if value > 0 else default
 
@@ -62,7 +78,7 @@ def _env_int(name: str, default: int, minimum: int = 0, maximum: int = 10) -> in
     try:
         value = int(raw)
     except (TypeError, ValueError):
-        print(f"[deepseek-tools] {name}={raw!r} 不是整数，回退默认值 {default}。", file=sys.stderr)
+        print(f"[deepseek-tools] {name} 不是整数，回退默认值 {default}。", file=sys.stderr)
         return default
     return max(minimum, min(maximum, value))
 
@@ -83,9 +99,12 @@ def _windows_env(name: str) -> str:
     except ImportError:
         return ""
 
-    for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+    for root, path in (
+        (winreg.HKEY_CURRENT_USER, r"Environment"),
+        (winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"),
+    ):
         try:
-            with winreg.OpenKey(root, r"Environment") as handle:
+            with winreg.OpenKey(root, path) as handle:
                 value, _ = winreg.QueryValueEx(handle, name)
         except OSError:
             continue
@@ -97,15 +116,7 @@ def _windows_env(name: str) -> str:
 @lru_cache(maxsize=1)
 def _api_key_cached() -> str:
     """按优先级解析一次并缓存；环境变量优先，注册表兜底。"""
-    for name in ("DEEPSEEK_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
-        value = os.environ.get(name, "").strip()
-        if value:
-            return value
-    for name in ("DEEPSEEK_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
-        value = _windows_env(name)
-        if value:
-            return value
-    return ""
+    return os.environ.get("DEEPSEEK_API_KEY", "").strip() or _windows_env("DEEPSEEK_API_KEY")
 
 
 def _api_key() -> str:
@@ -146,14 +157,6 @@ def _retry_delay(exc: urllib.error.HTTPError | None, attempt: int) -> float:
     return min(MAX_BACKOFF_SECONDS, 0.5 * (2**attempt))
 
 
-def _error_detail(raw: str) -> Any:
-    """把错误响应体解析成 JSON；解析不了就截断成文本。"""
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return raw[:2000]
-
-
 def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     """调用 DeepSeek 官方接口，并把网络/HTTP 错误转成结构化 JSON。
 
@@ -161,15 +164,21 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     具体原因并决定是否重试；只有 Key 缺失属于配置问题，也返回结构化错误。
     408/429/5xx 与超时按 MAX_RETRIES 自动重试，其余错误立即返回。
     """
+    try:
+        endpoint = _endpoint(path)
+    except ValueError:
+        return {"error": "invalid_api_base", "message": "API 地址必须使用 HTTPS，且不能包含凭证、查询参数或片段。"}
     key = _api_key()
     if not key:
         return {
             "error": "missing_api_key",
             "message": (
-                "未找到 DEEPSEEK_API_KEY 或 ANTHROPIC_AUTH_TOKEN（环境变量与 Windows "
+                "未找到 DEEPSEEK_API_KEY（环境变量与 Windows "
                 "环境注册表均已检查），无法调用 DeepSeek 官方工具接口。"
             ),
         }
+    if not key.isascii() or any(ord(char) <= 32 or ord(char) == 127 for char in key):
+        return {"error": "invalid_api_key", "message": "专用 API Key 格式无效，请检查环境变量设置。"}
 
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     attempts = MAX_RETRIES + 1
@@ -178,7 +187,7 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     for attempt in range(attempts):
         retry_exc: urllib.error.HTTPError | None = None
         request = urllib.request.Request(
-            url=f"{BASE_URL}{path}",
+            url=endpoint,
             data=body,
             method="POST",
             headers={
@@ -189,7 +198,7 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as response:
+            with _HTTP.open(request, timeout=TIMEOUT_SECONDS) as response:
                 raw = response.read().decode("utf-8", errors="replace")
             if not raw:
                 return {"error": "empty_response", "message": "DeepSeek 返回了空响应体。"}
@@ -202,14 +211,17 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
                     "error": "invalid_response",
                     "message": f"响应顶层不是 JSON 对象，而是 {type(parsed).__name__}。",
                 }
+            if key in json.dumps(parsed, ensure_ascii=False):
+                return {"error": "unsafe_response", "message": "接口响应包含鉴权信息，已阻止返回。"}
             return parsed
 
         except urllib.error.HTTPError as exc:
-            raw = exc.read().decode("utf-8", errors="replace")
+            # Upstream errors and Location headers are untrusted and can echo credentials.
+            exc.close()
             result = {
-                "error": "http_error",
+                "error": "redirect_blocked" if 300 <= exc.code < 400 else "http_error",
                 "status": exc.code,
-                "detail": _error_detail(raw),
+                "message": "接口拒绝请求或返回重定向；响应体和响应头未转发。",
                 "hint": "408/429/5xx 可等待后重试；402 需充值；403 为安全策略拒绝（换 URL）；其它 4xx 不改请求不要重试。",
             }
             if exc.code not in RETRYABLE_STATUS or attempt == attempts - 1:
@@ -228,7 +240,7 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             if isinstance(exc.reason, TimeoutError):
                 result = {"error": "timeout", "message": f"请求超过 {TIMEOUT_SECONDS:g} 秒。"}
             else:
-                result = {"error": "network_error", "message": str(exc.reason)}
+                result = {"error": "network_error", "message": "无法连接接口，请检查网络、代理与 TLS 配置。"}
             if not isinstance(exc.reason, TimeoutError) or attempt == attempts - 1:
                 return result
             last = result

@@ -20,18 +20,17 @@ C:\Python314\python.exe -m pip install -r requirements.txt
 
 ## 鉴权
 
-按以下顺序解析，命中即止，全程不落盘、不打印：
+仅按以下顺序读取专用 `DEEPSEEK_API_KEY`，命中即止，不写入插件包或日志：
 
-1. 环境变量 `DEEPSEEK_API_KEY`
-2. 环境变量 `ANTHROPIC_AUTH_TOKEN`（本机与上面是同一把 Key）
-3. Windows 注册表 `HKCU\Environment\DEEPSEEK_API_KEY`
-4. Windows 注册表 `HKLM\Environment\DEEPSEEK_API_KEY`
-5. Windows 注册表 `HKCU\Environment\ANTHROPIC_AUTH_TOKEN`
-6. Windows 注册表 `HKLM\Environment\ANTHROPIC_AUTH_TOKEN`
+1. 进程环境变量 `DEEPSEEK_API_KEY`
+2. Windows 用户环境注册表 `HKCU\Environment`
+3. Windows 系统环境注册表 `HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
 
-第 3/4 级是必需的兜底：部分宿主（例如 DSH 的 `dsh-mcp-client`）在 spawn stdio 子进程时会
-**删除名字匹配 `/KEY|PASSWORD|SECRET|TOKEN/i` 的环境变量**，只靠环境继承会直接报
-`missing_api_key`。
+不读取 `ANTHROPIC_AUTH_TOKEN` 或其他应用凭证。DSH 会清洗子进程继承的凭证变量；Windows 用户可在系统的“环境变量”设置中配置专用 Key。请勿把真实值写入源码、命令示例或版本库。安装包不会自动安装 Python 依赖。
+
+默认将鉴权头发送给 `https://api.deepseek.com`。显式设置 `DEEPSEEK_API_BASE` 意味着信任该 HTTPS 网关接收密钥；禁止 HTTP、URL 内嵌凭证、查询参数和片段。所有重定向（含同站）都被拒绝。
+
+HTTP 错误仅返回状态码和固定说明，不返回上游响应体/响应头；网络异常不返回原始异常文本。正常 JSON 响应若包含正在使用的密钥，也会被阻止返回。
 
 ## 注册到客户端
 
@@ -74,7 +73,7 @@ C:\Python314\python.exe -m pip install -r requirements.txt
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `DEEPSEEK_API_BASE` | `https://api.deepseek.com` | 网关地址，测试时可指向本地 mock |
+| `DEEPSEEK_API_BASE` | `https://api.deepseek.com` | 可信 HTTPS 网关地址；设置后会向该网关发送专用 Key |
 | `DEEPSEEK_TOOLS_TIMEOUT` | `60` | 单次请求超时秒数；非数字会告警并回退 60（不再导致启动失败） |
 | `DEEPSEEK_TOOLS_RETRIES` | `1` | 追加重试次数（0~3），只对 408 / 425 / 429 / 5xx 与超时生效 |
 | `DEEPSEEK_USAGE_PATH` | `<CLAUDE_CONFIG_DIR 或 ~/.claude>/deepseek-tools-usage.json` | 计数文件位置 |
@@ -123,7 +122,7 @@ $env:SMOKE_REAL=1; C:\Python314\python.exe smoke_test.py   # 写真实计数，�
 
 | 现象 | 原因 / 处理 |
 |---|---|
-| `missing_api_key` | 六级来源都没拿到 Key；先 `setx DEEPSEEK_API_KEY sk-xxx` 再重启客户端 |
+| `missing_api_key` | 专用 Key 的三个来源均为空；先 `setx DEEPSEEK_API_KEY sk-xxx` 再重启客户端 |
 | `http_error 401` | Key 无效或已撤销 |
 | `http_error 402` | 余额不足 |
 | `http_error 403` | Fetch 被目标站安全策略拒绝，换 URL，重试无用 |

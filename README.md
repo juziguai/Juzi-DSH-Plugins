@@ -21,13 +21,18 @@ docs/          开发、安装与迁移说明
 
 ```powershell
 npm run check
+python -m pip install -r plugins/dsh-deepseek-tools/requirements.txt
 npm test
 ```
 
-`npm test` 运行清单/JS 语法检查、搜索插件路径与配置测试、Python 计数并发测试，不请求真实 API。
+`npm test` 运行清单/JS 语法检查、搜索插件路径与配置测试、Python 计数并发与凭证边界测试，不请求真实 API。
 搜索服务运行时另需使用目标 Python 安装 `plugins/dsh-deepseek-tools/requirements.txt`。
 
 安装、迁移、构建边界见 [开发指南](docs/development.md)。真实 API 冒烟会产生请求，需主动执行插件的 `smoke_test.py`。
+
+## 插件市场
+
+市场格式、接入前提和发布方法见 [市场指南](docs/marketplace.md)。安装者使用自己的专用 API Key，源码和索引不携带发布者凭证。
 
 ## Git 与版本
 
