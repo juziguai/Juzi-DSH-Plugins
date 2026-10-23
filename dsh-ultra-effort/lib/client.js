@@ -177,14 +177,15 @@ window.__ModuleLoader__.load({
 @keyframes ue-enter{to{opacity:1;translate:0 0}}
 @keyframes ue-list-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* 模型列表 */
-.sk5-root .ue-models{margin:2px -2px 0;padding:0 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.18) transparent;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
+.sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(15,23,42,.18) transparent;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
 .sk5-root .ue-models::-webkit-scrollbar{width:4px;height:4px;}
 .sk5-root .ue-models::-webkit-scrollbar-track{background:transparent;}
 .sk5-root .ue-models::-webkit-scrollbar-thumb{background:rgba(15,23,42,.18);border-radius:999px;}
-.sk5-root .ue-modelsTitle{margin:4px 2px 8px;font-size:11px;line-height:14px;font-weight:500;letter-spacing:.02em;color:rgba(15,23,42,.45);}
-.sk5-root .ue-group{margin-top:12px;}
-.sk5-root .ue-modelsTitle + .ue-group{margin-top:2px;}
-.sk5-root .ue-groupName{margin:0 2px 4px;font-size:11px;line-height:15px;font-weight:500;letter-spacing:0;text-transform:none;color:rgba(15,23,42,.42);cursor:default;user-select:none;}
+
+.sk5-root .ue-group{margin-top:16px;}
+.sk5-root .ue-group:first-child{margin-top:2px;}
+
+.sk5-root .ue-groupName{margin:0 2px 6px;font-size:13px;line-height:18px;font-weight:600;letter-spacing:0;text-transform:none;color:rgba(15,23,42,.58);cursor:default;user-select:none;}
 .sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 14px);margin-left:14px;min-height:34px;padding:7px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .14s ease;}
 .sk5-root .ue-rowHasDesc{min-height:44px;}
 .sk5-root .ue-row:hover{background:rgba(15,23,42,.05);}
@@ -1113,7 +1114,7 @@ window.__ModuleLoader__.load({
 					className: "ue-models",
 					role: "listbox",
 					"aria-label": tr("trigger.selectModel")
-				}, react.createElement("div", { className: "ue-modelsTitle" }, tr("trigger.selectModel")), !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", {
+				}, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g) => react.createElement("div", {
 					key: g.id,
 					className: "ue-group"
 				}, react.createElement("div", { className: "ue-groupName" }, providerLabel(g)), g.models.map((m) => {
