@@ -2,7 +2,10 @@ const out = { steps: [] };
 const errs = [];
 page.on("pageerror", (e) => errs.push(String(e.message).slice(0, 200)));
 
-await page.goto("http://127.0.0.1:3099/?token=bOV-9oH9qXhNT54C32GqUlphYAhtQkZQbcGk-vTvehk", { waitUntil: "domcontentloaded" });
+const token = process.env.DSH_TEST_TOKEN;
+if (!token) { console.error("请先设置环境变量 DSH_TEST_TOKEN（本机 dsh 测试服务的 token），再运行本脚本。"); process.exit(1); }
+const base = process.env.DSH_TEST_URL || "http://127.0.0.1:3099/";
+await page.goto(base + "?token=" + encodeURIComponent(token), { waitUntil: "domcontentloaded" });
 await page.waitForTimeout(6000);
 
 const cont = page.getByRole("button", { name: "继续", exact: true });

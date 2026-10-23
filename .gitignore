@@ -8,3 +8,8 @@ venv/
 deepseek-tools-usage.json
 *.lock
 *.tmp
+
+# dsh-ultra-effort 开发文档/规格/验收截图（本地保留，不入库）；README 在插件根目录，仍入库
+dsh-ultra-effort/docs/
+# 插件备份文件
+*.bak*
