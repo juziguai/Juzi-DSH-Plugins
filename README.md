@@ -42,7 +42,7 @@ npm test
 https://raw.githubusercontent.com/juziguai/Juzi-DSH-Plugins/main/marketplace/index.json
 ```
 
-「变更」0.1.0 安装并启用后，开启新一轮任务，从会话标题右侧或右栏添加页打开「变更」。需要本机 Git，不需要 Python 或 API Key；历史仅保留本次 Host 运行期间。
+「变更」0.1.1 安装并启用后，开启新一轮任务，从会话标题右侧或右栏添加页打开「变更」。支持顶部自动换行、全部展开/折叠差异与复制轮次摘要。需要本机 Git，不需要 Python 或 API Key；历史仅保留本次 Host 运行期间。
 
 市场格式、接入前提和发布方法见 [市场指南](docs/marketplace.md)。安装者使用自己的专用 API Key，源码和索引不携带发布者凭证。
 
