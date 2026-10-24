@@ -21,6 +21,12 @@
           "en": "Tools",
           "zh-cn": "工具服务"
         }
+      },
+      "presets": {
+        "title": {
+          "en": "Presets",
+          "zh-cn": "Agent 预设"
+        }
       }
     }
   },
@@ -53,15 +59,15 @@
       },
       "versions": [
         {
-          "version": "0.1.1",
-          "publishTimestamp": 1792830333,
+          "version": "0.1.2",
+          "publishTimestamp": 1792844254,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "fb18d3382e6960522bb2825b412acc5d52e39c8a",
+            "commit": "427694cde4dd7010dc5ee326b8f8f0836e944bd6",
             "path": "plugins/dsh-changes"
           }
         }
@@ -94,14 +100,14 @@
       "versions": [
         {
           "version": "0.2.2",
-          "publishTimestamp": 1792830333,
+          "publishTimestamp": 1792844254,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "fb18d3382e6960522bb2825b412acc5d52e39c8a",
+            "commit": "427694cde4dd7010dc5ee326b8f8f0836e944bd6",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -134,14 +140,14 @@
       "versions": [
         {
           "version": "0.1.1",
-          "publishTimestamp": 1792830333,
+          "publishTimestamp": 1792844254,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "fb18d3382e6960522bb2825b412acc5d52e39c8a",
+            "commit": "427694cde4dd7010dc5ee326b8f8f0836e944bd6",
             "path": "plugins/dsh-model-version-badge"
           }
         }
@@ -174,16 +180,57 @@
       },
       "versions": [
         {
-          "version": "1.1.1",
-          "publishTimestamp": 1792830333,
+          "version": "1.1.2",
+          "publishTimestamp": 1792844254,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "fb18d3382e6960522bb2825b412acc5d52e39c8a",
+            "commit": "427694cde4dd7010dc5ee326b8f8f0836e944bd6",
             "path": "plugins/dsh-deepseek-tools"
+          }
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "Unlock Mode",
+        "zh-cn": "解锁模式"
+      },
+      "description": {
+        "en": "Declarative Agent preset whose persona lives in a Markdown file; its tool list mirrors the official standard preset.",
+        "zh-cn": "纯声明型 Agent 预设：人格取自自定义 Markdown，工具清单与官方 standard 预设同构。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "presets",
+        "keywords": [
+          "preset",
+          "persona",
+          "agent",
+          "预设",
+          "人格"
+        ]
+      },
+      "name": "@juzi/dsh-preset-unlock",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+        "directory": "plugins/dsh-preset-unlock"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1792844254,
+          "engines": {
+            "dsh": ">=0.2.1-rc.3"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+            "commit": "427694cde4dd7010dc5ee326b8f8f0836e944bd6",
+            "path": "plugins/dsh-preset-unlock"
           }
         }
       ]
