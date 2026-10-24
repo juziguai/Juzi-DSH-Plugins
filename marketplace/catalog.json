@@ -25,8 +25,8 @@
       "path": "plugins/dsh-model-version-badge",
       "title": { "en": "Model Version Badge (Legacy)", "zh-cn": "模型版本角标（旧版）" },
       "description": {
-        "en": "Replaced by Ultra Effort 0.2.0. Frozen for rollback; disable after upgrading and verifying Ultra.",
-        "zh-cn": "已由 Ultra Effort 0.2.0 内置功能替代。仅保留供回退；升级并验收 Ultra 后停用。"
+        "en": "Replaced by Ultra Effort 0.2.1. Frozen for rollback; disable after upgrading and verifying Ultra.",
+        "zh-cn": "已由 Ultra Effort 0.2.1 内置功能替代。仅保留供回退；升级并验收 Ultra 后停用。"
       },
       "author": "Juzi",
       "metadata": { "category": "interface", "keywords": ["model", "version", "badge", "版本角标"] }

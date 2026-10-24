@@ -5,7 +5,7 @@ Juzi 自研 DeepSeek Harness（DSH）插件源仓库。各插件独立维护清�
 | 插件 | 能力 | 维护入口 |
 |---|---|---|
 | [dsh-ultra-effort](plugins/dsh-ultra-effort/README.md) | 模型选择、推理强度动效与内置版本角标 | `src/`、`build/client.mjs` |
-| [dsh-model-version-badge](plugins/dsh-model-version-badge/README.md) | 旧版独立角标，已由 Ultra 0.2.0 替代 | 冻结保留，供回退 |
+| [dsh-model-version-badge](plugins/dsh-model-version-badge/README.md) | 旧版独立角标，已由 Ultra 0.2.1 替代 | 冻结保留，供回退 |
 | [dsh-deepseek-tools](plugins/dsh-deepseek-tools/README.md) | 官方 Search / Fetch，复用 DSH MCP 桥接 | `lib/`、`server.py`、`usage_store.py` |
 
 ```text
@@ -29,7 +29,7 @@ npm test
 `npm test` 检查构建漂移、清单/JS 语法、Ultra 单包标签与交互、搜索配置及 Python 计数并发与凭证边界，不请求真实 API。CI 另用官方 SlotCore 验证注册契约。
 搜索服务运行时另需使用目标 Python 安装 `plugins/dsh-deepseek-tools/requirements.txt`。
 
-升级 Ultra 0.2.0 后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退步骤见 [合并迁移指南](docs/ultra-migration.md)。
+升级 Ultra 0.2.1 后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退步骤见 [合并迁移指南](docs/ultra-migration.md)。
 
 安装、迁移、构建边界见 [开发指南](docs/development.md)。真实 API 冒烟会产生请求，需主动执行插件的 `smoke_test.py`。
 
