@@ -7,7 +7,8 @@
   "metadata": {
     "categories": {
       "interface": { "title": { "en": "Interface", "zh-cn": "界面增强" } },
-      "tools": { "title": { "en": "Tools", "zh-cn": "工具服务" } }
+      "tools": { "title": { "en": "Tools", "zh-cn": "工具服务" } },
+      "presets": { "title": { "en": "Presets", "zh-cn": "Agent 预设" } }
     }
   },
   "plugins": [
@@ -50,6 +51,16 @@
       },
       "author": "Juzi",
       "metadata": { "category": "tools", "keywords": ["search", "fetch", "MCP", "搜索", "网页"] }
+    },
+    {
+      "path": "plugins/dsh-preset-unlock",
+      "title": { "en": "Unlock Mode", "zh-cn": "解锁模式" },
+      "description": {
+        "en": "Declarative Agent preset whose persona lives in a Markdown file; its tool list mirrors the official standard preset.",
+        "zh-cn": "纯声明型 Agent 预设：人格取自自定义 Markdown，工具清单与官方 standard 预设同构。"
+      },
+      "author": "Juzi",
+      "metadata": { "category": "presets", "keywords": ["preset", "persona", "agent", "预设", "人格"] }
     }
   ]
 }

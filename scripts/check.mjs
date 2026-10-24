@@ -6,8 +6,10 @@ import { execFileSync } from 'node:child_process';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 execFileSync(process.execPath, [join(root, 'plugins/dsh-ultra-effort/build/client.mjs'), '--check'], { stdio: 'pipe' });
+execFileSync(process.execPath, [join(root, 'plugins/dsh-preset-unlock/build/patch.mjs'), '--check'], { stdio: 'pipe' });
 const names = new Set();
-for (const dir of readdirSync(join(root, 'plugins'))) {
+const directories = readdirSync(join(root, 'plugins'));
+for (const dir of directories) {
   const base = join(root, 'plugins', dir);
   const pkg = JSON.parse(readFileSync(join(base, 'package.json'), 'utf8'));
   assert(!names.has(pkg.name), `duplicate package: ${pkg.name}`);
@@ -22,4 +24,5 @@ for (const dir of readdirSync(join(root, 'plugins'))) {
   }
   console.log(`OK ${pkg.name}@${pkg.version}`);
 }
-assert.equal(names.size, 4);
+const catalog = JSON.parse(readFileSync(join(root, 'marketplace/catalog.json'), 'utf8'));
+assert.deepEqual(new Set(catalog.plugins.map(plugin => plugin.path)), new Set(directories.map(dir => `plugins/${dir}`)), 'plugin directories and market catalog differ');

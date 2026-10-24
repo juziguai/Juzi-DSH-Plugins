@@ -1,6 +1,6 @@
 {
   "name": "@juzi/dsh-changes",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "Live per-turn file changes in the DSH right sidebar, retained only during the current Host run",

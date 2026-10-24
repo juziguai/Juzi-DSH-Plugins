@@ -134,6 +134,6 @@ $env:SMOKE_REAL=1; C:\Python314\python.exe smoke_test.py   # 写真实计数，�
 
 推荐按仓库根目录 `docs/development.md` 安装 `@juzi/dsh-deepseek-tools` 并加入 bundle 列表。插件使用官方 MCP 客户端管理 Python 子进程，服务路径相对于插件自动解析。
 
-配置项：`python`（默认 `python`，可指定虚拟环境解释器绝对路径）。在 profile patch 中以 `id: juzi-deepseek-tools` 覆盖 `config.python`。运行前用该解释器安装本目录的 `requirements.txt`。宿主必须提供兼容的 `@deepseek-ai/dsh-mcp-client`（已核验 0.2.1-rc.2）。
+配置项：`python`（默认 `python`，可指定虚拟环境解释器绝对路径）。在 profile patch 中以 `id: juzi-deepseek-tools` 覆盖 `config.python`。运行前用该解释器安装本目录的 `requirements.txt`。宿主必须提供兼容的 `@deepseek-ai/dsh-mcp-client`（peer `>=0.2.1-rc.2 <0.2.2`，已核验 0.2.1-rc.2 与 0.2.1-rc.3）。
 
 本页 Python 命令均在插件目录执行。独立 MCP 配置与 DSH 插件是两种可选接入方式，不要重复注册 `deepseek`。

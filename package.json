@@ -1,6 +1,6 @@
 {
   "name": "juzi-dsh-plugins",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "description": "Juzi 自研 DeepSeek Harness 插件源仓库",
   "scripts": {
@@ -8,6 +8,8 @@
     "market:build": "node scripts/market-index.mjs",
     "market:check": "node scripts/market-index.mjs --check",
     "test": "node scripts/check.mjs && node --test scripts/*.test.mjs && node scripts/test-python.mjs",
-    "client:build": "node plugins/dsh-ultra-effort/build/client.mjs"
+    "client:build": "node plugins/dsh-ultra-effort/build/client.mjs",
+    "preset:build": "node plugins/dsh-preset-unlock/build/patch.mjs",
+    "preset:check": "node plugins/dsh-preset-unlock/build/patch.mjs --check"
   }
 }

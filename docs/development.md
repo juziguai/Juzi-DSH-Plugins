@@ -20,7 +20,7 @@ dsh plugin --profile web add "file:$repo/plugins/dsh-deepseek-tools"
 ```
 
 核对目标 profile `package.json` 的 `dsh.profile.bundles` 包含需要加载的包名。
-搜索插件复用宿主 `@deepseek-ai/dsh-mcp-client@0.2.1-rc.2`，不捆绑另一套 DSH 服务。升级宿主时重新核验 peer 版本与契约。
+搜索插件复用宿主 `@deepseek-ai/dsh-mcp-client`（peer `>=0.2.1-rc.2 <0.2.2`，已核验 0.2.1-rc.2 与 0.2.1-rc.3），不捆绑另一套 DSH 服务。升级宿主时重新核验 peer 版本与契约。
 搜索插件推荐 `file:` 安装，由包管理器解析 peer；更新源码后需重新安装。UI 插件可使用 `link:`。搜索插件若改用 `link:`，必须先在插件目录解析好匹配 peer；仅链接包不能保证 ESM 依赖可解析。
 
 搜索插件先安装 Python 依赖，再按需覆盖解释器：
@@ -45,10 +45,13 @@ python -m pip install -r plugins/dsh-deepseek-tools/requirements.txt
 
 ## 验证分层
 
-1. `npm test`：构建一致性、离线结构、语法、变更快照与 Host 生命周期、Ultra 单包标签与交互、插件参数和计数并发。
+1. `npm test`：构建一致性、离线结构、语法、变更快照与 Host 生命周期、Ultra 单包标签与交互、预设生成及失败路径、插件参数和计数并发。设置 `PYTHON` 后只使用该解释器，导入失败直接报错；未设置时尝试 `C:\Python314\python.exe` 和 PATH 中的 `python`，仅接受能 `import mcp` 的解释器。
    设置 `DSH_SLOT_CORE_MODULE` 指向官方 `dsh-client-ui-slots/lib/index.js` 时执行真实插槽注册测试；设置 `DSH_CORDIS_MODULE` 指向官方 `cordis/lib/index.js` 时执行 Host 激活与释放测试；CI 必须执行两者。
+   设置 `DSH_PRESET_MODULE` 指向官方 `dsh-agent-preset/lib/index.js` 时使用其 YAML schema 与 Cordis 验证新预设的配置、工具一致性、注册与释放；CI 使用 0.2.1-rc.3，仅验证声明契约，不启动真实 Agent 或调用工具。
 2. 安装环境：验证官方 peer 可解析、MCP 握手及工具发现。
 3. 真实 profile：变更实时刷新、历史固定、会话隔离与释放清理，以及模型切换、强度交互、版本角标、Search/Fetch；真实 API 测试主动执行，可能产生费用。
+
+「解锁模式」的维护真源为 `plugins/dsh-preset-unlock/prompts/persona.md` 与官方标准预设快照；运行根命令 `npm run preset:build` / `npm run preset:check`。安装包不包含构建工具或 vendor 快照，安装时不会构建或改默认预设。人格文本不是操作系统沙箱，权限继续由宿主提供。
 
 ## Git 工作流
 

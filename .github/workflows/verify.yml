@@ -20,10 +20,13 @@ jobs:
       - run: python -m pip install -r plugins/dsh-deepseek-tools/requirements.txt
       - name: Install official slot registry for integration tests
         run: npm install --prefix "$RUNNER_TEMP/slot-runtime" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-client-ui-slots@0.2.1-rc.2 @deepseek-ai/cordis@4.0.5
+      - name: Install official preset declaration contract
+        run: npm install --prefix "$RUNNER_TEMP/preset-runtime" --ignore-scripts --no-audit --no-fund --legacy-peer-deps @deepseek-ai/dsh-agent-preset@0.2.1-rc.3 @deepseek-ai/cordis@4.0.5 @deepseek-ai/cordis-plugin-loader@1.0.6 @deepseek-ai/cordis-plugin-include@1.0.10 js-yaml@4.3.2
       - run: npm test
         env:
           DSH_SLOT_CORE_MODULE: ${{ runner.temp }}/slot-runtime/node_modules/@deepseek-ai/dsh-client-ui-slots/lib/index.js
           DSH_CORDIS_MODULE: ${{ runner.temp }}/slot-runtime/node_modules/@deepseek-ai/cordis/lib/index.js
+          DSH_PRESET_MODULE: ${{ runner.temp }}/preset-runtime/node_modules/@deepseek-ai/dsh-agent-preset/lib/index.js
       - name: Install official market validator in temporary tools directory
         run: npm install --prefix "$RUNNER_TEMP/market-validator" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-plugin-market-index@0.2.1-rc.2
       - name: Validate market against pinned source
