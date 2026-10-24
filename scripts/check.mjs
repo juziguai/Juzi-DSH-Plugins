@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+execFileSync(process.execPath, [join(root, 'plugins/dsh-ultra-effort/build/client.mjs'), '--check'], { stdio: 'pipe' });
 const names = new Set();
 for (const dir of readdirSync(join(root, 'plugins'))) {
   const base = join(root, 'plugins', dir);

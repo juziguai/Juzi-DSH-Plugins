@@ -1,7 +1,7 @@
 {
   "name": "@juzi/dsh-ultra-effort",
-  "description": "Ultra reasoning-effort seat for DeepSeek Harness: composer model + purple gradient effort slider with Ultra tier",
-  "version": "0.1.2",
+  "description": "Ultra model selector with reasoning-effort animations and built-in model snapshot badges",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
@@ -34,5 +34,9 @@
     "cordis.patch.yml",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "scripts": {
+    "build": "node build/client.mjs",
+    "check:build": "node build/client.mjs --check"
+  }
 }

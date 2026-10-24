@@ -1,5 +1,7 @@
 # @juzi/dsh-model-version-badge
 
+> 已被 Ultra 0.2.0 内置角标替代。独立包冻结在 0.1.1，仅为现有安装与回退保留，不再与新版 Ultra 配对维护。新用户直接安装 Ultra；老用户先升级并验收 Ultra，再停用本包。详见 [合并迁移指南](../../docs/ultra-migration.md)。以下为旧版工作方式。
+
 把 DeepSeek Harness 输入框里的模型角标换成**结构化版本角标**：显示官方文档公布的快照日期（MMDD），鼠标悬停显示完整官方模型名。
 
 官方原本的 `1017` 角标是 `@deepseek-ai/dsh-client-ui-deepseek-model-label-1017` 里硬编码的固定字符串，只覆盖 Flash 一个模型。本插件复刻它的 slot 机制，但数据来自官方文档表格，并覆盖所有已公布版本的模型。

@@ -5,21 +5,33 @@
 
 ## 模型版本角标
 
-Ultra 0.1.2 使用自有 `juzi.ultra.model.label` 子插槽，避免与官方菜单重复声明。配合 Model Version Badge 0.1.1，在输入框、面板标题和模型选项显示角标，同时保留 Ultra 滑块和动效。两个插件均需更新；没有角标插件时保留模型名称。
+Ultra 0.2.0 内置模型版本角标，模型选择、强度滑块、动效和日期角标只需安装本插件。标签直接调用内部组件，不声明或依赖额外标签插槽。搜索与抓取仍为独立插件。
+
+已有用户：升级 Ultra → 验证角标和动效 → 停用旧 Model Version Badge。旧包暂时仍启用也不会产生重复角标；完整迁移与回退见 [迁移指南](../../docs/ultra-migration.md)。
+
+## 源码与构建
+
+- `src/client.template.js`：模型菜单、交互与生命周期。
+- `src/styles.mjs`：现有样式和动效。
+- `src/model-label.mjs`：纯展示角标组件。
+- `src/model-versions.json`：随包快照版本表。
+- `build/client.mjs`：无第三方依赖的离线构建，生成自包含 `lib/client.js`。
+
+在仓库根目录运行 `npm run build`，`npm test` 会检查生成物漂移。更新版本数据时，从本插件目录运行 `powershell -NoProfile -File build/update-versions.ps1`，该命令联网读取官方价格页、更新 JSON 并构建；常规构建与运行期间不联网更新版本。
 
 ## 来源
 
 Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-syh/dsh-ui-skin-switcher)（MIT）。
 上游已经实现：模型分组菜单、`conversation.input.model` 槽位接管、`modelDirectories` /
-`session.selectModel` 提交、逐模型记忆强度、最高档点阵动画。本仓库只做了视觉层改造：
+`session.selectModel` 提交、逐模型记忆强度、最高档点阵动画。初始分支的改动如下（后续交互与内置角标演进见上文及 V2 记录）：
 
 | 改动 | 位置 |
 |---|---|
-| 模块 id 改为 `@juzi/dsh-ultra-effort` | `lib/client.js` 第 2 行 |
+| 模块 id 改为 `@juzi/dsh-ultra-effort` | 客户端模块声明 |
 | 标题位改成「⚡ Ultra」+ 副标题「使用额度消耗更快」 | 强度面板 titleRow |
 | 紫色渐变轨道、星点动画、白色发光旋钮、Ultra 渐变字 | 注入的 `ULTRA_CSS` |
 
-交互逻辑、数据通道、无障碍标签全部沿用上游，未改动。
+初始版本沿用上游数据通道；当前版本在此基础上维护交互和内置角标。
 
 ## V2 重构（2026-10-22）
 
@@ -47,7 +59,7 @@ Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-
 | 文件 | 作用 |
 |---|---|
 | `lib/index.js` | 宿主半身（空 `apply`，只为了让 loader 发现插件行） |
-| `lib/client.js` | 浏览器半身：座位 UI + 面板 + 滑块 + 动画 |
+| `lib/client.js` | 生成的自包含浏览器入口，发布时随包携带 |
 | `package.json` | `dsh.bundle.patch` + `dsh.client.inject` 声明 |
 | `cordis.patch.yml` | 往 profile 插入 `ui-ultra-effort` 行 |
 | `archive/legacy-patches/apply-v2.ps1` | V2 结构改造脚本（历史记录，不作为构建入口） |
@@ -84,4 +96,4 @@ dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\ds
 
 ## 维护入口
 
-当前可维护实现是 `lib/client.js`。`archive/legacy-patches/` 仅保留历史材料，禁止按版本依次重放；它们依赖当时的代码和路径，不能构建当前版本。
+当前实现维护于 `src/`，通过 `npm run build` 生成 `lib/client.js`。`archive/legacy-patches/` 仅保留历史材料，禁止按版本依次重放；它们依赖当时的代码和路径，不能构建当前版本。
