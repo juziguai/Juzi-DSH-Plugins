@@ -6,7 +6,7 @@
   },
   "description": {
     "en": "Juzi's independently installable DeepSeek Harness plugins.",
-    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：Ultra 模型与强度面板（内置角标）、搜索与网页抓取。"
+    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：实时轮次变更、Ultra 模型与强度面板（内置角标）、搜索与网页抓取。"
   },
   "metadata": {
     "categories": {
@@ -25,6 +25,48 @@
     }
   },
   "plugins": [
+    {
+      "title": {
+        "en": "Changes",
+        "zh-cn": "变更"
+      },
+      "description": {
+        "en": "Live per-turn file changes and diffs in the right sidebar. Requires local Git; history lasts only for the current Host run.",
+        "zh-cn": "在右侧实时查看本轮与历史轮次的文件修改、增删行数和差异。需要本机 Git；仅保留本次运行记录。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "interface",
+        "keywords": [
+          "changes",
+          "diff",
+          "live",
+          "变更",
+          "差异",
+          "实时"
+        ]
+      },
+      "name": "@juzi/dsh-changes",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+        "directory": "plugins/dsh-changes"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1792824142,
+          "engines": {
+            "dsh": ">=0.2.1-rc.2"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+            "commit": "c2f3518ae59ad10edd522a4f8db1f19c7710fa30",
+            "path": "plugins/dsh-changes"
+          }
+        }
+      ]
+    },
     {
       "title": {
         "en": "Ultra Effort",
@@ -52,14 +94,14 @@
       "versions": [
         {
           "version": "0.2.2",
-          "publishTimestamp": 1792805441,
+          "publishTimestamp": 1792824142,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "6df27f5324feea40a799ecbdde33f67a7b6d2565",
+            "commit": "c2f3518ae59ad10edd522a4f8db1f19c7710fa30",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -92,14 +134,14 @@
       "versions": [
         {
           "version": "0.1.1",
-          "publishTimestamp": 1792805441,
+          "publishTimestamp": 1792824142,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "6df27f5324feea40a799ecbdde33f67a7b6d2565",
+            "commit": "c2f3518ae59ad10edd522a4f8db1f19c7710fa30",
             "path": "plugins/dsh-model-version-badge"
           }
         }
@@ -133,14 +175,14 @@
       "versions": [
         {
           "version": "1.1.1",
-          "publishTimestamp": 1792805441,
+          "publishTimestamp": 1792824142,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "6df27f5324feea40a799ecbdde33f67a7b6d2565",
+            "commit": "c2f3518ae59ad10edd522a4f8db1f19c7710fa30",
             "path": "plugins/dsh-deepseek-tools"
           }
         }
