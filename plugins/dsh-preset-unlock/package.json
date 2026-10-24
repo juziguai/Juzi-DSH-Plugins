@@ -1,9 +1,9 @@
 {
   "name": "@juzi/dsh-preset-unlock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
-  "description": "解锁模式：以自定义人格替换 standard 预设 persona 的纯声明型 Agent 预设包",
+  "description": "新增「解锁模式」智能体预设，使用自定义 Markdown 人格与官方标准工具组。",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",

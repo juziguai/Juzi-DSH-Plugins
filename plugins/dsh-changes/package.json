@@ -1,9 +1,9 @@
 {
   "name": "@juzi/dsh-changes",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
-  "description": "Live per-turn file changes in the DSH right sidebar, retained only during the current Host run",
+  "description": "在 DSH 右侧实时查看每轮文件变更与差异，记录仅保留至本次运行结束。",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",

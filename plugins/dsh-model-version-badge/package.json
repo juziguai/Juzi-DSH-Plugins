@@ -1,7 +1,7 @@
 {
   "name": "@juzi/dsh-model-version-badge",
-  "description": "Structured snapshot-date badge for DeepSeek model labels, sourced from the official api-docs pricing page",
-  "version": "0.1.1",
+  "description": "旧版 DeepSeek 模型版本角标，已由 Ultra 内置功能替代，仅保留供回退。",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "main": "lib/index.js",

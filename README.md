@@ -33,7 +33,7 @@ npm test
 Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp` 就报错；未设置时，依次尝试 Windows 的 `C:\Python314\python.exe` 和 PATH 中的 `python`，取能导入依赖的解释器。
 搜索服务运行时另需使用目标 Python 安装 `plugins/dsh-deepseek-tools/requirements.txt`。
 
-升级 Ultra 0.2.2 后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退步骤见 [合并迁移指南](docs/ultra-migration.md)。
+升级到 Ultra 0.2.2 或更新版本后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退步骤见 [合并迁移指南](docs/ultra-migration.md)。
 
 安装、迁移、构建边界见 [开发指南](docs/development.md)。真实 API 冒烟会产生请求，需主动执行插件的 `smoke_test.py`。
 
@@ -45,9 +45,11 @@ Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp
 https://raw.githubusercontent.com/juziguai/Juzi-DSH-Plugins/main/marketplace/index.json
 ```
 
-「变更」0.1.2 安装并启用后，开启新一轮任务，从会话标题右侧或右栏添加页打开「变更」。文件在同一标题行下原位展开；顶部更多菜单提供自动换行、全部展开/折叠，旁侧可复制摘要。需要本机 Git，不需要 Python 或 API Key；历史仅保留本次 Host 运行期间。
+「变更」0.1.3 安装并启用后，开启新一轮任务，从会话标题右侧或右栏添加页打开「变更」。文件在同一标题行下原位展开；顶部更多菜单提供自动换行、全部展开/折叠，旁侧可复制摘要。需要本机 Git，不需要 Python 或 API Key；历史仅保留本次 Host 运行期间。
 
-「解锁模式」0.1.0 需要 DSH 0.2.1-rc.3 或更新版本；安装后手动选择预设，不自动修改默认预设或权限。卸载前保留旧会话需要的 `unlock` 声明，详见插件说明。
+「解锁模式」0.1.1 需要 DSH 0.2.1-rc.3 或更新版本；安装后手动选择预设，不自动修改默认预设或权限。卸载前保留旧会话需要的 `unlock` 声明，详见插件说明。
+
+市场名称、插件名称、分类与描述已适配 DSH 中文界面；已安装页的中文描述随对应插件更新生效。
 
 市场格式、接入前提和发布方法见 [市场指南](docs/marketplace.md)。安装者使用自己的专用 API Key，源码和索引不携带发布者凭证。
 

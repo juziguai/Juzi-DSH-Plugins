@@ -1,63 +1,63 @@
 {
-  "title": { "en": "Juzi DSH Plugins", "zh-cn": "橘子 DSH 插件市场" },
+  "title": { "en": "Juzi DSH Plugins", "zh": "橘子 DSH 插件市场" },
   "description": {
     "en": "Juzi's independently installable DeepSeek Harness plugins.",
-    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：实时轮次变更、Ultra 模型与强度面板（内置角标）、搜索与网页抓取。"
+    "zh": "橘子自研 DSH 插件：实时变更、模型与推理强度面板、搜索抓取及智能体预设。"
   },
   "metadata": {
     "categories": {
-      "interface": { "title": { "en": "Interface", "zh-cn": "界面增强" } },
-      "tools": { "title": { "en": "Tools", "zh-cn": "工具服务" } },
-      "presets": { "title": { "en": "Presets", "zh-cn": "Agent 预设" } }
+      "interface": { "title": { "en": "Interface", "zh": "界面增强" } },
+      "tools": { "title": { "en": "Tools", "zh": "工具服务" } },
+      "presets": { "title": { "en": "Presets", "zh": "智能体预设" } }
     }
   },
   "plugins": [
     {
       "path": "plugins/dsh-changes",
-      "title": { "en": "Changes", "zh-cn": "变更" },
+      "title": { "en": "Changes", "zh": "变更" },
       "description": {
         "en": "Live per-turn file changes and diffs in the right sidebar. Requires local Git; history lasts only for the current Host run.",
-        "zh-cn": "在右侧实时查看本轮与历史轮次的文件修改、增删行数和差异。需要本机 Git；仅保留本次运行记录。"
+        "zh": "在右侧实时查看本轮与历史轮次的文件修改、增删行数和差异。需要本机 Git；仅保留本次运行记录。"
       },
       "author": "Juzi",
       "metadata": { "category": "interface", "keywords": ["changes", "diff", "live", "变更", "差异", "实时"] }
     },
     {
       "path": "plugins/dsh-ultra-effort",
-      "title": { "en": "Ultra Effort", "zh-cn": "Ultra 推理强度" },
+      "title": { "en": "Ultra Effort", "zh": "Ultra 推理强度" },
       "description": {
         "en": "Model selector, reasoning-effort animations and built-in version badges. Replaces the standalone Model Version Badge.",
-        "zh-cn": "模型选择、推理强度动效与内置版本角标；替代独立角标插件。"
+        "zh": "模型选择、推理强度动效与内置版本角标；替代独立角标插件。"
       },
       "author": "Juzi",
       "metadata": { "category": "interface", "keywords": ["model", "reasoning", "Ultra", "推理强度"] }
     },
     {
       "path": "plugins/dsh-model-version-badge",
-      "title": { "en": "Model Version Badge (Legacy)", "zh-cn": "模型版本角标（旧版）" },
+      "title": { "en": "Model Version Badge (Legacy)", "zh": "模型版本角标（旧版）" },
       "description": {
         "en": "Replaced by Ultra Effort 0.2.2. Frozen for rollback; disable after upgrading and verifying Ultra.",
-        "zh-cn": "已由 Ultra Effort 0.2.2 内置功能替代。仅保留供回退；升级并验收 Ultra 后停用。"
+        "zh": "已由 Ultra Effort 0.2.2 内置功能替代。仅保留供回退；升级并验收 Ultra 后停用。"
       },
       "author": "Juzi",
       "metadata": { "category": "interface", "keywords": ["model", "version", "badge", "版本角标"] }
     },
     {
       "path": "plugins/dsh-deepseek-tools",
-      "title": { "en": "DeepSeek Search & Fetch", "zh-cn": "DeepSeek 搜索与抓取" },
+      "title": { "en": "DeepSeek Search & Fetch", "zh": "DeepSeek 搜索与抓取" },
       "description": {
         "en": "Official Search/Fetch via MCP. Requires Python, requirements.txt dependencies and an API key; do not duplicate an existing deepseek MCP server.",
-        "zh-cn": "通过 MCP 提供官方搜索与网页抓取。需先准备 Python、requirements.txt 依赖和 API Key；不要与已有 deepseek MCP 服务重复注册。"
+        "zh": "通过 MCP 提供官方搜索与网页抓取。需先准备 Python、requirements.txt 依赖和 API Key；不要与已有 deepseek MCP 服务重复注册。"
       },
       "author": "Juzi",
       "metadata": { "category": "tools", "keywords": ["search", "fetch", "MCP", "搜索", "网页"] }
     },
     {
       "path": "plugins/dsh-preset-unlock",
-      "title": { "en": "Unlock Mode", "zh-cn": "解锁模式" },
+      "title": { "en": "Unlock Mode", "zh": "解锁模式" },
       "description": {
         "en": "Declarative Agent preset whose persona lives in a Markdown file; its tool list mirrors the official standard preset.",
-        "zh-cn": "纯声明型 Agent 预设：人格取自自定义 Markdown，工具清单与官方 standard 预设同构。"
+        "zh": "自定义智能体预设，使用 Markdown 人格与官方标准工具组；安装后手动选择。"
       },
       "author": "Juzi",
       "metadata": { "category": "presets", "keywords": ["preset", "persona", "agent", "预设", "人格"] }

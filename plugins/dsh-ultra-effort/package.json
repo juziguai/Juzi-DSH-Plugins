@@ -1,7 +1,7 @@
 {
   "name": "@juzi/dsh-ultra-effort",
-  "description": "Ultra model selector with reasoning-effort animations and built-in model snapshot badges",
-  "version": "0.2.2",
+  "description": "模型选择、推理强度动效与内置模型版本角标。",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
