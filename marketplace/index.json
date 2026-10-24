@@ -6,7 +6,7 @@
   },
   "description": {
     "en": "Juzi's independently installable DeepSeek Harness plugins.",
-    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：模型与推理强度、版本角标、搜索与网页抓取。"
+    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：Ultra 模型与强度面板（内置角标）、搜索与网页抓取。"
   },
   "metadata": {
     "categories": {
@@ -31,8 +31,8 @@
         "zh-cn": "Ultra 推理强度"
       },
       "description": {
-        "en": "Model selector and reasoning-effort slider. Do not enable alongside the upstream skin-switcher.",
-        "zh-cn": "模型选择与推理强度滑块，提供 Ultra 风格面板。不要与上游 skin-switcher 同时启用。"
+        "en": "Model selector, reasoning-effort animations and built-in version badges. Replaces the standalone Model Version Badge.",
+        "zh-cn": "模型选择、推理强度动效与内置版本角标；替代独立角标插件。"
       },
       "author": "Juzi",
       "metadata": {
@@ -51,15 +51,15 @@
       },
       "versions": [
         {
-          "version": "0.1.2",
-          "publishTimestamp": 1792762519,
+          "version": "0.2.0",
+          "publishTimestamp": 1792805238,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "a368f401c9e0d9e1cb2223a5fa52d3bb74c0dbb5",
+            "commit": "7607de2f834c9514df9929ff1263130c6b81c0e3",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -67,12 +67,12 @@
     },
     {
       "title": {
-        "en": "Model Version Badge",
-        "zh-cn": "模型版本角标"
+        "en": "Model Version Badge (Legacy)",
+        "zh-cn": "模型版本角标（旧版）"
       },
       "description": {
-        "en": "Model snapshot-date badges for the official selector and Ultra Effort 0.1.2+.",
-        "zh-cn": "为官方模型菜单与 Ultra Effort 0.1.2+ 显示快照日期角标。"
+        "en": "Replaced by Ultra Effort 0.2.0. Frozen for rollback; disable after upgrading and verifying Ultra.",
+        "zh-cn": "已由 Ultra Effort 0.2.0 内置功能替代。仅保留供回退；升级并验收 Ultra 后停用。"
       },
       "author": "Juzi",
       "metadata": {
@@ -92,14 +92,14 @@
       "versions": [
         {
           "version": "0.1.1",
-          "publishTimestamp": 1792762519,
+          "publishTimestamp": 1792805238,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "a368f401c9e0d9e1cb2223a5fa52d3bb74c0dbb5",
+            "commit": "7607de2f834c9514df9929ff1263130c6b81c0e3",
             "path": "plugins/dsh-model-version-badge"
           }
         }
@@ -133,14 +133,14 @@
       "versions": [
         {
           "version": "1.1.1",
-          "publishTimestamp": 1792762519,
+          "publishTimestamp": 1792805238,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "a368f401c9e0d9e1cb2223a5fa52d3bb74c0dbb5",
+            "commit": "7607de2f834c9514df9929ff1263130c6b81c0e3",
             "path": "plugins/dsh-deepseek-tools"
           }
         }
