@@ -5,7 +5,7 @@
 
 ## 模型版本角标
 
-Ultra 0.2.1 内置模型版本角标，模型选择、强度滑块、动效和日期角标只需安装本插件。标签直接调用内部组件，不声明或依赖额外标签插槽。搜索与抓取仍为独立插件。
+Ultra 0.2.2 内置模型版本角标，模型选择、强度滑块、动效和日期角标只需安装本插件。标签直接调用内部组件，不声明或依赖额外标签插槽。搜索与抓取仍为独立插件。
 
 已有用户：升级 Ultra → 验证角标和动效 → 停用旧 Model Version Badge。旧包暂时仍启用也不会产生重复角标；完整迁移与回退见 [迁移指南](../../docs/ultra-migration.md)。
 
@@ -17,7 +17,7 @@ Ultra 0.2.1 内置模型版本角标，模型选择、强度滑块、动效和�
 - `src/model-versions.json`：随包快照版本表。
 - `build/client.mjs`：无第三方依赖的离线构建，生成自包含 `lib/client.js`。
 
-在仓库根目录运行 `npm run build`，`npm test` 会检查生成物漂移。更新版本数据时，从本插件目录运行 `powershell -NoProfile -File build/update-versions.ps1`，该命令联网读取官方价格页、更新 JSON 并构建；常规构建与运行期间不联网更新版本。
+在仓库根目录运行 `npm run client:build`，`npm test` 会检查生成物漂移。更新版本数据时，从本插件目录运行 `powershell -NoProfile -File build/update-versions.ps1`，该命令联网读取官方价格页、更新 JSON 并构建；常规构建与运行期间不联网更新版本。
 
 ## 来源
 
@@ -96,4 +96,4 @@ dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\ds
 
 ## 维护入口
 
-当前实现维护于 `src/`，通过 `npm run build` 生成 `lib/client.js`。`archive/legacy-patches/` 仅保留历史材料，禁止按版本依次重放；它们依赖当时的代码和路径，不能构建当前版本。
+当前实现维护于 `src/`，通过 `npm run client:build` 生成 `lib/client.js`。`archive/legacy-patches/` 仅保留历史材料，禁止按版本依次重放；它们依赖当时的代码和路径，不能构建当前版本。

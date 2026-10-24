@@ -2,7 +2,7 @@
 
 ## 源码与构建
 
-- Ultra：交互、样式、标签组件、版本数据位于 `plugins/dsh-ultra-effort/src/`；在仓库根运行 `npm run build` 生成 `lib/client.js`。构建无第三方依赖，默认验证会检查生成漂移。`archive/legacy-patches/` 不能重放。
+- Ultra：交互、样式、标签组件、版本数据位于 `plugins/dsh-ultra-effort/src/`；在仓库根运行 `npm run client:build` 生成 `lib/client.js`。构建无第三方依赖，默认验证会检查生成漂移。`archive/legacy-patches/` 不能重放。
 - 更新模型版本：从 Ultra 目录运行 `powershell -NoProfile -File build/update-versions.ps1`，联网读取官方价格页后写 JSON 并构建。独立角标包冻结为旧版回退用途；新数据只维护 Ultra 一处。
 - 搜索：`lib/index.js` 将 MCP 配置交给官方客户端；`lib/config.js` 按模块位置定位 Python。Python 文件保持同目录，独立 stdio 入口不依赖 DSH。
 - 不自动安装、启动或重启真实 profile。静态检查通过不等于 DSH 界面或生产工具验收通过。
