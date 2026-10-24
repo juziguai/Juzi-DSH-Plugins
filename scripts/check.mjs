@@ -22,4 +22,4 @@ for (const dir of readdirSync(join(root, 'plugins'))) {
   }
   console.log(`OK ${pkg.name}@${pkg.version}`);
 }
-assert.equal(names.size, 3);
+assert.equal(names.size, 4);

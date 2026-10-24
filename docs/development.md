@@ -2,6 +2,7 @@
 
 ## 源码与构建
 
+- 变更：`lib/index.js` 维护 Host 事件与路由，`lib/recorder.js` 管理每轮私有 Git 快照，`lib/git.js` 适配公开 subprocess，`lib/client.js` 维护右侧界面。无需构建和 npm 运行依赖；需要本机 Git，不能写用户仓库的 index/ref。
 - Ultra：交互、样式、标签组件、版本数据位于 `plugins/dsh-ultra-effort/src/`；在仓库根运行 `npm run client:build` 生成 `lib/client.js`。构建无第三方依赖，默认验证会检查生成漂移。`archive/legacy-patches/` 不能重放。
 - 更新模型版本：从 Ultra 目录运行 `powershell -NoProfile -File build/update-versions.ps1`，联网读取官方价格页后写 JSON 并构建。独立角标包冻结为旧版回退用途；新数据只维护 Ultra 一处。
 - 搜索：`lib/index.js` 将 MCP 配置交给官方客户端；`lib/config.js` 按模块位置定位 Python。Python 文件保持同目录，独立 stdio 入口不依赖 DSH。
@@ -13,6 +14,7 @@
 
 ```powershell
 $repo = (Get-Location).Path.Replace('\', '/')
+dsh plugin --profile web add "link:$repo/plugins/dsh-changes"
 dsh plugin --profile web add "link:$repo/plugins/dsh-ultra-effort"
 dsh plugin --profile web add "file:$repo/plugins/dsh-deepseek-tools"
 ```
@@ -43,10 +45,10 @@ python -m pip install -r plugins/dsh-deepseek-tools/requirements.txt
 
 ## 验证分层
 
-1. `npm test`：构建一致性、离线结构、语法、Ultra 单包标签与交互、插件参数和计数并发。
-   设置 `DSH_SLOT_CORE_MODULE` 指向官方 `dsh-client-ui-slots/lib/index.js` 时，执行真实插槽注册共存测试；CI 必须执行。
+1. `npm test`：构建一致性、离线结构、语法、变更快照与 Host 生命周期、Ultra 单包标签与交互、插件参数和计数并发。
+   设置 `DSH_SLOT_CORE_MODULE` 指向官方 `dsh-client-ui-slots/lib/index.js` 时执行真实插槽注册测试；设置 `DSH_CORDIS_MODULE` 指向官方 `cordis/lib/index.js` 时执行 Host 激活与释放测试；CI 必须执行两者。
 2. 安装环境：验证官方 peer 可解析、MCP 握手及工具发现。
-3. 真实 profile：模型切换、强度交互、版本角标、Search/Fetch；真实 API 测试主动执行，可能产生费用。
+3. 真实 profile：变更实时刷新、历史固定、会话隔离与释放清理，以及模型切换、强度交互、版本角标、Search/Fetch；真实 API 测试主动执行，可能产生费用。
 
 ## Git 工作流
 

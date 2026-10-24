@@ -2,7 +2,7 @@
   "title": { "en": "Juzi DSH Plugins", "zh-cn": "橘子 DSH 插件市场" },
   "description": {
     "en": "Juzi's independently installable DeepSeek Harness plugins.",
-    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：Ultra 模型与强度面板（内置角标）、搜索与网页抓取。"
+    "zh-cn": "Juzi 自研 DeepSeek Harness 插件：实时轮次变更、Ultra 模型与强度面板（内置角标）、搜索与网页抓取。"
   },
   "metadata": {
     "categories": {
@@ -11,6 +11,16 @@
     }
   },
   "plugins": [
+    {
+      "path": "plugins/dsh-changes",
+      "title": { "en": "Changes", "zh-cn": "变更" },
+      "description": {
+        "en": "Live per-turn file changes and diffs in the right sidebar. Requires local Git; history lasts only for the current Host run.",
+        "zh-cn": "在右侧实时查看本轮与历史轮次的文件修改、增删行数和差异。需要本机 Git；仅保留本次运行记录。"
+      },
+      "author": "Juzi",
+      "metadata": { "category": "interface", "keywords": ["changes", "diff", "live", "变更", "差异", "实时"] }
+    },
     {
       "path": "plugins/dsh-ultra-effort",
       "title": { "en": "Ultra Effort", "zh-cn": "Ultra 推理强度" },
