@@ -51,15 +51,15 @@
       },
       "versions": [
         {
-          "version": "0.2.0",
-          "publishTimestamp": 1792805238,
+          "version": "0.2.1",
+          "publishTimestamp": 1792805347,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "7607de2f834c9514df9929ff1263130c6b81c0e3",
+            "commit": "d3eeeaa582cd8e988b2ffa5852f9d349efa05dec",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -71,8 +71,8 @@
         "zh-cn": "模型版本角标（旧版）"
       },
       "description": {
-        "en": "Replaced by Ultra Effort 0.2.0. Frozen for rollback; disable after upgrading and verifying Ultra.",
-        "zh-cn": "已由 Ultra Effort 0.2.0 内置功能替代。仅保留供回退；升级并验收 Ultra 后停用。"
+        "en": "Replaced by Ultra Effort 0.2.1. Frozen for rollback; disable after upgrading and verifying Ultra.",
+        "zh-cn": "已由 Ultra Effort 0.2.1 内置功能替代。仅保留供回退；升级并验收 Ultra 后停用。"
       },
       "author": "Juzi",
       "metadata": {
@@ -92,14 +92,14 @@
       "versions": [
         {
           "version": "0.1.1",
-          "publishTimestamp": 1792805238,
+          "publishTimestamp": 1792805347,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "7607de2f834c9514df9929ff1263130c6b81c0e3",
+            "commit": "d3eeeaa582cd8e988b2ffa5852f9d349efa05dec",
             "path": "plugins/dsh-model-version-badge"
           }
         }
@@ -133,14 +133,14 @@
       "versions": [
         {
           "version": "1.1.1",
-          "publishTimestamp": 1792805238,
+          "publishTimestamp": 1792805347,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "7607de2f834c9514df9929ff1263130c6b81c0e3",
+            "commit": "d3eeeaa582cd8e988b2ffa5852f9d349efa05dec",
             "path": "plugins/dsh-deepseek-tools"
           }
         }
