@@ -15,7 +15,6 @@ import ctypes
 import os
 import time
 from ctypes import wintypes as w
-from dataclasses import dataclass
 from io import BytesIO
 from typing import Any
 
