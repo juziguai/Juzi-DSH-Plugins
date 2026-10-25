@@ -86,7 +86,7 @@ async def main() -> int:
             )
             if notepad:
                 was_minimized = notepad["minimized"]
-                result = await session.call_tool("focus_window", {"hwnd": notepad["hwnd"]})
+                result = await session.call_tool("focus_window", {"process": "notepad++"})
                 focused = json.loads(result.content[0].text)
                 assert focused["ok"], focused
                 assert focused["window"]["foreground"], focused
@@ -97,6 +97,21 @@ async def main() -> int:
                     focused["window"]["title"],
                     "was_minimized=", focused["window"]["was_minimized"],
                     "foreground=", focused["window"]["foreground"],
+                )
+
+                result = await session.call_tool(
+                    "screenshot", {"hwnd": focused["window"]["hwnd"], "max_width": 800}
+                )
+                window_meta = json.loads(result.content[0].text)
+                window_image = _image_block(result)
+                assert window_meta["ok"] and window_image is not None, window_meta
+                assert window_meta["mode"] == "window" and window_meta["hwnd"] == focused["window"]["hwnd"]
+                window_png = Image.open(io.BytesIO(base64.b64decode(window_image.data)))
+                assert window_png.size == (window_meta["width"], window_meta["height"])
+                print(
+                    "WINDOW_SCREENSHOT:",
+                    window_meta["width"], "x", window_meta["height"],
+                    "origin", window_meta["origin"],
                 )
             else:
                 print("FOCUS: Notepad++ 未运行，跳过")
