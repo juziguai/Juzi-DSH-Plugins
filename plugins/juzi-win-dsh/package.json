@@ -1,0 +1,35 @@
+{
+  "name": "@juzi/juzi-win-dsh",
+  "version": "0.1.0",
+  "private": true,
+  "description": "让模型看到并操作 Windows 电脑：窗口枚举、前台切换与物理像素截图。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "server.py",
+    "winapi.py",
+    "security.py",
+    "runlog.py",
+    "requirements.txt",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "smoke_test.py"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-mcp-client": ">=0.2.1-rc.2 <0.2.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "title": { "en": "Juzi DSH Plugins", "zh": "橘子 DSH 插件市场" },
   "description": {
     "en": "Juzi's independently installable DeepSeek Harness plugins.",
-    "zh": "橘子自研 DSH 插件：实时变更、模型与推理强度面板、搜索抓取及智能体预设。"
+    "zh": "橘子自研 DSH 插件：实时变更、模型与推理强度面板、搜索抓取、电脑控制及智能体预设。"
   },
   "metadata": {
     "categories": {
@@ -51,6 +51,16 @@
       },
       "author": "Juzi",
       "metadata": { "category": "tools", "keywords": ["search", "fetch", "MCP", "搜索", "网页"] }
+    },
+    {
+      "path": "plugins/juzi-win-dsh",
+      "title": { "en": "Computer Control", "zh": "电脑控制" },
+      "description": {
+        "en": "See and operate the Windows desktop through MCP: window list/focus, physical-pixel screenshots, clicking, typing, key combos and system controls. Windows only.",
+        "zh": "通过 MCP 查看并操作 Windows 桌面：窗口列表与前台切换、物理像素截图、点击、输入、组合键和系统控制。仅支持 Windows。"
+      },
+      "author": "Juzi",
+      "metadata": { "category": "tools", "keywords": ["windows", "desktop", "automation", "MCP", "电脑控制", "截图", "点击"] }
     },
     {
       "path": "plugins/dsh-preset-unlock",

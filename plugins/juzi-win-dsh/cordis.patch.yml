@@ -1,0 +1,7 @@
+- insert:
+    - id: juzi-win-dsh
+      name: '@juzi/juzi-win-dsh'
+      config:
+        python: 'C:\Python314\python.exe'
+        confirmMode: always
+        allowlist: []
