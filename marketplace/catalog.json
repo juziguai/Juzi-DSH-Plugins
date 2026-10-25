@@ -26,11 +26,11 @@
       "path": "plugins/dsh-ultra-effort",
       "title": { "en": "Ultra Effort", "zh": "Ultra 推理强度" },
       "description": {
-        "en": "Model selector, reasoning-effort animations and built-in version badges. Replaces the standalone Model Version Badge.",
-        "zh": "模型选择、推理强度动效与内置版本角标；替代独立角标插件。"
+        "en": "Model selector, reasoning-effort animations, built-in version badges and per-session quick execution (experimental). Requires DSH 0.2.1-rc.3 or later.",
+        "zh": "模型选择、推理强度动效、内置版本角标与按会话保存的快速执行（实验）。需要 DSH 0.2.1-rc.3 或更新版本。"
       },
       "author": "Juzi",
-      "metadata": { "category": "interface", "keywords": ["model", "reasoning", "Ultra", "推理强度"] }
+      "metadata": { "category": "interface", "keywords": ["model", "reasoning", "Ultra", "推理强度", "快速执行"] }
     },
     {
       "path": "plugins/dsh-model-version-badge",
@@ -56,8 +56,8 @@
       "path": "plugins/juzi-win-dsh",
       "title": { "en": "Computer Control", "zh": "电脑控制" },
       "description": {
-        "en": "See and operate the Windows desktop through MCP: window list/focus, physical-pixel screenshots, clicking, typing, key combos and system controls. Windows only.",
-        "zh": "通过 MCP 查看并操作 Windows 桌面：窗口列表与前台切换、物理像素截图、点击、输入、组合键和系统控制。仅支持 Windows。"
+        "en": "Eight Windows desktop MCP tools: windows, screenshots, clicking, scrolling, Chinese text input, key combos and system controls. Confirmation modes supported; requires Python and Pillow.",
+        "zh": "8 个 Windows 桌面 MCP 工具：窗口、截图、点击、滚动、中文输入、组合键与系统控制。支持确认模式；需 Python 和 Pillow。"
       },
       "author": "Juzi",
       "metadata": { "category": "tools", "keywords": ["windows", "desktop", "automation", "MCP", "电脑控制", "截图", "点击"] }
