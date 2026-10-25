@@ -12,6 +12,7 @@ venv/
 !.env.example
 deepseek-tools-usage.json
 *.tmp
+.tmp-*
 *.bak*
 # Historical local artifacts; source patches already tracked remain preserved
 plugins/dsh-ultra-effort/docs/
