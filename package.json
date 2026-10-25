@@ -1,6 +1,6 @@
 {
   "name": "juzi-dsh-plugins",
-  "version": "0.1.21",
+  "version": "0.1.22",
   "private": true,
   "description": "Juzi 自研 DeepSeek Harness 插件源仓库",
   "scripts": {
