@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { createModelLabel } from '../src/model-label.mjs';
+import { createFastControl } from '../src/fast-control.mjs';
 import { CSS, ULTRA_CSS } from '../src/styles.mjs';
 
 const root = new URL('../', import.meta.url);
@@ -15,6 +16,7 @@ export function renderClient() {
   let client = readFileSync(new URL('src/client.template.js', root), 'utf8');
   for (const [key, value] of Object.entries({
     MODEL_LABEL_FACTORY: createModelLabel.toString(), MODEL_VERSIONS: JSON.stringify(versions, null, 2),
+    FAST_CONTROL_FACTORY: createFastControl.toString(),
     CSS: JSON.stringify(CSS), ULTRA_CSS: JSON.stringify(ULTRA_CSS),
   })) {
     const token = `__${key}__`;

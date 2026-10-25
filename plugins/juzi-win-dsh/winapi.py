@@ -384,6 +384,7 @@ def capture(max_width: int = 1600, hwnd: int | None = None) -> tuple[bytes, dict
         raise ValueError("max_width 必须是 0（不缩放）或 320~4096 之间的整数。")
 
     origin: dict[str, int]
+    capture_method = "screen"
     if hwnd is not None:
         hwnd = int(hwnd)
         info = window_info(hwnd)
@@ -403,6 +404,15 @@ def capture(max_width: int = 1600, hwnd: int | None = None) -> tuple[bytes, dict
             box = (left, top, left + client["width"], top + client["height"])
             if left >= 0 and top >= 0 and box[2] <= image.width and box[3] <= image.height:
                 image = image.crop(box)
+        # Chrome / Electron 等窗口的 PrintWindow 可能返回纯白；此时改抓屏幕客户区。
+        gray = image.convert("L")
+        low, high = gray.getextrema()
+        capture_method = "window-print"
+        if high - low < 3:
+            image = ImageGrab.grab(bbox=(
+                client["x"], client["y"], client["x"] + client["width"], client["y"] + client["height"]
+            ))
+            capture_method = "window-screen"
         origin = {"x": client["x"], "y": client["y"]}
         mode = "window"
     else:
@@ -432,6 +442,7 @@ def capture(max_width: int = 1600, hwnd: int | None = None) -> tuple[bytes, dict
 
     metadata = {
         "mode": mode,
+        "capture_method": capture_method,
         "hwnd": int(hwnd) if hwnd is not None else None,
         "origin": origin,
         "width": int(image.width),
@@ -450,3 +461,296 @@ def current_cursor() -> dict[str, int]:
     if not user32.GetCursorPos(ctypes.byref(point)):
         raise ctypes.WinError(ctypes.get_last_error())
     return {"x": int(point.x), "y": int(point.y)}
+
+
+# ---------------------------------------------------------------- 输入注入
+
+ULONG_PTR = ctypes.c_ulonglong
+
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [
+        ("wVk", w.WORD),
+        ("wScan", w.WORD),
+        ("dwFlags", w.DWORD),
+        ("time", w.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [
+        ("dx", w.LONG),
+        ("dy", w.LONG),
+        ("mouseData", w.DWORD),
+        ("dwFlags", w.DWORD),
+        ("time", w.DWORD),
+        ("dwExtraInfo", ULONG_PTR),
+    ]
+
+
+class HARDWAREINPUT(ctypes.Structure):
+    _fields_ = [("uMsg", w.DWORD), ("wParamL", w.WORD), ("wParamH", w.WORD)]
+
+
+class _INPUTUNION(ctypes.Union):
+    _fields_ = [("mi", MOUSEINPUT), ("ki", KEYBDINPUT), ("hi", HARDWAREINPUT)]
+
+
+class INPUT(ctypes.Structure):
+    _fields_ = [("type", w.DWORD), ("u", _INPUTUNION)]
+
+
+user32.SendInput.restype = w.UINT
+user32.SendInput.argtypes = [w.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
+user32.SetCursorPos.restype = w.BOOL
+user32.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
+user32.VkKeyScanW.restype = ctypes.c_short
+user32.VkKeyScanW.argtypes = [w.WCHAR]
+
+INPUT_MOUSE = 0
+INPUT_KEYBOARD = 1
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_UNICODE = 0x0004
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_WHEEL = 0x0800
+WHEEL_DELTA = 120
+
+VK_NAMES = {
+    "backspace": 0x08,
+    "tab": 0x09,
+    "enter": 0x0D,
+    "return": 0x0D,
+    "shift": 0x10,
+    "ctrl": 0x11,
+    "control": 0x11,
+    "alt": 0x12,
+    "pause": 0x13,
+    "capslock": 0x14,
+    "esc": 0x1B,
+    "escape": 0x1B,
+    "space": 0x20,
+    "pageup": 0x21,
+    "pgup": 0x21,
+    "pagedown": 0x22,
+    "pgdn": 0x22,
+    "end": 0x23,
+    "home": 0x24,
+    "left": 0x25,
+    "up": 0x26,
+    "right": 0x27,
+    "down": 0x28,
+    "insert": 0x2D,
+    "ins": 0x2D,
+    "delete": 0x2E,
+    "del": 0x2E,
+    "win": 0x5B,
+    "windows": 0x5B,
+    "lwin": 0x5B,
+    "rwin": 0x5C,
+    "apps": 0x5D,
+    "printscreen": 0x2C,
+    "prtsc": 0x2C,
+    "numlock": 0x90,
+    "scrolllock": 0x91,
+}
+for _index in range(1, 25):
+    VK_NAMES[f"f{_index}"] = 0x6F + _index
+for _char in "0123456789":
+    VK_NAMES[_char] = ord(_char)
+for _char in "abcdefghijklmnopqrstuvwxyz":
+    VK_NAMES[_char] = ord(_char.upper())
+PUNCTUATION_VK = {
+    ";": 0xBA,
+    "=": 0xBB,
+    ",": 0xBC,
+    "-": 0xBD,
+    ".": 0xBE,
+    "/": 0xBF,
+    "`": 0xC0,
+    "[": 0xDB,
+    "\\": 0xDC,
+    "]": 0xDD,
+    "'": 0xDE,
+}
+
+
+def _send_input(inp: INPUT) -> None:
+    if user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)) != 1:
+        raise OSError(ctypes.get_last_error(), "SendInput 失败，目标窗口可能以更高权限运行。")
+
+
+def _key_event(vk: int = 0, scan: int = 0, flags: int = 0) -> None:
+    inp = INPUT(type=INPUT_KEYBOARD)
+    inp.u.ki = KEYBDINPUT(int(vk), int(scan), int(flags), 0, 0)
+    _send_input(inp)
+
+
+def _mouse_event(flags: int, data: int = 0) -> None:
+    inp = INPUT(type=INPUT_MOUSE)
+    inp.u.mi = MOUSEINPUT(0, 0, int(data) & 0xFFFFFFFF, int(flags), 0, 0)
+    _send_input(inp)
+
+
+def _outside_virtual_screen(x: int, y: int) -> bool:
+    metrics = screen_metrics()
+    return not (
+        metrics["x"] <= x < metrics["x"] + metrics["width"]
+        and metrics["y"] <= y < metrics["y"] + metrics["height"]
+    )
+
+
+def resolve_click_point(x: int, y: int, hwnd: int | None = None) -> tuple[int, int]:
+    """把屏幕坐标或窗口客户区坐标解析成屏幕物理坐标。"""
+    if hwnd is not None:
+        client = client_metrics(int(hwnd))
+        if not (0 <= x < client["width"] and 0 <= y < client["height"]):
+            raise ValueError(
+                f"坐标超出窗口客户区：x={x}, y={y}, 客户区={client['width']}x{client['height']}。"
+            )
+        screen_x, screen_y = client["x"] + x, client["y"] + y
+    else:
+        screen_x, screen_y = int(x), int(y)
+    if _outside_virtual_screen(screen_x, screen_y):
+        raise ValueError(f"坐标 ({screen_x}, {screen_y}) 不在当前虚拟屏幕内。")
+    return screen_x, screen_y
+
+
+def click(
+    x: int,
+    y: int,
+    button: str = "left",
+    double: bool = False,
+    hwnd: int | None = None,
+) -> dict[str, Any]:
+    """点击物理像素坐标；hwnd 存在时 x/y 相对客户区左上角。"""
+    button = (button or "left").lower()
+    if button not in ("left", "right"):
+        raise ValueError("button 必须是 left 或 right。")
+    screen_x, screen_y = resolve_click_point(x, y, hwnd)
+    target = window_at_point(screen_x, screen_y)
+    if not user32.SetCursorPos(int(screen_x), int(screen_y)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    down, up = (
+        (MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP)
+        if button == "left"
+        else (MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP)
+    )
+    clicks = 2 if double else 1
+    for index in range(clicks):
+        _mouse_event(down)
+        _mouse_event(up)
+        if index + 1 < clicks:
+            time.sleep(0.08)
+    return {
+        "x": int(screen_x),
+        "y": int(screen_y),
+        "button": button,
+        "double": bool(double),
+        "cursor": current_cursor(),
+        "target": target,
+    }
+
+
+def scroll(
+    clicks: int = 3,
+    x: int | None = None,
+    y: int | None = None,
+) -> dict[str, Any]:
+    """滚动鼠标滚轮；clicks 正数向上、负数向下。"""
+    if clicks == 0:
+        raise ValueError("clicks 不能为 0。")
+    if (x is None) != (y is None):
+        raise ValueError("x 和 y 必须同时提供或同时省略。")
+    if x is not None:
+        if _outside_virtual_screen(int(x), int(y)):
+            raise ValueError(f"坐标 ({x}, {y}) 不在当前虚拟屏幕内。")
+        if not user32.SetCursorPos(int(x), int(y)):
+            raise ctypes.WinError(ctypes.get_last_error())
+    cursor = current_cursor()
+    target = window_at_point(cursor["x"], cursor["y"])
+    _mouse_event(MOUSEEVENTF_WHEEL, int(clicks) * WHEEL_DELTA)
+    return {
+        "clicks": int(clicks),
+        "delta": int(clicks) * WHEEL_DELTA,
+        "cursor": cursor,
+        "target": target,
+    }
+
+
+def _vk_for_token(token: str) -> tuple[int, bool]:
+    """返回 (VK, 是否需要 shift)。未知键抛 ValueError。"""
+    token = token.strip().lower()
+    if not token:
+        raise ValueError("组合键中有空键位。")
+    if token in VK_NAMES:
+        return VK_NAMES[token], False
+    if token in PUNCTUATION_VK:
+        return PUNCTUATION_VK[token], False
+    if len(token) == 1:
+        scan = user32.VkKeyScanW(token)
+        if scan != -1:
+            vk = scan & 0xFF
+            shift = bool((scan >> 8) & 0x01)
+            return vk, shift
+    raise ValueError(f"不认识的按键：{token}")
+
+
+def press_keys(keys: str) -> dict[str, Any]:
+    """按组合键，例如 ctrl+v、alt+tab、win+d。"""
+    if not isinstance(keys, str) or not keys.strip():
+        raise ValueError("keys 不能为空。")
+    tokens = [part.strip().lower() for part in keys.split("+")]
+    if any(not part for part in tokens):
+        raise ValueError("组合键格式无效，例如应为 ctrl+v。")
+    parsed = [_vk_for_token(token) for token in tokens]
+    pressed: list[int] = []
+    try:
+        for vk, shift in parsed:
+            if shift:
+                _key_event(VK_NAMES["shift"])
+                pressed.append(VK_NAMES["shift"])
+            _key_event(vk)
+            pressed.append(vk)
+    finally:
+        # 出错时也释放已按下的键，避免系统卡在修饰键状态。
+        for vk in reversed(pressed):
+            _key_event(vk, flags=KEYEVENTF_KEYUP)
+    return {"keys": keys.strip(), "vk": [vk for vk, _ in parsed]}
+
+
+def type_text(text: str) -> dict[str, Any]:
+    """用 SendInput Unicode 输入文本；不写剪贴板。"""
+    if not isinstance(text, str) or text == "":
+        raise ValueError("text 不能为空。")
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    units = 0
+    newlines = 0
+    for char in normalized:
+        if char == "\n":
+            _key_event(0x0D)
+            _key_event(0x0D, flags=KEYEVENTF_KEYUP)
+            newlines += 1
+        elif char == "\t":
+            _key_event(0x09)
+            _key_event(0x09, flags=KEYEVENTF_KEYUP)
+        else:
+            data = char.encode("utf-16-le")
+            for index in range(0, len(data), 2):
+                unit = int.from_bytes(data[index:index + 2], "little")
+                _key_event(0, unit, KEYEVENTF_UNICODE)
+                _key_event(0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)
+                units += 1
+    return {
+        "characters": len(normalized),
+        "utf16_units": units,
+        "newlines": newlines,
+    }
+
+
+def foreground_info() -> dict[str, Any] | None:
+    hwnd = int(user32.GetForegroundWindow() or 0)
+    return window_info(hwnd) if hwnd else None

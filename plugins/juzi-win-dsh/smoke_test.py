@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""第一轮冒烟测试：直接以 MCP 客户端调用 server.py。
+"""真机冒烟测试：以 MCP 客户端调用 server.py。
 
-覆盖：
-- 工具清单与 schema 可发现
-- list_windows 能列出 ChatGPT / WindowsTerminal / 微信
-- screenshot 整屏尺寸与 DPI 物理像素一致，缩放元数据与 PNG 实际尺寸一致
-- focus_window 能还原最小化的 Notepad++ 并确认前台状态
+安全边界：
+- 只做只读/窗口焦点/截图/系统状态读取，不点击、不输入、不按键、不改音量亮度。
+- 不触碰 Notepad++ 任何已有文档；只截图和置前，最小化后还原。
 
 运行：C:\\Python314\\python.exe smoke_test.py
 """
@@ -26,9 +24,16 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import security  # noqa: E402
+from confirm import ConfirmationGate  # noqa: E402
+
 SERVER = str(Path(__file__).resolve().parent / "server.py")
 PYTHON = sys.executable
-EXPECTED_TOOLS = {"list_windows", "focus_window", "screenshot"}
+EXPECTED_TOOLS = {
+    "list_windows", "focus_window", "screenshot",
+    "click", "scroll", "type_text", "press_keys", "system",
+}
 
 
 def _image_block(result):
@@ -38,10 +43,28 @@ def _image_block(result):
     return None
 
 
+def _unit_checks() -> None:
+    gate = ConfirmationGate("always", [])
+    target = {"hwnd": 1, "process": "notepad++.exe", "title": "新文件 - Notepad++"}
+    assert gate.needs_confirmation(target)
+    issued = gate.issue("click", {"x": 10, "y": 20}, target)
+    ok, reason = gate.verify("click", {"x": 10, "y": 20}, target, issued["confirm_token"])
+    assert ok, reason
+    ok, _ = gate.verify("click", {"x": 10, "y": 20}, target, issued["confirm_token"])
+    assert not ok, "确认令牌必须一次性"
+    bypass = ConfirmationGate("allowlist", ["notepad++.exe"])
+    assert not bypass.needs_confirmation(target)
+    assert security.forbidden_reason({"process": "consent.exe", "title": "x"})
+    assert security.forbidden_reason({"process": "chrome.exe", "title": "1Password - 登录"})
+    assert not security.forbidden_reason({"process": "notepad++.exe", "title": "*新文件 - Notepad++"})
+    print("UNIT: confirm token / allowlist / forbidden list OK")
+
+
 async def main() -> int:
     ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
     screen_width = ctypes.windll.user32.GetSystemMetrics(0)
     screen_height = ctypes.windll.user32.GetSystemMetrics(1)
+    _unit_checks()
 
     params = StdioServerParameters(
         command=PYTHON,
@@ -115,6 +138,14 @@ async def main() -> int:
                 )
             else:
                 print("FOCUS: Notepad++ 未运行，跳过")
+
+            result = await session.call_tool("system", {})
+            status = json.loads(result.content[0].text)
+            assert status["ok"], status
+            assert isinstance(status["brightness"], int)
+            assert isinstance(status["volume"], int)
+            assert isinstance(status["mute"], bool)
+            print("SYSTEM_READ:", status)
 
             result = await session.call_tool("focus_window", {})
             invalid = json.loads(result.content[0].text)

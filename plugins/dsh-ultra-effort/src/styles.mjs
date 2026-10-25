@@ -42,6 +42,13 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-icon:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}
 .sk5-root .ue-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
 .sk5-root .ue-bolt{left:2px;}
+.sk5-root .ue-bolt.ue-fastOn{color:light-dark(#a65300,#ffd182);background:light-dark(#fff3dc,#45361f);}
+.sk5-root .ue-bolt.ue-fastOn svg{fill:currentColor;stroke-width:1;}
+.sk5-root .ue-bolt[aria-disabled="true"]{cursor:default;opacity:.6;}
+.sk5-root .ue-bolt[aria-busy="true"]{opacity:.65;}
+.sk5-root .ue-fastStatus{padding:4px 2px 7px;color:var(--ue-secondary);font-size:11px;line-height:1.5;overflow-wrap:anywhere;}
+.sk5-root .ue-fastStatus button{border:0;background:transparent;color:var(--ue-brand,#3a83f7);font:inherit;cursor:pointer;padding:0 4px;text-decoration:underline;}
+.sk5-root .ue-fastStatus button:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:2px;}
 .sk5-root .ue-reset{right:2px;}
 .sk5-root .ue-resetFlash{background:rgba(146,79,247,.14);color:var(--ue-purple);}
 /* 滑杆区 */

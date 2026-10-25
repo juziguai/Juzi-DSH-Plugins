@@ -1,7 +1,24 @@
 # dsh-ultra-effort
 
-给 DeepSeek Harness（DSH）输入框做的「Ultra 推理档位」控件：把模型选择 + 思考强度做成
-一枚座位，强度面板是紫色渐变轨道 + 星点动画 + "Ultra" 标题，副标题提示"使用额度消耗更快"。
+给 DeepSeek Harness（DSH）输入框提供模型选择、推理强度滑块、紫色星点动效、模型版本角标，以及按会话开启的快速执行（实验）。
+
+## 快速执行（实验）
+
+Ultra 0.3.0 需要 DSH **0.2.1-rc.3 或更新版本**；当前离线集成验证基线为 0.2.1-rc.3，后续宿主版本仍需复核接口。该功能默认关闭，打开强度面板后，左侧闪电可通过点击或键盘切换。后台确认保存后以暖色显示开启；右侧重置仍只重置推理强度。
+
+- 只保存当前主会话的选择，同一会话恢复后继续使用；新会话和分叉会话默认关闭。
+- 空闲时切换，下一轮生效。每轮开始冻结策略，运行中其他窗口修改设置也不会改变本轮。
+- 在系统提示中要求合并独立读取、复用仍有效的证据、精简重复叙述，同时保留依赖顺序、必要验证和关键进度。执行仍由 DSH 原生工具与权限控制。
+- 不切换模型、不降低 Max、不调整服务商计费档位、不自动取消长命令。它是执行流程优化，不代表服务商付费加速，尚未证明真实任务有稳定速度收益。
+- 写入冲突会重新读取并提示；超时或断线会核对后台结果，原写入尚未结束时禁止重复提交。后台不可用或只读时显示原因，模型菜单与强度控件仍可使用。
+
+设置保存在 Ultra 的正式 Settings namespace 中，字段为 `fastSessions`（会话 ID 到布尔值），无需手动编辑。只写单个会话字段，不读取 API key，不新增遥测或性能日志。自定义完整系统提示可能屏蔽插件的补充提示，应在对应预设中单独验证。
+
+客户端通过 Cordis 的 `ctx.get('remote.settings')` 读取可选设置服务。不能使用未声明依赖的 `ctx.remote.settings` 点号访问，也不能把该服务变成整个模型控件的强制依赖。
+
+验收：打开闪电 → 确认仍为原模型与 Max → 执行一轮任务 → 换到新会话确认默认关闭 → 回到原会话确认恢复。实际执行效果与速度需在 DSH 中另行验收；离线测试不调用模型 API。
+
+回退时先关闭快速执行；需要恢复旧宿主兼容时安装先前已验证的 Ultra 0.2.4。旧入口能忽略新增偏好，无需重置整个 profile；模型选择、动效与角标应一起复核。
 
 ## 模型版本角标
 
@@ -15,6 +32,8 @@ Ultra 0.2.2 内置模型版本角标，模型选择、强度滑块、动效和�
 - `src/styles.mjs`：现有样式和动效。
 - `src/model-label.mjs`：纯展示角标组件。
 - `src/model-versions.json`：随包快照版本表。
+- `src/fast-control.mjs`：快速执行的设置回执与异常状态机，内联到客户端。
+- `lib/fast-mode.js`、`lib/fast-state.js`、`lib/fast-policy.js`：Host 能力、轮次快照与执行提示。
 - `build/client.mjs`：无第三方依赖的离线构建，生成自包含 `lib/client.js`。
 
 在仓库根目录运行 `npm run client:build`，`npm test` 会检查生成物漂移。更新版本数据时，从本插件目录运行 `powershell -NoProfile -File build/update-versions.ps1`，该命令联网读取官方价格页、更新 JSON 并构建；常规构建与运行期间不联网更新版本。
@@ -58,7 +77,7 @@ Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-
 
 | 文件 | 作用 |
 |---|---|
-| `lib/index.js` | 宿主半身（空 `apply`，只为了让 loader 发现插件行） |
+| `lib/index.js` | 正式 Config 与可选 Host 能力挂载；缺少后台服务不阻断模型界面 |
 | `lib/client.js` | 生成的自包含浏览器入口，发布时随包携带 |
 | `package.json` | `dsh.bundle.patch` + `dsh.client.inject` 声明 |
 | `cordis.patch.yml` | 往 profile 插入 `ui-ultra-effort` 行 |
@@ -69,6 +88,8 @@ Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-
 ## 安装
 
 本地路径安装（profile 已配好，一般不需要再执行）：
+
+Ultra 0.3.0 新增官方 `@deepseek-ai/schemastery@3.18.5` 运行依赖。市场 / `file:` 安装由包管理器解析；使用源码 `link:` 时，先在本插件目录运行 `npm install --ignore-scripts --package-lock=false`，再交给 DSH 安装。
 
 ```powershell
 dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-ultra-effort"
@@ -86,7 +107,7 @@ dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\ds
 ## 生效条件
 
 - Web：重启 `dsh web` 并刷新页面。
-- 桌面端：重启桌面应用（客户端 bundle 只在启动时扫描 `dsh.client` 元数据）。
+- 桌面端：优先使用客户端原生插件管理器安装并确认加载状态；已在 DSH 0.2.1-rc.3 验证原生热替换，无须重启。若当前宿主提示需要重启，请先等待正在运行的会话结束，再由用户决定重启。
 
 ## 已知限制
 

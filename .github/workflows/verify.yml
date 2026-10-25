@@ -22,11 +22,17 @@ jobs:
         run: npm install --prefix "$RUNNER_TEMP/slot-runtime" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-client-ui-slots@0.2.1-rc.2 @deepseek-ai/cordis@4.0.5
       - name: Install official preset declaration contract
         run: npm install --prefix "$RUNNER_TEMP/preset-runtime" --ignore-scripts --no-audit --no-fund --legacy-peer-deps @deepseek-ai/dsh-agent-preset@0.2.1-rc.3 @deepseek-ai/cordis@4.0.5 @deepseek-ai/cordis-plugin-loader@1.0.6 @deepseek-ai/cordis-plugin-include@1.0.10 js-yaml@4.3.2
+      - name: Install Ultra dependency and official fast-execution contracts
+        run: |
+          npm install --prefix plugins/dsh-ultra-effort --ignore-scripts --package-lock=false --no-audit --no-fund
+          npm install --prefix "$RUNNER_TEMP/fast-runtime" --legacy-peer-deps=false --include=peer --package-lock=false --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-config-editor@0.2.1-rc.3 @deepseek-ai/dsh-settings@0.2.1-rc.3 @deepseek-ai/dsh-system-prompt@0.2.1-rc.3 @deepseek-ai/dsh-api-settings-controller@0.2.1-rc.3 react@18.3.1 react-dom@18.3.1 jsdom@26.1.0
       - run: npm test
         env:
           DSH_SLOT_CORE_MODULE: ${{ runner.temp }}/slot-runtime/node_modules/@deepseek-ai/dsh-client-ui-slots/lib/index.js
           DSH_CORDIS_MODULE: ${{ runner.temp }}/slot-runtime/node_modules/@deepseek-ai/cordis/lib/index.js
           DSH_PRESET_MODULE: ${{ runner.temp }}/preset-runtime/node_modules/@deepseek-ai/dsh-agent-preset/lib/index.js
+          DSH_FAST_RUNTIME_ANCHOR: ${{ runner.temp }}/fast-runtime/package.json
+          DSH_ULTRA_UI_RUNTIME_ANCHOR: ${{ runner.temp }}/fast-runtime/package.json
       - name: Install official market validator in temporary tools directory
         run: npm install --prefix "$RUNNER_TEMP/market-validator" --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-plugin-market-index@0.2.1-rc.2
       - name: Validate market against pinned source

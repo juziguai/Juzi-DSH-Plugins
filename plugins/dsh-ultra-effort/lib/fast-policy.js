@@ -1,0 +1,5 @@
+// Independent implementation; no upstream scheduler, tool wrapper or timeout policy is copied.
+export const FAST_POLICY = `Quick execution is enabled for this turn. Keep the user's chosen model, reasoning effort, task scope, acceptance criteria, and native permissions unchanged.
+Reduce end-to-end work: batch bounded, genuinely independent reads or lookups when the native tools support it. Keep read-before-write dependencies, shared-state operations, and approvals sequential; do not invent extra tools or concurrency limits.
+Reuse evidence only while its inputs and external state remain valid. Refresh evidence after relevant changes, failures, or an explicit verification request. Complete the necessary checks and inspect their results; never skip validation or finish early for speed.
+Keep repeated narration brief while retaining meaningful progress, failures, decisions, evidence, and the complete final delivery. Long-running work may be legitimate: do not cancel it or retry still-running work merely to save time.`;

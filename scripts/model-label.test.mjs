@@ -45,7 +45,7 @@ function harness(groups, current, legacy = false) {
     select: async selection => { selections.push(selection); return { ok: true }; }
   }) }, slots });
   // No renderSlot prop: merged Ultra must render its labels without a slot binding.
-  const render = () => { cursor = 0; return component({ sessionId: 'test', locked: false }); };
+  const render = () => { cursor = 0; return component({ sessionId: 'test', locked: false, useSession: selector => selector({ running: false }) }); };
   return { render, registration, core, registrations, selections };
 }
 function nodes(tree) { return tree && typeof tree === 'object' ? [tree, ...(tree.children ?? []).flatMap(nodes)] : []; }

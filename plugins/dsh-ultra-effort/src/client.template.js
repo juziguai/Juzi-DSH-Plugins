@@ -30,6 +30,7 @@ window.__ModuleLoader__.load({
 		let react = require("react");
 		react = __toESM(react, 1);
 		const ModelVersionBadge = (__MODEL_LABEL_FACTORY__)(react, __MODEL_VERSIONS__);
+		const createFastControl = __FAST_CONTROL_FACTORY__;
 		//#region src/client/index.ts
 		/**
 		* Skin-switcher plugin, browser half — the composer's model + reasoning-effort
@@ -80,7 +81,20 @@ window.__ModuleLoader__.load({
 				"sr.level": "{label}，第 {i} 项，共 {n} 项",
 				"hint.slider": "使用左右方向键调整强度",
 				"status.loading": "加载中…",
-				"status.noModels": "暂无可用模型"
+				"status.noModels": "暂无可用模型",
+				"fast.name": "快速执行（实验）",
+				"fast.on": "快速执行已开启；下一轮生效，保持当前模型和推理强度",
+				"fast.off": "快速执行已关闭；点击开启，下一轮生效",
+				"fast.loading": "正在读取快速执行状态…",
+				"fast.saving": "正在保存快速执行设置…",
+				"fast.running": "当前任务执行中，结束后可更改快速执行",
+				"fast.readonly": "当前连接只读，无法更改快速执行",
+				"fast.unknown": "保存结果待确认，正在核对后台状态；请勿重复提交",
+				"fast.rejected": "设置未被接受，当前状态保持不变；可重试",
+				"fast.conflict": "设置已被其他窗口更改，已重新读取；请确认后再切换",
+				"fast.unavailable": "快速执行后台暂不可用",
+				"fast.protocol": "快速执行前后端版本不匹配，请更新并重新加载",
+				"fast.retry": "重新检查"
 			},
 			en: {
 				"trigger.fallbackModel": "Model",
@@ -96,7 +110,20 @@ window.__ModuleLoader__.load({
 				"sr.level": "{label}, {i} of {n}",
 				"hint.slider": "Use the left and right arrow keys to adjust",
 				"status.loading": "Loading…",
-				"status.noModels": "No models available"
+				"status.noModels": "No models available",
+				"fast.name": "Quick execution (experimental)",
+				"fast.on": "Quick execution on; applies next turn, keeping your model and reasoning effort",
+				"fast.off": "Quick execution off; enable for the next turn",
+				"fast.loading": "Reading quick execution state…",
+				"fast.saving": "Saving quick execution preference…",
+				"fast.running": "Task running; change quick execution after it ends",
+				"fast.readonly": "This connection is read-only",
+				"fast.unknown": "Save outcome unconfirmed; checking Host state. Do not resubmit",
+				"fast.rejected": "Setting refused; confirmed state retained. You can retry",
+				"fast.conflict": "Another window changed settings; reloaded. Review before switching",
+				"fast.unavailable": "Quick execution backend unavailable",
+				"fast.protocol": "Quick execution versions differ; update and reload",
+				"fast.retry": "Check again"
 			}
 		};
 		/** Insert one stylesheet and return its disposer. */
@@ -150,6 +177,19 @@ window.__ModuleLoader__.load({
 		* @param ctx - client root context carrying connection and slots.
 		*/
 		function apply(ctx) {
+			const fastControls = new Map();
+			ctx.effect(() => () => { for (const control of fastControls.values()) control.dispose(); fastControls.clear(); });
+			function fastControlFor(sessionId) {
+				if (!fastControls.has(sessionId)) fastControls.set(sessionId, createFastControl({
+					sessionId, settings: () => ctx.get("remote.settings"),
+					fetchCapability: async () => {
+						const response = await fetch('api/juzi.ultra.capabilities?' + new URLSearchParams({ sessionId }), { cache: 'no-store', credentials: 'same-origin' });
+						if (!response.ok) throw new Error('fast-backend-unavailable');
+						return response.json();
+					},
+				}));
+				return fastControls.get(sessionId);
+			}
 			/**
 			* The first-party model directory service. It carries the same host catalog
 			* and the same session selection projection the official `/model` selector
@@ -180,6 +220,8 @@ window.__ModuleLoader__.load({
 				locale: NS
 			}, (props) => {
 				const { locked, sessionId, t } = props;
+				const running = props.useSession(snapshot => snapshot.running);
+				const fastLocked = locked || running;
 				const renderModelLabel = (group, model) => react.createElement(ModelVersionBadge, {
 					provider: { id: group.id, name: providerLabel(group) }, model
 				});
@@ -189,6 +231,16 @@ window.__ModuleLoader__.load({
 				*/
 				const tr = (key) => typeof t === "function" ? t(key) : DICTS.zh[key] ?? key;
 				const [menu, setMenu] = react.useState(null);
+				const fastControl = react.useMemo(() => fastControlFor(sessionId), [sessionId]);
+				const fast = react.useSyncExternalStore(fastControl.subscribe, fastControl.getSnapshot);
+				react.useEffect(() => { void fastControl.refresh(); }, [fastControl, menu, fastLocked]);
+				react.useEffect(() => {
+					if (menu !== "effort") return;
+					const refresh = () => { void fastControl.refresh(); };
+					window.addEventListener("focus", refresh);
+					window.addEventListener("online", refresh);
+					return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); };
+				}, [fastControl, menu]);
 				const [closing, setClosing] = react.useState(false);
 				const closeTimerRef = react.useRef(null);
 				const closingRef = react.useRef(false);
@@ -844,9 +896,15 @@ window.__ModuleLoader__.load({
 					className: "sk5-drop sk5-effort ue-panel" + (closing ? " ue-closing" : ""),
 					role: "dialog",
 					"aria-label": tr("panel.aria")
-				}, react.createElement("div", { className: "ue-head" }, react.createElement("span", {
-					className: "ue-icon ue-bolt",
-					"aria-hidden": "true"
+				}, react.createElement("div", { className: "ue-head" }, react.createElement("button", {
+					type: "button",
+					className: "ue-icon ue-bolt" + (fast.enabled ? " ue-fastOn" : ""),
+					title: tr("fast.name") + " · " + tr("fast." + (fastLocked ? "running" : fast.reason)),
+					"aria-label": tr("fast.name"),
+					"aria-pressed": fast.enabled,
+					"aria-busy": fast.phase === "loading" || fast.phase === "saving" || fast.phase === "unknown",
+					"aria-disabled": fastLocked || fast.phase === "loading" || fast.phase === "saving" || fast.phase === "unknown" || (fast.phase === "ready" && (!fast.writable || !fast.idle)),
+					onClick: () => { if (fast.phase === "unavailable") void fastControl.refresh(); else void fastControl.toggle(fastLocked); }
 				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, tr("label.faster")), react.createElement("span", null, tr("label.smarter"))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + titleTone }, displayLabel), react.createElement("button", {
 					type: "button",
 					ref: modelBtnRef,
@@ -866,7 +924,9 @@ window.__ModuleLoader__.load({
 					"aria-label": tr("reset.aria"),
 					disabled: locked || busy || current === null || reasoning === void 0,
 					onClick: onReset
-				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M2.8 6.2A5.6 5.6 0 1 1 2.6 9.4" }), react.createElement("path", { d: "M2.4 2.4v4h4" })))), panelView === "model" ? react.createElement("div", {
+				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M2.8 6.2A5.6 5.6 0 1 1 2.6 9.4" }), react.createElement("path", { d: "M2.4 2.4v4h4" })))), react.createElement("div", {
+					className: "ue-fastStatus" + (["on", "off"].includes(fast.reason) && !fastLocked ? " ue-sr" : ""), role: "status", "aria-live": "polite"
+				}, tr("fast." + (fastLocked ? "running" : fast.reason)), ["unavailable", "protocol"].includes(fast.reason) ? react.createElement("button", { type: "button", onClick: () => void fastControl.refresh() }, tr("fast.retry")) : null), panelView === "model" ? react.createElement("div", {
 					ref: modelsRef,
 					className: "ue-models",
 					role: "listbox",
