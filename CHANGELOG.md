@@ -1,5 +1,12 @@
 # 更新日志
 
+## [0.1.21] - 2026-10-25
+
+### 修复
+
+- Ultra 0.2.4 修复 `stopDrag` 暂时性死区崩溃：组件在子代理会话或模型目录尚未就绪时提前 `return null`，但挂载后的副作用仍会调用此时尚未初始化的 `const` 函数，抛出 `ReferenceError: Cannot access 'stopDrag' before initialization`，使 `conversation.input.model` 槽位条目崩溃并静默回退原生模型选择器。
+- 拖拽相关的 `onWinMove`、`stopDrag`、`onWinUp`、`onWinCancel` 改为函数声明，提前返回的渲染不再触发 TDZ；其余组件行为不变。
+
 ## [0.1.20] - 2026-10-24
 
 ### 修复

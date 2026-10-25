@@ -1,7 +1,7 @@
 {
   "name": "@juzi/dsh-ultra-effort",
   "description": "模型选择、推理强度动效与内置模型版本角标。",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "type": "module",
   "main": "lib/index.js",

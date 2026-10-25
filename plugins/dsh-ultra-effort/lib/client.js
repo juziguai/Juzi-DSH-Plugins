@@ -759,7 +759,7 @@ window.__ModuleLoader__.load({
 						if (tipTextRef.current !== null) tipTextRef.current.textContent = choices[near].label;
 					}
 				};
-				const onWinMove = (ev) => {
+				function onWinMove(ev) {
 					if (dragIdxRef.current === null) return;
 					const rect = dragRectRef.current;
 					if (rect === null) return;
@@ -776,8 +776,19 @@ window.__ModuleLoader__.load({
 						dragIdxRef.current = idx;
 						setHoverIdx(idx);
 					}
-				};
-				const stopDrag = () => {
+				}
+				/**
+				* 停止拖拽并清理监听。
+				*
+				* 必须用函数声明而不是 const 箭头函数：组件在子代理会话
+				* （subagentAddress 非空）或模型目录未就绪时会提前 return null，
+				* 此时第 394 行的 useEffect 依然会在挂载后执行并调用本函数。
+				* const 绑定在提前 return 的渲染里从未初始化，会抛
+				* "Cannot access 'stopDrag' before initialization"，
+				* 导致 conversation.input.model 槽位条目崩溃、回退原生选择器。
+				* 函数声明在作用域入口即完成初始化，不受提前 return 影响。
+				*/
+				function stopDrag() {
 					const el = dragElRef.current;
 					if (el !== null) {
 						el.removeEventListener("pointermove", onWinMove);
@@ -796,7 +807,8 @@ window.__ModuleLoader__.load({
 						dragRafRef.current = null;
 					}
 					dragRectRef.current = null;
-				};				const onWinUp = () => {
+				}
+				function onWinUp() {
 					if (dragIdxRef.current === null) return;
 					const idx = dragIdxRef.current;
 					dragIdxRef.current = null;
@@ -811,15 +823,15 @@ window.__ModuleLoader__.load({
 						setHoverIdx(idx);
 						onPickEffort(c.effort);
 					}
-				};
-				const onWinCancel = () => {
+				}
+				function onWinCancel() {
 					dragIdxRef.current = null;
 					setMoving(false);
 					if (pressTimerRef.current !== null) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; }
 					setShowLabels(false);
 					stopDrag();
 					setHoverIdx(null);
-				};
+				}
 				const onTrackDown = (ev) => {
 					if (choices.length === 0) return;
 					const el = trackRef.current;
