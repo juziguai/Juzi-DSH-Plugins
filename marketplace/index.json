@@ -33,6 +33,48 @@
   "plugins": [
     {
       "title": {
+        "en": "Quote & Annotate",
+        "zh": "文本引用与批注"
+      },
+      "description": {
+        "en": "Select conversation text, comment and attach individual quote chips to a draft. Preview, edit, restore drafts and expand sent quotes. Requires DSH 0.2.1-rc.3 or later.",
+        "zh": "选中对话文字、添加评论，以独立引用标签加入草稿；支持悬停预览、编辑删除、刷新恢复与已发送引用折叠。需要 DSH 0.2.1-rc.3 或更新版本。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "interface",
+        "keywords": [
+          "quote",
+          "annotate",
+          "draft",
+          "引用",
+          "批注",
+          "草稿"
+        ]
+      },
+      "name": "@juzi/dsh-quote-annotate",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+        "directory": "plugins/dsh-quote-annotate"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793120278,
+          "engines": {
+            "dsh": ">=0.2.1-rc.3"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
+            "commit": "295550fa3b5d4e5fb11237537e547ea3eb4f8a45",
+            "path": "plugins/dsh-quote-annotate"
+          }
+        }
+      ]
+    },
+    {
+      "title": {
         "en": "Changes",
         "zh": "变更"
       },
@@ -60,14 +102,14 @@
       "versions": [
         {
           "version": "0.1.3",
-          "publishTimestamp": 1792965323,
+          "publishTimestamp": 1793120278,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "3d797b9681e34f9ff63ee7e058df145814580b08",
+            "commit": "295550fa3b5d4e5fb11237537e547ea3eb4f8a45",
             "path": "plugins/dsh-changes"
           }
         }
@@ -101,14 +143,14 @@
       "versions": [
         {
           "version": "0.3.0",
-          "publishTimestamp": 1792965323,
+          "publishTimestamp": 1793120278,
           "engines": {
             "dsh": ">=0.2.1-rc.3"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "3d797b9681e34f9ff63ee7e058df145814580b08",
+            "commit": "295550fa3b5d4e5fb11237537e547ea3eb4f8a45",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -141,14 +183,14 @@
       "versions": [
         {
           "version": "0.1.2",
-          "publishTimestamp": 1792965323,
+          "publishTimestamp": 1793120278,
           "engines": {
             "dsh": ">=0.1.5-alpha.1"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "3d797b9681e34f9ff63ee7e058df145814580b08",
+            "commit": "295550fa3b5d4e5fb11237537e547ea3eb4f8a45",
             "path": "plugins/dsh-model-version-badge"
           }
         }
@@ -182,14 +224,14 @@
       "versions": [
         {
           "version": "1.1.3",
-          "publishTimestamp": 1792965323,
+          "publishTimestamp": 1793120278,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "3d797b9681e34f9ff63ee7e058df145814580b08",
+            "commit": "295550fa3b5d4e5fb11237537e547ea3eb4f8a45",
             "path": "plugins/dsh-deepseek-tools"
           }
         }
@@ -201,8 +243,8 @@
         "zh": "电脑控制"
       },
       "description": {
-        "en": "Eight Windows desktop MCP tools: windows, screenshots, clicking, scrolling, Chinese text input, key combos and system controls. Confirmation modes supported; requires Python and Pillow.",
-        "zh": "8 个 Windows 桌面 MCP 工具：窗口、截图、点击、滚动、中文输入、组合键与系统控制。支持确认模式；需 Python 和 Pillow。"
+        "en": "Fifteen Windows MCP tools for windows, screenshots, input, window management, drag/hover, waits, clipboard, app launching and OCR. Requires Python and Pillow; confirmation modes supported.",
+        "zh": "15个Windows桌面MCP工具：窗口、截图、输入、窗口管理、拖拽悬停、等待、剪贴板、应用启动与OCR找字。支持确认模式；需Python和Pillow。"
       },
       "author": "Juzi",
       "metadata": {
@@ -224,15 +266,15 @@
       },
       "versions": [
         {
-          "version": "1.0.0",
-          "publishTimestamp": 1792965323,
+          "version": "1.1.0",
+          "publishTimestamp": 1793120278,
           "engines": {
             "dsh": ">=0.2.1-rc.2"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "3d797b9681e34f9ff63ee7e058df145814580b08",
+            "commit": "295550fa3b5d4e5fb11237537e547ea3eb4f8a45",
             "path": "plugins/juzi-win-dsh"
           }
         }
@@ -266,14 +308,14 @@
       "versions": [
         {
           "version": "0.1.1",
-          "publishTimestamp": 1792965323,
+          "publishTimestamp": 1793120278,
           "engines": {
             "dsh": ">=0.2.1-rc.3"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins",
-            "commit": "3d797b9681e34f9ff63ee7e058df145814580b08",
+            "commit": "295550fa3b5d4e5fb11237537e547ea3eb4f8a45",
             "path": "plugins/dsh-preset-unlock"
           }
         }
