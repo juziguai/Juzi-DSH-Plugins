@@ -1,8 +1,8 @@
 {
   "name": "@juzi/juzi-win-dsh",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
-  "description": "让模型看到并操作 Windows 电脑：窗口、截图、点击、输入、按键与系统控制。",
+  "description": "让模型看到并操作 Windows 电脑：窗口、截图、点击、输入、按键、窗口管理、拖拽悬停、等待、剪贴板、启动应用与 OCR 找字。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -20,12 +20,18 @@
     "paste_text.ps1",
     "system_control.py",
     "system_control.ps1",
+    "clipboard_win.py",
+    "launcher.py",
+    "ocr.py",
+    "ocr_windows.ps1",
+    "schema_validate.py",
     "requirements.txt",
     "requirements-dev.txt",
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",
-    "smoke_test.py"
+    "smoke_test.py",
+    "regression_test.py"
   ],
   "engines": {
     "dsh": ">=0.2.1-rc.2"

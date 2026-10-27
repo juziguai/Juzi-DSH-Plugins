@@ -1,0 +1,3 @@
+- insert:
+    - id: juzi-quote-annotate
+      name: '@juzi/dsh-quote-annotate'

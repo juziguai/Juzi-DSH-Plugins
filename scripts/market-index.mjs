@@ -62,6 +62,20 @@ export async function validateIndex(index, validatorPath) {
   return parsed.plugins.map(plugin => ({ name: plugin.name, ...marketInstallTarget(plugin.name, plugin.versions[0]) }));
 }
 
+export function verifyPinnedIndex(index, cwd = root) {
+  if (!index.plugins.length) throw new Error('Index must contain published plugins');
+  for (const { name, repository, versions, ...display } of index.plugins) {
+    const source = versions[0]?.source;
+    if (!source || !/^[0-9a-f]{40}$/.test(source.commit)) throw new Error('Index must pin a full source commit');
+    // Display copy belongs to the market; package identity and install metadata belong to the pinned source.
+    const catalog = { plugins: [{ ...display, path: source.path }] };
+    const expected = createMarketIndex({ catalog, repository: source.url, commit: source.commit, cwd }).plugins[0];
+    if (JSON.stringify(expected) !== JSON.stringify({ ...display, name, repository, versions })) {
+      throw new Error(`Index differs from its pinned manifest: ${name}; regenerate it`);
+    }
+  }
+}
+
 async function main() {
   const { values } = parseArgs({ options: {
     repository: { type: 'string' }, commit: { type: 'string', default: 'HEAD' },
@@ -75,12 +89,9 @@ async function main() {
     catalog, repository: values.repository, commit: values.commit,
   });
   const targets = await validateIndex(index, values.validator);
-  // Also verify saved index versions and display fields against their pinned Git trees.
+  // The official schema validates display fields; Git verifies package and install metadata.
   if (values.check) {
-    const source = index.plugins[0]?.versions[0]?.source;
-    if (!source) throw new Error('Index is empty');
-    const expected = createMarketIndex({ catalog, repository: source.url, commit: source.commit });
-    if (JSON.stringify(expected) !== JSON.stringify(index)) throw new Error('Index differs from catalog or pinned manifests; regenerate it');
+    verifyPinnedIndex(index);
   } else {
     mkdirSync(dirname(output), { recursive: true });
     writeFileSync(output, `${JSON.stringify(index, null, 2)}\n`);

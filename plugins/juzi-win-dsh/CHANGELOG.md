@@ -1,5 +1,47 @@
 # 更新日志
 
+## [1.1.0] - 2026-10-28
+
+### 新增
+
+- `manage_window`：`get_work_area`（只读）、`move` / `resize` / `set_bounds`、`minimize` / `maximize` / `restore`、`close`（只发 `WM_CLOSE`）、`tile`（`left_half` / `right_half` / 四象限 / `maximize`）。按 DWM 可见外框补偿不可见边框，回读 `applied_bounds`，被系统钳制时 `clamped=true`；`close` 检测到同进程保存对话框时返回 `close_pending_dialog=true`，不自动点击按钮。
+- `hover`：移动到物理像素坐标并停留 0~10000ms，不按键。
+- `drag`：按下起点 → 按 `steps` 插值移动 → 松开，支持 left/right/middle、按下/松开前停留；途中落点命中禁止窗口时立即抬键中止并返回 `aborted_blocked_window`。
+- `wait`：`timeout` / `window_exists` / `window_gone` / `title_contains` / `foreground_is` / `screenshot_stable`；超时返回 `ok=false` + `timed_out=true`；稳定度只用缩略图差分，不回传截图。
+- `clipboard`：`get`（默认 8KB 截断）、`set`（默认备份）、`clear`、`restore`；纯 ctypes 实现，不依赖 PowerShell。
+- `launch_app`：`ShellExecuteExW` 启动绝对路径/URI，等待新窗口并返回 hwnd；拒绝相对路径、`as_admin=true`、脚本宿主（powershell/cmd/wscript/cscript/mshta/reg 等）与脚本文件。
+- `find_text`：Windows.Media.Ocr 优先、Tesseract 回退；返回 `confidence`（Windows OCR 无置信度时为 `null`）、屏幕物理像素 `cx/cy` 与外接矩形；中文 OCR 字间空格与同一视觉行拆分可正确拼接；拉丁字母被光标遮挡时用 Tesseract 补词框。引擎不可用返回 `ocr_unavailable` 与安装提示。
+- 新增 `clipboard_win.py`、`launcher.py`、`ocr.py`、`ocr_windows.ps1`。
+- `smoke_test.py` 扩展：15 工具清单、`get_work_area`、`clipboard.get`、`wait` 短超时、`find_text` 引擎探测（只读）。
+- README 补充新工具、坐标换算、OCR 依赖、脚本宿主拒绝策略与最小化/关闭语义。
+
+### 变更
+
+- MCP `serverInfo.version` 升到 1.1.0；1.0.0 的 8 个工具签名与行为保持不变。
+- `window_info` 增加 `maximized` 字段，供 `list_windows`/状态机回读。
+
+### 修复
+
+- `type_text` 默认粘贴路径继续按格式快照并恢复剪贴板（1.0.0 回归测试通过）。
+- `manage_window.close` 对 Notepad++ `#32770` 保存对话框的检测：返回 `dialogs` 与 `close_pending_dialog`，不自动按「是/否」。
+- `launch_app` 脚本宿主黑名单按去掉 `.exe` 的进程名比较，修正 `cmd.exe` 未被拦截的问题。
+
+### 安全与协议修复（Codex 审查 R1-R13）
+
+- R1：`lib/index.js` 接入 DSH `tools/pre-execute` 审批 seam；宿主 approval 策略为 `ask` 时对写操作发原生 `ask`，策略为 `never` 时保留服务内 token 协议。README 明确 token 不能证明人工批准。
+- R2：click/hover/drag/scroll 以屏幕落点真实顶层窗口为准，hwnd 只作预期目标；派发前再次核对，变化即中止。type_text/press_keys 在派发前及 helper 内核对实际前台窗口。`screenshot`/`find_text` 拒绝与禁止窗口相交的区域。
+- R3：新增纯标准库 `schema_validate.py`，所有工具入口按声明 schema 严格校验类型/范围/未知字段；布尔只接受 true/false，整数拒绝 bool/float/NaN。
+- R4：剪贴板改为事务：备份失败不写入；用 `GetClipboardSequenceNumber` 记录所有权，restore 遇到外部新内容返回 `clipboard_changed` 冲突；`paste_text.ps1` 分别报告 `paste_ok`/`restore_ok`/`restore_conflict`。
+- R5：stdin 读取限制单帧 1 MiB、整数 1000 位、嵌套 200 层；解析错误返回 JSON-RPC `-32700` 后继续处理后续帧。
+- R6：`system` 的 brightness/volume/mute/lock 写请求在 `always` 下走确认；无参只读免确认。
+- R7：禁止清单补 Proton Pass/Enpass/浏览器密码管理标题；目标进程身份读取失败 fail-closed；launcher 规范化尾部点/空格并拒绝 `.lnk/.url`、`unins*`/`uninstall*`、`msiexec`。
+- R8：窗口截图裁剪后严格核对客户区尺寸，失败改走带 `all_screens=True` 的屏幕客户区；副屏负坐标回退可用。
+- R9：校验 JSON-RPC 版本、id、params 类型和初始化状态；未知协议版本返回实际支持的 `2025-06-18`。
+- R10：失败/拒绝设置 MCP `isError=true`；`confirmation_required` 用 `status` 明确表示未执行；新增 `error_code` 并保留 `error` 兼容。
+- R12：`type_text` 文本改由 stdin 传给 PowerShell helper，不再放 Base64 命令行参数。
+- R13：Pillow 最低版本提升到 11.2.1，匹配 `ImageGrab.grab(window=...)` 的实际要求。
+- `regression_test.py`：新增 14 项隔离回归（R2/R3/R4/R5/R6/R7/R8/R9/R10/R12/R13）。
+
 ## [1.0.0] - 2026-10-26
 
 ### 新增

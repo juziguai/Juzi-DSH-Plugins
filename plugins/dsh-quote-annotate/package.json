@@ -1,0 +1,16 @@
+{
+  "name": "@juzi/dsh-quote-annotate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "在对话中选中文字、添加评论，以独立引用标签加入草稿，支持预览、编辑和跨刷新恢复。",
+  "main": "lib/index.js",
+  "exports": { ".": "./lib/index.js", "./client": "./lib/client.js", "./package.json": "./package.json" },
+  "engines": { "dsh": ">=0.2.1-rc.3" },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-conversation", "@deepseek-ai/dsh-client-ui-input-trigger", "@deepseek-ai/dsh-client-ui-chat", "@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-locale", "@deepseek-ai/dsh-api-session-controller"] }
+  },
+  "files": ["lib", "cordis.patch.yml", "README.md", "CHANGELOG.md", "LICENSE"],
+  "license": "MIT"
+}

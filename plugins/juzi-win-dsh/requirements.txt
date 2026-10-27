@@ -1,1 +1,3 @@
-Pillow>=10
+Pillow>=11.2.1
+# OCR 不引入 Python 依赖：优先 Windows.Media.Ocr 系统语言包；
+# 可选回退 Tesseract 5（外部程序，见 README「OCR 找字」）。

@@ -13,6 +13,16 @@
   },
   "plugins": [
     {
+      "path": "plugins/dsh-quote-annotate",
+      "title": { "en": "Quote & Annotate", "zh": "文本引用与批注" },
+      "description": {
+        "en": "Select conversation text, comment and attach individual quote chips to a draft. Preview, edit, restore drafts and expand sent quotes. Requires DSH 0.2.1-rc.3 or later.",
+        "zh": "选中对话文字、添加评论，以独立引用标签加入草稿；支持悬停预览、编辑删除、刷新恢复与已发送引用折叠。需要 DSH 0.2.1-rc.3 或更新版本。"
+      },
+      "author": "Juzi",
+      "metadata": { "category": "interface", "keywords": ["quote", "annotate", "draft", "引用", "批注", "草稿"] }
+    },
+    {
       "path": "plugins/dsh-changes",
       "title": { "en": "Changes", "zh": "变更" },
       "description": {
@@ -56,8 +66,8 @@
       "path": "plugins/juzi-win-dsh",
       "title": { "en": "Computer Control", "zh": "电脑控制" },
       "description": {
-        "en": "Eight Windows desktop MCP tools: windows, screenshots, clicking, scrolling, Chinese text input, key combos and system controls. Confirmation modes supported; requires Python and Pillow.",
-        "zh": "8 个 Windows 桌面 MCP 工具：窗口、截图、点击、滚动、中文输入、组合键与系统控制。支持确认模式；需 Python 和 Pillow。"
+        "en": "Fifteen Windows MCP tools for windows, screenshots, input, window management, drag/hover, waits, clipboard, app launching and OCR. Requires Python and Pillow; confirmation modes supported.",
+        "zh": "15个Windows桌面MCP工具：窗口、截图、输入、窗口管理、拖拽悬停、等待、剪贴板、应用启动与OCR找字。支持确认模式；需Python和Pillow。"
       },
       "author": "Juzi",
       "metadata": { "category": "tools", "keywords": ["windows", "desktop", "automation", "MCP", "电脑控制", "截图", "点击"] }
