@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_PYTHON = 'C:\\Python314\\python.exe';
@@ -38,7 +39,8 @@ export function createConfig(config = {}) {
     transport: 'stdio',
     command: resolvePython(config),
     args: [fileURLToPath(new URL('../server.py', import.meta.url))],
-    cwd: fileURLToPath(new URL('../', import.meta.url)),
+    // Windows keeps a process's cwd open, blocking replacement of an installed package.
+    cwd: tmpdir(),
     env: {
       JUZI_WIN_DSH_CONFIRM_MODE: resolveConfirmMode(config),
       JUZI_WIN_DSH_ALLOWLIST: resolveAllowlist(config).join(';'),

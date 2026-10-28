@@ -1,6 +1,6 @@
 {
   "name": "@juzi/juzi-win-dsh",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "description": "让模型看到并操作 Windows 电脑：窗口、截图、点击、输入、按键、窗口管理、拖拽悬停、等待、剪贴板、启动应用与 OCR 找字。",
   "type": "module",

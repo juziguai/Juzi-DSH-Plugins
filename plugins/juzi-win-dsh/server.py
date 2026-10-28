@@ -45,7 +45,7 @@ from confirm import ConfirmationGate
 from paste_text import paste_text
 from runlog import RunLog
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 SERVER_NAME = "win"
 SUPPORTED_PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18")
 DEFAULT_PROTOCOL_VERSION = "2025-06-18"
