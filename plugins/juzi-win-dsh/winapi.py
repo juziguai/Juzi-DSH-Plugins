@@ -1229,6 +1229,21 @@ def _ensure_foreground(expected_hwnd: int | None) -> None:
         )
 
 
+class _GUIThreadInfo(ctypes.Structure):
+    _fields_ = [("cbSize", w.DWORD), ("flags", w.DWORD),
+                ("hwndActive", w.HWND), ("hwndFocus", w.HWND),
+                ("hwndCapture", w.HWND), ("hwndMenuOwner", w.HWND),
+                ("hwndMoveSize", w.HWND), ("hwndCaret", w.HWND), ("rcCaret", w.RECT)]
+
+
+def focused_hwnd():
+    info = _GUIThreadInfo()
+    info.cbSize = ctypes.sizeof(info)
+    if not user32.GetGUIThreadInfo(0, ctypes.byref(info)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return int(info.hwndFocus or 0)
+
+
 def press_keys(keys: str, expected_hwnd: int | None = None) -> dict[str, Any]:
     """按组合键，例如 ctrl+v、alt+tab、win+d。"""
     if not isinstance(keys, str) or not keys.strip():
@@ -1263,12 +1278,11 @@ def type_text(text: str, expected_hwnd: int | None = None) -> dict[str, Any]:
     for char in normalized:
         _ensure_foreground(expected_hwnd)
         if char == "\n":
-            _key_event(0x0D)
-            _key_event(0x0D, flags=KEYEVENTF_KEYUP)
+            press_keys("shift+enter", expected_hwnd=expected_hwnd)
             newlines += 1
         elif char == "\t":
-            _key_event(0x09)
-            _key_event(0x09, flags=KEYEVENTF_KEYUP)
+            _key_event(0, 9, KEYEVENTF_UNICODE)
+            _key_event(0, 9, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)
         else:
             data = char.encode("utf-16-le")
             for index in range(0, len(data), 2):
@@ -1276,6 +1290,7 @@ def type_text(text: str, expected_hwnd: int | None = None) -> dict[str, Any]:
                 _key_event(0, unit, KEYEVENTF_UNICODE)
                 _key_event(0, unit, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)
                 units += 1
+            time.sleep(0.01)
     return {
         "characters": len(normalized),
         "utf16_units": units,

@@ -55,9 +55,9 @@ https://raw.githubusercontent.com/juziguai/Juzi-DSH-Plugins/main/marketplace/ind
 
 Ultra 0.3.0 需要 DSH 0.2.1-rc.3 或更新版本。闪电提供按会话保存的快速执行（实验），默认关闭、空闲时切换、下一轮生效；保持所选模型与推理强度，不代表服务商付费加速。
 
-「文本引用与批注」0.1.0需要DSH 0.2.1-rc.3或更新版本。引用只进入草稿，不自动发送；支持悬停预览、评论、按会话保存和已发送引用折叠。原生chip的键盘接口边界及dock等价入口见[插件说明](plugins/dsh-quote-annotate/README.md)。
+「文本引用与批注」0.1.1需要DSH 0.2.1-rc.3或更新版本。引用只进入草稿，不自动发送；支持悬停预览、评论、按会话保存和已发送引用折叠。原生chip的键盘接口边界及dock等价入口见[插件说明](plugins/dsh-quote-annotate/README.md)。
 
-「电脑控制」1.1.0仅支持Windows，提供15个MCP工具；先准备Python与Pillow，OCR引擎、宿主审批及确认模式边界见[插件说明](plugins/juzi-win-dsh/README.md)。
+「电脑控制」1.1.1仅支持Windows，提供17个MCP工具；先准备Python与Pillow，OCR引擎、宿主审批及确认模式边界见[插件说明](plugins/juzi-win-dsh/README.md)。
 
 市场名称、插件名称、分类与描述已适配 DSH 中文界面；已安装页的中文描述随对应插件更新生效。
 

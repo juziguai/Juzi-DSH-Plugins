@@ -37,6 +37,7 @@ EXPECTED_TOOLS = {
     "list_windows", "focus_window", "screenshot",
     "click", "scroll", "type_text", "press_keys", "system",
     "manage_window", "hover", "drag", "wait", "clipboard", "launch_app", "find_text",
+    "get_focused_text", "input_batch",
 }
 
 
@@ -118,7 +119,10 @@ async def main() -> int:
             tools = await session.list_tools()
             names = {tool.name for tool in tools.tools}
             print("TOOLS:", sorted(names))
-            assert names == EXPECTED_TOOLS, names
+            assert names == EXPECTED_TOOLS, {
+                "missing": sorted(EXPECTED_TOOLS - names),
+                "unexpected": sorted(names - EXPECTED_TOOLS),
+            }
 
             result = await session.call_tool("list_windows", {})
             listing = json.loads(result.content[0].text)

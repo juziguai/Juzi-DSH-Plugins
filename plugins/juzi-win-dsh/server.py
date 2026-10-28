@@ -22,6 +22,7 @@ MCP 的 initialize / tools/list / tools/call 三个方法，Python 启动只依�
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 import base64
 import inspect
 import json
@@ -32,6 +33,7 @@ import traceback
 from io import BytesIO
 from typing import Any
 
+import focused_text
 import clipboard_win
 import launcher
 import ocr
@@ -43,7 +45,7 @@ from confirm import ConfirmationGate
 from paste_text import paste_text
 from runlog import RunLog
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 SERVER_NAME = "win"
 SUPPORTED_PROTOCOL_VERSIONS = ("2024-11-05", "2025-03-26", "2025-06-18")
 DEFAULT_PROTOCOL_VERSION = "2025-06-18"
@@ -60,6 +62,7 @@ ALLOWLIST = [
 DPI_MODE = winapi.enable_dpi_awareness()
 LOG = RunLog()
 GATE = ConfirmationGate(CONFIRM_MODE, ALLOWLIST)
+_BATCH_ACTION = ContextVar("authorized_batch_action", default=None)
 
 INSTRUCTIONS = (
     "「电脑控制」面向 Windows 桌面。所有坐标都是物理像素；"
@@ -106,6 +109,9 @@ def _gate(
     reason = security.forbidden_reason(target)
     if reason:
         return _error("forbidden_window", reason, window=target)
+    authorized = _BATCH_ACTION.get()
+    if authorized is not None and authorized == (action, params, target):
+        return None
     if not GATE.needs_confirmation(target):
         return None
 
@@ -409,10 +415,87 @@ def scroll(
     return _dump({"ok": True, **result})
 
 
+def input_batch(hwnd: int, actions: list, confirm_token: str | None = None) -> str:
+    if _as_int(hwnd) is None or not isinstance(actions, list) or not 1 <= len(actions) <= 20:
+        return _error("invalid_arguments", "批次须指定 hwnd 和 1~20 个输入动作。")
+    target = winapi.foreground_info()
+    if target is None or target["hwnd"] != hwnd:
+        return _error("target_changed", "批次目标不在前台。")
+    prepared = []
+    for item in actions:
+        if not isinstance(item, dict) or set(item) != {"tool", "arguments"}:
+            return _error("invalid_arguments", "动作仅包含 tool 和 arguments。")
+        name, args = item["tool"], item["arguments"]
+        if name not in ("type_text", "press_keys") or not isinstance(args, dict):
+            return _error("invalid_arguments", "批次仅支持 type_text 与 press_keys。")
+        if "confirm_token" in args or "hwnd" in args:
+            return _error("invalid_arguments", "动作继承批次目标与确认。")
+        call_args = {**args, "hwnd": hwnd}
+        if schema_validate.validate(TOOL_SCHEMAS[name], call_args):
+            return _error("invalid_arguments", "批次动作参数不合法。")
+        prepared.append((name, call_args))
+    try:
+        batch_focus = winapi.focused_hwnd()
+    except Exception as exc:
+        return _error("focus_unavailable", str(exc))
+    blocked = _gate("input_batch", {"hwnd": hwnd, "actions": actions, "focus_hwnd": batch_focus}, target, confirm_token)
+    if blocked:
+        return blocked
+    results = []
+    for name, args in prepared:
+        current = winapi.foreground_info()
+        if current != target:
+            return _error("target_changed", "批次目标已变化。", results=results)
+        params = ({"text": args["text"], "method": args.get("method", "paste"), "hwnd": hwnd, "allow_unverified": args.get("allow_unverified", False)}
+                  if name == "type_text" else {"keys": args["keys"].strip(), "hwnd": hwnd})
+        if name == "type_text":
+            try:
+                focus = focused_text.read(hwnd)
+                params["focus_id"] = focus["focus_id"]
+            except Exception as exc:
+                return _error("focused_text_unavailable", str(exc), results=results)
+        if name == "press_keys":
+            try:
+                params["focus_hwnd"] = winapi.focused_hwnd()
+            except Exception as exc:
+                return _error("focus_unavailable", str(exc), results=results)
+        token = _BATCH_ACTION.set((name, params, current))
+        try:
+            result = json.loads(TOOL_FUNCTIONS[name](**args))
+        except Exception as exc:
+            return _error("batch_stopped", str(exc), results=results, current_action=name)
+        finally:
+            _BATCH_ACTION.reset(token)
+        results.append(result)
+        if not result.get("ok") or result.get("status") == "dispatched_unverified":
+            return _error("batch_stopped", "动作未成功，剩余动作未执行；勿自动重放已执行动作。", results=results)
+    return _dump({"ok": True, "results": results})
+
+
+def get_focused_text(hwnd: int | None = None, max_chars: int = 10000) -> str:
+    if _as_int(max_chars) is None or not 1 <= max_chars <= 100000:
+        return _error("invalid_arguments", "max_chars 必须为 1~100000。")
+    target = winapi.foreground_info()
+    if target is None or (hwnd is not None and (_as_int(hwnd) is None or hwnd != target["hwnd"])):
+        return _error("target_changed", "目标窗口不在前台。")
+    reason = security.forbidden_reason(target)
+    if reason:
+        return _error("forbidden_window", reason)
+    try:
+        result = focused_text.read(target["hwnd"], max_chars)
+        if result.get("ok"):
+            result["length"] = len(result["text"])
+        return _dump(result)
+    except Exception as exc:
+        return _error("focused_text_unavailable", str(exc))
+
+
 def type_text(
     text: str,
     method: str = "paste",
     confirm_token: str | None = None,
+    hwnd: int | None = None,
+    allow_unverified: bool = False,
 ) -> str:
     if not isinstance(text, str) or text == "":
         return _error("invalid_text", "text 必须是非空字符串。")
@@ -420,11 +503,29 @@ def type_text(
         return _error("invalid_text", "text 不能超过 100000 个字符。")
     if method not in ("paste", "unicode"):
         return _error("invalid_method", "method 必须是 paste 或 unicode。")
-    params = {"text": text, "method": method}
+    if not isinstance(allow_unverified, bool):
+        return _error("invalid_arguments", "allow_unverified 必须是布尔值。")
+    params = {"text": text, "method": method, "hwnd": hwnd, "allow_unverified": allow_unverified}
     LOG.write("type_text", "start", {"text": text[:2000], "chars": len(text), "method": method})
     target = winapi.foreground_info()
     if target is None:
         return _error("no_foreground", "当前没有前台窗口，无法输入。")
+    if hwnd is not None and (_as_int(hwnd) is None or hwnd != target["hwnd"]):
+        return _error("target_changed", "指定窗口不是前台窗口；请先聚焦目标。")
+    reason = security.forbidden_reason(target)
+    if reason:
+        return _error("forbidden_window", reason)
+    try:
+        before = focused_text.read(target["hwnd"])
+    except Exception as exc:
+        return _error("focused_text_unavailable", str(exc))
+    if before.get("error") in ("password_control", "target_changed"):
+        return _error(before["error"], "目标不允许输入。")
+    if not before.get("focus_id"):
+        return _error("focus_unavailable", "无法绑定焦点控件，输入未执行。")
+    if not allow_unverified and (not before.get("ok") or not before.get("editable") or before.get("truncated")):
+        return _error("focused_text_unavailable", "无法可靠读取可编辑控件，输入未执行。")
+    params["focus_id"] = before["focus_id"]
     blocked = _gate("type_text", params, target, confirm_token)
     if blocked:
         LOG.write("type_text", "pending_confirmation", {"chars": len(text)}, target)
@@ -438,11 +539,14 @@ def type_text(
                 expected=target,
                 actual=current,
             )
+        current_focus = focused_text.read(target["hwnd"])
+        if current_focus.get("error") in ("password_control", "target_changed") or current_focus.get("focus_id") != before["focus_id"]:
+            return _error("target_changed", "派发前焦点控件已变化。")
         if method == "unicode":
             result = winapi.type_text(text, expected_hwnd=int(target["hwnd"]))
             payload = {"ok": True, **result, "method": "unicode", "clipboard_restored": None, "target": target}
         else:
-            pasted = paste_text(text, expected_hwnd=int(target["hwnd"]))
+            pasted = paste_text(text, expected_hwnd=int(target["hwnd"]), expected_focus=before["focus_id"])
             if not pasted.get("paste_ok"):
                 return _error(
                     "target_changed" if pasted.get("target_changed") else ("clipboard_backup_failed" if pasted.get("backup_status") == "failed" else "type_text_failed"),
@@ -466,6 +570,19 @@ def type_text(
     except Exception as exc:  # noqa: BLE001
         LOG.write("type_text", "error", {"chars": len(text), "method": method}, target, error=repr(exc))
         return _error("type_text_failed", f"输入失败：{exc}")
+    verified, verification_error = focused_text.verify_insertion(target["hwnd"], before, text)
+    payload.update(dispatched=True, verified=verified, verification_error=verification_error)
+    if not verified:
+        payload["paste_ok"] = False
+        if not allow_unverified or verification_error == "target_changed":
+            return _error("paste_unverified" if method == "paste" else "input_unverified",
+                          "输入已派发但尚未验证；可调用 get_focused_text 确认，勿重复输入。",
+                          dispatched=True, verified=False, paste_ok=False, verification_error=verification_error,
+                          details={**payload, "ok": False})
+        payload["status"] = "dispatched_unverified"
+        payload["message"] = "按显式授权完成派发，文本落地未验证；请回读确认，勿重复输入。"
+    else:
+        payload["status"] = "verified"
     LOG.write(
         "type_text", "end", {"chars": len(text), "method": method}, target,
         outcome=f"{payload['characters']} chars",
@@ -473,14 +590,20 @@ def type_text(
     return _dump(payload)
 
 
-def press_keys(keys: str, confirm_token: str | None = None) -> str:
+def press_keys(keys: str, confirm_token: str | None = None, hwnd: int | None = None) -> str:
     if not isinstance(keys, str) or not keys.strip():
         return _error("invalid_keys", "keys 必须是非空字符串。")
-    params = {"keys": keys.strip()}
+    params = {"keys": keys.strip(), "hwnd": hwnd}
     LOG.write("press_keys", "start", params)
     target = winapi.foreground_info()
     if target is None:
         return _error("no_foreground", "当前没有前台窗口，无法按键。")
+    if hwnd is not None and (_as_int(hwnd) is None or hwnd != target["hwnd"]):
+        return _error("target_changed", "指定窗口不是前台窗口；请先聚焦目标。")
+    try:
+        params["focus_hwnd"] = winapi.focused_hwnd()
+    except Exception as exc:
+        return _error("focus_unavailable", str(exc))
     blocked = _gate("press_keys", params, target, confirm_token)
     if blocked:
         LOG.write("press_keys", "pending_confirmation", params, target)
@@ -494,6 +617,8 @@ def press_keys(keys: str, confirm_token: str | None = None) -> str:
                 expected=target,
                 actual=current,
             )
+        if winapi.focused_hwnd() != params["focus_hwnd"]:
+            return _error("target_changed", "派发前焦点控件已变化。")
         result = winapi.press_keys(keys, expected_hwnd=int(target["hwnd"]))
     except ValueError as exc:
         LOG.write("press_keys", "blocked", params, target, outcome="target_changed")
@@ -1378,6 +1503,8 @@ _SCROLL_SCHEMA = {
 _TYPE_SCHEMA = {
     "type": "object",
     "properties": {
+        "allow_unverified": {"type": "boolean", "default": False, "description": "显式允许无法回读时派发；仍核对目标与焦点，返回 verified=false，不代表文本已落地。"},
+        "hwnd": {"type": ["integer", "null"], "default": None},
         "text": {"type": "string", "maxLength": 100000, "description": "要输入的文本，支持中文、换行与制表符。"},
         "method": {"type": "string", "enum": ["paste", "unicode"], "default": "paste", "description": "paste 使用剪贴板并恢复；unicode 使用 SendInput。"},
         "confirm_token": {"type": ["string", "null"], "default": None},
@@ -1387,6 +1514,7 @@ _TYPE_SCHEMA = {
 _KEYS_SCHEMA = {
     "type": "object",
     "properties": {
+        "hwnd": {"type": ["integer", "null"], "default": None},
         "keys": {"type": "string", "description": "组合键，例如 ctrl+a、ctrl+c、alt+tab、win+d、f5。"},
         "confirm_token": {"type": ["string", "null"], "default": None},
     },
@@ -1528,6 +1656,15 @@ _FIND_TEXT_SCHEMA = {
 }
 
 TOOLS = [
+    {"name": "input_batch", "description": "一次确认执行同一前台窗口的有序输入/按键批次；失败即停止。",
+     "inputSchema": {"type": "object", "properties": {
+       "hwnd": {"type": "integer"}, "actions": {"type": "array", "minItems": 1, "maxItems": 20,
+       "items": {"type": "object", "properties": {"tool": {"type": "string", "enum": ["type_text", "press_keys"]}, "arguments": {"type": "object", "additionalProperties": True}}, "required": ["tool", "arguments"]}},
+       "confirm_token": {"type": ["string", "null"], "default": None}}, "required": ["hwnd", "actions"]}},
+    {"name": "get_focused_text", "description": "只读当前焦点控件文本；不支持或密码控件明确失败，不改变焦点。",
+     "inputSchema": {"type": "object", "properties": {
+         "hwnd": {"type": ["integer", "null"], "default": None},
+         "max_chars": {"type": "integer", "minimum": 1, "maximum": 100000, "default": 10000}}}},
     {
         "name": "list_windows",
         "description": "列出当前可见的 Windows 顶层窗口：hwnd、进程名、PID、标题、物理像素矩形、是否最小化、是否前台。",
@@ -1611,6 +1748,8 @@ TOOL_FUNCTIONS = {
     "screenshot": screenshot,
     "click": click,
     "scroll": scroll,
+    "input_batch": input_batch,
+    "get_focused_text": get_focused_text,
     "type_text": type_text,
     "press_keys": press_keys,
     "system": system,

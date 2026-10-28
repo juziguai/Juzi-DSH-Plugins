@@ -36,6 +36,152 @@ def _window(hwnd=1, process="notepad.exe", title="Notepad"):
 
 
 class RegressionTests(unittest.TestCase):
+    def test_batch_stops_after_unverified_input(self):
+        focus = {"ok": False, "focus_id": "1", "error": "focused_text_unavailable"}
+        actions = [{"tool": "type_text", "arguments": {"text": "hello", "allow_unverified": True}},
+                   {"tool": "press_keys", "arguments": {"keys": "enter"}}]
+        with mock.patch.object(server, "GATE", server.ConfirmationGate("always", [])), \
+             mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(winapi, "focused_hwnd", return_value=10), \
+             mock.patch.object(server.focused_text, "read", return_value=focus), \
+             mock.patch.object(server, "paste_text", return_value={"paste_ok": True}) as paste, \
+             mock.patch.object(winapi, "press_keys") as keys:
+            pending = json.loads(server.input_batch(1, actions))
+            result = json.loads(server.input_batch(1, actions, pending["confirm_token"]))
+        self.assertEqual(result["error"], "batch_stopped")
+        self.assertEqual(len(result["results"]), 1)
+        self.assertEqual(paste.call_count, 1)
+        keys.assert_not_called()
+
+    def test_unverified_option_is_bound_to_confirmation(self):
+        focus = {"ok": True, "editable": True, "focus_id": "1", "text": ""}
+        with mock.patch.object(server, "GATE", server.ConfirmationGate("always", [])), \
+             mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(server.focused_text, "read", return_value=focus), \
+             mock.patch.object(server, "paste_text") as paste:
+            pending = json.loads(server.type_text("hello"))
+            result = json.loads(server.type_text("hello", confirm_token=pending["confirm_token"], allow_unverified=True))
+        self.assertEqual(result["error"], "invalid_confirm_token")
+        paste.assert_not_called()
+
+    def test_soft_line_breaks_normalize_without_losing_content(self):
+        match = server.focused_text.insertion_matches
+        self.assertTrue(match("\r", "第一行\v第二行\r", "第一行\n第二行"))
+        self.assertFalse(match("", "第一行\v错误", "第一行\n第二行"))
+
+    def test_verification_retries_reads_without_dispatch(self):
+        before = {"ok": True, "focus_id": "1", "text": ""}
+        with mock.patch.object(server.focused_text, "read", side_effect=[before, before, {**before, "text": "迟到"}]) as read, \
+             mock.patch.object(server.focused_text.time, "sleep"):
+            verified, reason = server.focused_text.verify_insertion(1, before, "迟到")
+        self.assertTrue(verified)
+        self.assertIsNone(reason)
+        self.assertEqual(read.call_count, 3)
+
+    def test_verification_stops_on_changed_focus(self):
+        before = {"ok": True, "focus_id": "1", "text": ""}
+        with mock.patch.object(server.focused_text, "read", return_value={**before, "focus_id": "2", "text": "hello"}) as read:
+            verified, reason = server.focused_text.verify_insertion(1, before, "hello")
+        self.assertFalse(verified)
+        self.assertEqual(reason, "target_changed")
+        self.assertEqual(read.call_count, 1)
+
+    def test_explicit_unverified_dispatch_and_strict_rejection(self):
+        unreadable = {"ok": False, "focus_id": "1", "error": "focused_text_unavailable"}
+        with mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(server, "_gate", return_value=None), \
+             mock.patch.object(server.focused_text, "read", return_value=unreadable), \
+             mock.patch.object(server, "paste_text", return_value={"paste_ok": True}) as paste:
+            strict = json.loads(server.type_text("hello", hwnd=1))
+            self.assertFalse(strict["ok"])
+            paste.assert_not_called()
+            relaxed = json.loads(server.type_text("hello", hwnd=1, allow_unverified=True))
+        self.assertTrue(relaxed["ok"])
+        self.assertFalse(relaxed["verified"])
+        self.assertFalse(relaxed["paste_ok"])
+        self.assertEqual(relaxed["status"], "dispatched_unverified")
+        self.assertEqual(paste.call_count, 1)
+
+    def test_password_is_not_bypassed_by_unverified_option(self):
+        with mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(server.focused_text, "read", return_value={"ok": False, "error": "password_control", "focus_id": "1"}), \
+             mock.patch.object(server, "paste_text") as paste:
+            result = json.loads(server.type_text("hello", allow_unverified=True))
+        self.assertEqual(result["error"], "password_control")
+        paste.assert_not_called()
+
+    def test_batch_confirmation_and_one_time_consumption(self):
+        actions = [{"tool": "press_keys", "arguments": {"keys": "ctrl+a"}}] * 3
+        gate = server.ConfirmationGate("always", [])
+        with mock.patch.object(server, "GATE", gate), \
+             mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(winapi, "focused_hwnd", return_value=10), \
+             mock.patch.object(winapi, "press_keys", return_value={"keys": "ctrl+a"}) as keys:
+            pending = json.loads(server.input_batch(1, actions))
+            keys.assert_not_called()
+            result = json.loads(server.input_batch(1, actions, pending["confirm_token"]))
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(keys.call_count, 3)
+            replay = json.loads(server.input_batch(1, actions, pending["confirm_token"]))
+            self.assertEqual(replay["error"], "invalid_confirm_token")
+            self.assertEqual(keys.call_count, 3)
+        self.assertIsNone(server._BATCH_ACTION.get())
+
+    def test_batch_stops_on_first_failure(self):
+        actions = [{"tool": "press_keys", "arguments": {"keys": "ctrl+a"}}] * 3
+        with mock.patch.object(server, "GATE", server.ConfirmationGate("off", [])), \
+             mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(winapi, "focused_hwnd", return_value=10), \
+             mock.patch.object(winapi, "press_keys", side_effect=ValueError("changed")) as keys:
+            result = json.loads(server.input_batch(1, actions))
+        self.assertEqual(result["error"], "batch_stopped")
+        self.assertEqual(keys.call_count, 1)
+        self.assertIsNone(server._BATCH_ACTION.get())
+
+    def test_input_content_verification(self):
+        from focused_text import insertion_matches
+        self.assertTrue(insertion_matches("abc", "a中文bc", "中文"))
+        self.assertTrue(insertion_matches("abc", "中文", "中文"))
+        self.assertFalse(insertion_matches("abc", "axy", "中文"))
+        self.assertFalse(insertion_matches("中文", "中文", "中文"))
+
+    def test_explicit_input_target_rejects_drift(self):
+        with mock.patch.object(winapi, "foreground_info", return_value=_window(2)), \
+             mock.patch.object(server, "paste_text") as paste:
+            result = json.loads(server.type_text("hello", hwnd=1))
+        self.assertEqual(result["error"], "target_changed")
+        paste.assert_not_called()
+
+    def test_paste_dispatch_is_not_verified_success(self):
+        before = {"ok": True, "editable": True, "focus_id": "1", "text": ""}
+        with mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(server, "_gate", return_value=None), \
+             mock.patch.object(server.focused_text, "read", return_value=before), \
+             mock.patch.object(server, "paste_text", return_value={"paste_ok": True}):
+            result = json.loads(server.type_text("hello", hwnd=1))
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "paste_unverified")
+        self.assertTrue(result["dispatched"])
+
+    def test_paste_verified_content(self):
+        before = {"ok": True, "editable": True, "focus_id": "1", "text": ""}
+        after = {**before, "text": "hello"}
+        with mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(server, "_gate", return_value=None), \
+             mock.patch.object(server.focused_text, "read", side_effect=[before, before, after]), \
+             mock.patch.object(server, "paste_text", return_value={"paste_ok": True}):
+            result = json.loads(server.type_text("hello", hwnd=1))
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["verified"])
+
+    def test_unicode_newline_does_not_dispatch_bare_enter(self):
+        with mock.patch.object(winapi, "_ensure_foreground"), \
+             mock.patch.object(winapi, "_key_event") as event, \
+             mock.patch.object(winapi, "press_keys") as keys:
+            winapi.type_text("\n", expected_hwnd=1)
+        keys.assert_called_once_with("shift+enter", expected_hwnd=1)
+        event.assert_not_called()
+
     def test_r2_click_hwnd_must_match_actual_target(self):
         actual = _window(2, "bitwarden.exe", "Vault")
         with mock.patch.object(winapi, "resolve_click_point", return_value=(50, 50)), \

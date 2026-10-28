@@ -1,11 +1,14 @@
-param(
-    [string]$ExpectedHwnd = "0"
+﻿param(
+    [string]$ExpectedHwnd = "0",
+    [string]$ExpectedFocus = ""
 )
 # 从 stdin 读取文本（避免 Windows argv 上限），备份剪贴板后粘贴，再按序列号事务恢复。
 # stdout 只输出一行 JSON。
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;
@@ -100,6 +103,11 @@ $pasteOk = $false
 if (-not $targetChanged) {
     Start-Sleep -Milliseconds 120
     try {
+        if ([int64][JuziClipboardNative]::GetForegroundWindow() -ne $expected -or
+            ($ExpectedFocus -and ([System.Windows.Automation.AutomationElement]::FocusedElement.GetRuntimeId() -join ',') -ne $ExpectedFocus)) {
+            $targetChanged = $true
+            throw 'target_changed'
+        }
         [System.Windows.Forms.SendKeys]::SendWait('^v')
         Start-Sleep -Milliseconds 500
         $pasteOk = $true

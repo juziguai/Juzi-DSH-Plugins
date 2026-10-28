@@ -14,7 +14,7 @@ SCRIPT = Path(__file__).resolve().parent / "paste_text.ps1"
 POWERSHELL = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
 
 
-def paste_text(text: str, expected_hwnd: int | None = None) -> dict[str, Any]:
+def paste_text(text: str, expected_hwnd: int | None = None, expected_focus: str = "") -> dict[str, Any]:
     command = [
         str(POWERSHELL),
         "-NoProfile",
@@ -26,6 +26,7 @@ def paste_text(text: str, expected_hwnd: int | None = None) -> dict[str, Any]:
         str(SCRIPT),
         "-ExpectedHwnd",
         str(int(expected_hwnd or 0)),
+        "-ExpectedFocus", expected_focus,
     ]
     completed = subprocess.run(
         command,

@@ -66,8 +66,8 @@
       "path": "plugins/juzi-win-dsh",
       "title": { "en": "Computer Control", "zh": "电脑控制" },
       "description": {
-        "en": "Fifteen Windows MCP tools for windows, screenshots, input, window management, drag/hover, waits, clipboard, app launching and OCR. Requires Python and Pillow; confirmation modes supported.",
-        "zh": "15个Windows桌面MCP工具：窗口、截图、输入、窗口管理、拖拽悬停、等待、剪贴板、应用启动与OCR找字。支持确认模式；需Python和Pillow。"
+        "en": "Seventeen Windows MCP tools for windows, screenshots, input, window management, drag/hover, waits, clipboard, app launching and OCR. Requires Python and Pillow; confirmation modes supported.",
+        "zh": "17个Windows桌面MCP工具：窗口、截图、输入、窗口管理、拖拽悬停、等待、剪贴板、应用启动与OCR找字。支持确认模式；需Python和Pillow。"
       },
       "author": "Juzi",
       "metadata": { "category": "tools", "keywords": ["windows", "desktop", "automation", "MCP", "电脑控制", "截图", "点击"] }

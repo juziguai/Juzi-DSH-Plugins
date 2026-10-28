@@ -187,7 +187,7 @@ C:\Python314\python.exe plugins\juzi-win-dsh\smoke_test.py
 C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
 ```
 
-`smoke_test.py` 是安全冒烟：MCP 握手、15 工具清单、窗口枚举、截图、`get_work_area`、
+`smoke_test.py` 是安全冒烟：MCP 握手、17 工具清单（含 `get_focused_text`、`input_batch`）、窗口枚举、截图、`get_work_area`、
 `clipboard.get`、`wait` 短超时、`find_text` 引擎探测、Notepad++ 置前和系统状态读取；
 不点击、不输入、不按键、不修改音量/亮度、不写剪贴板。预期最后一行 `SMOKE_OK`。
 `regression_test.py` 是纯标准库 unittest，覆盖 R2/R3/R4/R5/R6/R7/R8/R9/R10/R12/R13 的
@@ -244,3 +244,36 @@ C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
 - R11（协议读取与串行执行队列分离）未在本批实现：DSH 的 MCP 客户端按会话串行调用，
   桌面写操作又必须保持单写者；拆队列需要重写协议循环、取消传播和按键释放保证，风险高于
   本批收益，留待后续版本。当前慢操作仍会占用该 MCP 连接，`ping`/取消不能提前插队。
+
+
+## 输入验证（1.1.1）
+
+`type_text`、`press_keys` 可传 `hwnd` 固定前台目标；不匹配时拒绝派发，调用方先明确聚焦。
+`type_text` 使用 UI Automation 读取可编辑焦点控件，并将其标识纳入确认参数。
+默认严格验证：不支持回读或文本超过读取上限时拒绝输入。密码控件始终拒绝。派发后以内容插入/选区替换比对验证；
+无法验证返回 `paste_unverified` / `input_unverified`，其中 `dispatched=true` 表示可能已经写入，禁止自动重试。
+已有相同文本且无法观察变化也返回未验证，而非宣称成功。
+
+新增只读 `get_focused_text(hwnd?, max_chars=10000)`，返回文本、长度、控件类型、焦点标识及截断标记。
+UI Automation Pattern 不可用时，对经典 Edit / WindowsForms10.EDIT 文本控件使用有 500ms 超时的 WM_GETTEXT 回读，核对所属窗口并拒绝密码样式；其他控件不使用窗口标题冒充文本。返回 read_method 标明来源。
+Unicode 模式换行使用 Shift+Enter，制表符作为 Unicode 字符派发，字符间间隔 10ms；
+Shift+Enter 的具体语义仍由目标应用决定，默认粘贴模式适合多行文本。
+节流不能保证 Electron 不丢字，最终仍需回读验证。
+
+确认令牌保持一次性、绑定参数与目标。新增 `input_batch(hwnd, actions, confirm_token?)`，一次确认覆盖同一窗口上最多 20 个明确的 type_text/press_keys 动作。两次调用完成整批；任何失败停止，返回已执行结果，授权不复用到批次外。
+例如 actions 为 `[{"tool":"press_keys","arguments":{"keys":"ctrl+a"}},{"tool":"type_text","arguments":{"text":"你好"}}]`。
+Windows OCR 的 `confidence=null` 表示引擎不提供置信度，不能视为 0 或虚构相似度。
+
+
+### 未验证输入与延迟回读
+
+`type_text(..., allow_unverified=true)` 显式允许在焦点可绑定但文本无法可靠回读时派发。
+返回 `ok=true, dispatched=true, verified=false, status="dispatched_unverified"` 仅表示已派发，
+不代表内容正确落地，`paste_ok=false`。默认 `allow_unverified=false` 继续严格验证。
+该参数纳入确认令牌，不能使用严格模式令牌偷偷切换；密码控件、目标漂移及无法取得焦点标识仍拒绝。
+批次遇到未验证派发即停止，不继续按键或再次输入；应使用 get_focused_text 或截图确认后再规划下一步。
+
+验证最多读取四次，读取之间等待 100/200/400ms（另外计入读取自身耗时），不会重复派发输入。
+CRLF、CR、软换行 U+000B 和行分隔 U+2028 统一为 LF 后比对；不删除空格或任意尾部文本。
+
+浏览器 contenteditable 即使能够回读，也可能被 UIA 标记为不可编辑；这种目标每次输入均可能需要显式 `allow_unverified=true`。

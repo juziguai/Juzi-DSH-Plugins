@@ -251,7 +251,7 @@ function editorBridge(view,source) {
   if(!editor||typeof editor.update!=='function'||!(editor.getEditorState()?._nodeMap instanceof Map))throw new Error('DSH editor bridge unavailable');
   const nodes=()=>[...editor.getEditorState()._nodeMap.values()].filter(n=>n.getType?.()==='reference-chip'&&n.__source===source);
   return {element,
-    prefix(order){editor.update(()=>{const map=editor.getEditorState()._nodeMap,root=map.get('root'),first=root?.getFirstChild();if(!first?.getChildren)throw new Error('DSH paragraph unavailable');const own=nodes(),refs=order?order.map(ref=>own.find(node=>node.__ref===ref)).filter(Boolean):own;for(const node of refs.toReversed()) {const head=first.getFirstChild();if(head!==node)head?head.insertBefore(node):first.append(node);}},{discrete:true});}
+    prefix(order){if(order?.length===0||nodes().length===0)return;editor.update(()=>{const map=editor.getEditorState()._nodeMap,root=map.get('root'),first=root?.getFirstChild();if(!first?.getChildren)return;const own=nodes(),refs=order?order.map(ref=>own.find(node=>node.__ref===ref)).filter(Boolean):own;for(const node of refs.toReversed()) {const head=first.getFirstChild();if(head!==node)head?head.insertBefore(node):first.append(node);}},{discrete:true});}
   };
 }
 
