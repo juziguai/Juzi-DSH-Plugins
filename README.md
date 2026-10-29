@@ -4,6 +4,7 @@ Juzi 自研 DeepSeek Harness（DSH）插件源仓库。各插件独立维护清�
 
 | 插件 | 能力 | 维护入口 |
 |---|---|---|
+| [dsh-layout-memory](plugins/dsh-layout-memory/README.md) | 记住左右侧栏宽度，冷启动恢复，面板开关与标签由DSH管理 | `lib/memory.js`、`src/client.mjs`、`build/client.mjs` |
 | [dsh-quote-annotate](plugins/dsh-quote-annotate/README.md) | 选中文字、添加评论并引用到草稿，已发送引用可折叠查看 | `src/`、`lib/`、`build/client.mjs` |
 | [dsh-changes](plugins/dsh-changes/README.md) | 执行中实时查看轮次文件变更与差异 | `lib/` |
 | [dsh-ultra-effort](plugins/dsh-ultra-effort/README.md) | 模型选择、推理强度动效、内置角标与快速执行（实验） | `src/`、`lib/fast-*.js`、`build/client.mjs` |
@@ -13,7 +14,7 @@ Juzi 自研 DeepSeek Harness（DSH）插件源仓库。各插件独立维护清�
 | [dsh-preset-unlock](plugins/dsh-preset-unlock/README.md) | 纯声明型 Agent 预设「解锁模式」，人格来自 Markdown | `prompts/persona.md`、`build/patch.mjs` |
 
 ```text
-plugins/       文本引用、变更、Ultra、搜索、电脑控制、解锁模式预设及冻结的旧角标包
+plugins/       布局记忆、文本引用、变更、Ultra、搜索、电脑控制、解锁模式预设及冻结的旧角标包
 scripts/       仓库检查与插件配置测试
 deploy/        独立 MCP 接入样例
 docs/          开发、安装与迁移说明
@@ -25,6 +26,7 @@ docs/          开发、安装与迁移说明
 
 ```powershell
 npm run client:build
+npm run layout:build
 npm run preset:check
 npm run check
 python -m pip install -r plugins/dsh-deepseek-tools/requirements.txt
@@ -33,7 +35,7 @@ npm test
 
 Ultra 快速执行的 Host/React 集成测试需先解析插件自身依赖，并提供官方测试运行时入口；完整依赖安装命令和环境变量见 [CI 检查配置](.github/workflows/verify.yml)。市场已发布版本以市场索引中的固定源码为准。
 
-`npm test` 检查构建漂移、清单/JS语法、引用序列化/存储/交互、变更快照与生命周期、Ultra单包标签与交互、预设生成、搜索配置及Python计数并发与凭证边界，不请求真实API。CI另用官方SlotCore、Cordis和预设schema验证声明契约。电脑控制的Windows真机冒烟与隔离回归需单独运行其`smoke_test.py`、`regression_test.py`；包本身没有独立npm测试脚本。
+`npm test` 检查构建漂移、清单/JS语法、布局宽度记忆与生命周期、引用序列化/存储/交互、变更快照与生命周期、Ultra单包标签与交互、预设生成、搜索配置及Python计数并发与凭证边界，不请求真实API。CI另用官方SlotCore、Cordis和预设schema验证声明契约。电脑控制的Windows真机冒烟与隔离回归需单独运行其`smoke_test.py`、`regression_test.py`；包本身没有独立npm测试脚本。
 Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp` 就报错；未设置时，依次尝试 Windows 的 `C:\Python314\python.exe` 和 PATH 中的 `python`，取能导入依赖的解释器。
 搜索服务运行时另需使用目标 Python 安装 `plugins/dsh-deepseek-tools/requirements.txt`。
 
@@ -42,6 +44,8 @@ Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp
 安装、迁移、构建边界见 [开发指南](docs/development.md)。真实 API 冒烟会产生请求，需主动执行插件的 `smoke_test.py`。
 
 ## 插件市场
+
+「布局记忆」0.1.0记住左右侧栏宽度并在冷启动恢复，支持DSH 0.2.1-rc.3；使用方法、兼容边界和停用说明见[插件说明](plugins/dsh-layout-memory/README.md)。
 
 在 DSH「插件 → 发现 → 索引源」添加：
 

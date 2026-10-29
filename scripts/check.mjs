@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 execFileSync(process.execPath, [join(root, 'plugins/dsh-ultra-effort/build/client.mjs'), '--check'], { stdio: 'pipe' });
+execFileSync(process.execPath, [join(root, 'plugins/dsh-layout-memory/build/client.mjs'), '--check'], { stdio: 'pipe' });
 execFileSync(process.execPath, [join(root, 'plugins/dsh-preset-unlock/build/patch.mjs'), '--check'], { stdio: 'pipe' });
 const names = new Set();
 const directories = readdirSync(join(root, 'plugins'));

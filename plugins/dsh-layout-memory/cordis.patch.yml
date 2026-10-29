@@ -1,0 +1,3 @@
+- insert:
+    - id: juzi-layout-memory
+      name: '@juzi/dsh-layout-memory'
