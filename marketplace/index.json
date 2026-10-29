@@ -33,6 +33,48 @@
   "plugins": [
     {
       "title": {
+        "en": "Layout Memory",
+        "zh": "布局记忆"
+      },
+      "description": {
+        "en": "Remember left and right sidebar widths across cold starts without changing panel visibility or tabs. Targets DSH 0.2.1-rc.3.",
+        "zh": "记住左右侧栏宽度并在冷启动恢复，不接管面板开关或标签页；面向DSH 0.2.1-rc.3。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "interface",
+        "keywords": [
+          "layout",
+          "width",
+          "persistence",
+          "布局",
+          "宽度",
+          "记忆"
+        ]
+      },
+      "name": "@juzi/dsh-layout-memory",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
+        "directory": "plugins/dsh-layout-memory"
+      },
+      "versions": [
+        {
+          "version": "0.1.0",
+          "publishTimestamp": 1793271171,
+          "engines": {
+            "dsh": ">=0.2.1-rc.3"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
+            "commit": "ccc92e2a4778a20cdfda306969d0073cf71258fd",
+            "path": "plugins/dsh-layout-memory"
+          }
+        }
+      ]
+    },
+    {
+      "title": {
         "en": "Quote & Annotate",
         "zh": "文本引用与批注"
       },
