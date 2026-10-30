@@ -15,7 +15,7 @@ Juzi 自研 DeepSeek Harness（DSH）插件源仓库。各插件独立维护清�
 
 ```text
 plugins/       布局记忆、文本引用、变更、Ultra、搜索、电脑控制、解锁模式预设及冻结的旧角标包
-scripts/       仓库检查与插件配置测试
+scripts/       仓库检查、插件测试与分阶段发布部署工具
 deploy/        独立 MCP 接入样例
 docs/          开发、安装与迁移说明
 ```
@@ -42,6 +42,8 @@ Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp
 升级到 Ultra 0.2.2 或更新版本后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退步骤见 [合并迁移指南](docs/ultra-migration.md)。
 
 安装、迁移、构建边界见 [开发指南](docs/development.md)。真实 API 冒烟会产生请求，需主动执行插件的 `smoke_test.py`。
+
+维护者可用 `npm run release -- prepare --python <解释器绝对路径>` 合并构建与验证，输入不变时复用成功回执。固定提交制包、市场预览和逐包部署见 [发布流程](docs/release-workflow.md)；提交、推送和真实部署仍分别按授权执行。
 
 ## 插件市场
 

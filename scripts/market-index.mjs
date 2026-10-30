@@ -1,16 +1,12 @@
-import { execFileSync } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
+import { git, readTree, readBlobs } from './git-source.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 
-function git(cwd, args) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-}
-
-export function createMarketIndex({ catalog, repository, commit = 'HEAD', cwd = root }) {
+function validateSource(repository, commit) {
   const url = new URL(repository);
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
       url.href !== repository || !/^\/(?:[^/]+\/)+[^/]+$/.test(url.pathname) || /\.(?:tgz|tar\.gz)$/i.test(url.pathname)) {
@@ -19,28 +15,48 @@ export function createMarketIndex({ catalog, repository, commit = 'HEAD', cwd = 
   if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(commit) || commit.includes('..')) {
     throw new Error('commit must be a branch, tag or commit SHA');
   }
-  const sha = git(cwd, ['rev-parse', '--verify', `${commit}^{commit}`]);
-  const timestamp = Number(git(cwd, ['show', '-s', '--format=%ct', sha]));
+}
+
+function validatePaths(plugins) {
   const paths = new Set();
-  const names = new Set();
-  const plugins = catalog.plugins.map(({ path, ...display }) => {
+  for (const {path} of plugins) {
     if (!/^plugins\/[a-z0-9][a-z0-9-]*$/.test(path) || paths.has(path)) {
       throw new Error(`invalid or duplicate plugin path: ${path}`);
     }
     paths.add(path);
-    // Read the pinned tree, never label uncommitted working files as a published Git version.
-    const pkg = JSON.parse(git(cwd, ['show', `${sha}:${path}/package.json`]));
-    if (names.has(pkg.name)) throw new Error(`duplicate package name: ${pkg.name}`);
-    names.add(pkg.name);
-    const patch = pkg.dsh?.bundle?.patch;
-    if (typeof patch !== 'string') throw new Error(`${path}: missing DSH bundle patch`);
-    for (const entry of [pkg.main, patch, 'README.md', ...Object.values(pkg.exports ?? {})]) {
-      if (typeof entry !== 'string' || entry.includes('..') || /^(?:\/|[A-Za-z]:)/.test(entry)) {
-        throw new Error(`${path}: unsupported or unsafe package entry`);
-      }
-      git(cwd, ['cat-file', '-e', `${sha}:${path}/${entry.replace(/^\.\//, '')}`]);
+  }
+  return [...paths];
+}
+
+function sourceSnapshot(cwd, commit, paths) {
+  const sha = git(cwd, ['rev-parse', '--verify', `${commit}^{commit}`]).trim();
+  const timestamp = Number(git(cwd, ['show', '-s', '--format=%ct', sha]).trim());
+  const tree = readTree(cwd, sha, paths);
+  const manifests = paths.map(path => regularFile(tree, `${path}/package.json`).sha);
+  return {sha, timestamp, tree, blobs:readBlobs(cwd, manifests)};
+}
+
+function regularFile(tree, path) {
+  const file = tree.get(path);
+  if (!file || file.type !== 'blob' || !['100644','100755'].includes(file.mode)) {
+    throw new Error(`missing regular package entry: ${path}`);
+  }
+  return file;
+}
+
+function pluginEntry({path, ...display}, repository, source) {
+  const {sha, timestamp, tree, blobs} = source;
+  // Manifests and entry existence come from one immutable Git tree, never the working directory.
+  const pkg = JSON.parse(blobs.get(regularFile(tree, `${path}/package.json`).sha).toString('utf8').trim());
+  const patch = pkg.dsh?.bundle?.patch;
+  if (typeof patch !== 'string') throw new Error(`${path}: missing DSH bundle patch`);
+  for (const entry of [pkg.main, patch, 'README.md', ...Object.values(pkg.exports ?? {})]) {
+    if (typeof entry !== 'string' || entry.includes('..') || /^(?:\/|[A-Za-z]:)/.test(entry)) {
+      throw new Error(`${path}: unsupported or unsafe package entry`);
     }
-    return {
+    regularFile(tree, `${path}/${entry.replace(/^\.\//, '')}`);
+  }
+  return {
       ...display,
       name: pkg.name,
       repository: { url: repository, directory: path },
@@ -50,7 +66,16 @@ export function createMarketIndex({ catalog, repository, commit = 'HEAD', cwd = 
         engines: pkg.engines?.dsh ? { dsh: pkg.engines.dsh } : {},
         source: { type: 'git', url: repository, commit: sha, path },
       }],
-    };
+  };
+}
+
+export function createMarketIndex({ catalog, repository, commit = 'HEAD', cwd = root }) {
+  validateSource(repository, commit);
+  const paths = validatePaths(catalog.plugins), source = sourceSnapshot(cwd, commit, paths), names = new Set();
+  const plugins = catalog.plugins.map(plugin => {
+    const entry = pluginEntry(plugin, repository, source);
+    if (names.has(entry.name)) throw new Error(`duplicate package name: ${entry.name}`);
+    names.add(entry.name); return entry;
   });
   return { format: 1, title: catalog.title, description: catalog.description, metadata: catalog.metadata, plugins };
 }
@@ -64,12 +89,18 @@ export async function validateIndex(index, validatorPath) {
 
 export function verifyPinnedIndex(index, cwd = root) {
   if (!index.plugins.length) throw new Error('Index must contain published plugins');
-  for (const { name, repository, versions, ...display } of index.plugins) {
+  const groups = new Map();
+  for (const {versions} of index.plugins) {
     const source = versions[0]?.source;
     if (!source || !/^[0-9a-f]{40}$/.test(source.commit)) throw new Error('Index must pin a full source commit');
+    validateSource(source.url, source.commit);
+    const paths = groups.get(source.commit) ?? new Set(); paths.add(source.path); groups.set(source.commit, paths);
+  }
+  const sources = new Map([...groups].map(([commit,paths]) => [commit, sourceSnapshot(cwd, commit, validatePaths([...paths].map(path=>({path}))))]));
+  for (const { name, repository, versions, ...display } of index.plugins) {
+    const source = versions[0]?.source;
     // Display copy belongs to the market; package identity and install metadata belong to the pinned source.
-    const catalog = { plugins: [{ ...display, path: source.path }] };
-    const expected = createMarketIndex({ catalog, repository: source.url, commit: source.commit, cwd }).plugins[0];
+    const expected = pluginEntry({...display, path:source.path}, source.url, sources.get(source.commit));
     if (JSON.stringify(expected) !== JSON.stringify({ ...display, name, repository, versions })) {
       throw new Error(`Index differs from its pinned manifest: ${name}; regenerate it`);
     }

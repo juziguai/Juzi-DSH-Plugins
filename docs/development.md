@@ -62,5 +62,6 @@ Python MCP启动配置由`lib/config.js`提供`createConfig`，统一启动契�
 ## Git 工作流
 
 `git status --short` → 检查完整 diff 和新增文件 → `npm test` → `git diff --check`。
+可使用 [发布工具](release-workflow.md) 的 `prepare` 统一构建与检查，并在输入相同时复用完整测试回执；`pack` 从固定提交制包，`market` 默认生成局部更新预览，`deploy` 默认只展示计划。
 审核范围后再按用户授权暂存/提交；不直接 `git add .`。保留依赖锁文件，忽略运行时锁而非所有 `*.lock`。
 根仓库版本与组件版本独立，不为目录搬迁机械升级所有插件。新组件必须包含清单、README、加载入口及可验证路径。
