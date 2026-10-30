@@ -1,7 +1,7 @@
 import { createQuote, quoteLabel, quoteBlock, serializeMessage, serializePrefix, plainDraft, referenceSpan, commentKey, placeFloating, createHoverClock, normalizeComment, normalizeLines, countChars, safeId, QUOTE_SOURCE, STORAGE_PREFIX, MAX_QUOTES } from '../lib/quote-core.js';
 import { createQuoteStore } from '../lib/quote-store.js';
 import { parseSentQuotes } from '../lib/quote-display.js';
-import { DOM_ANCHORS, extractSelection, visibleTextRects, editorBridge } from '../lib/dom-anchors.js';
+import { DOM_ANCHORS, extractSelection, createVisibleTextIndex, editorBridge } from '../lib/dom-anchors.js';
 import { QUOTE_CSS } from './styles.mjs';
 export const inject = ['slots','locale','conversation','inputTriggers','sessions'];
 export function apply(ctx) {
@@ -60,6 +60,8 @@ export function apply(ctx) {
     }catch{warn('composer anchors unavailable');}finally{c.editing=false;}
   };
   const eventText=value=>{if(!value||typeof value!=='object')return[];if(value.type==='text'&&typeof value.text==='string')return[value.text];return Object.values(value).flatMap(v=>Array.isArray(v)?v.flatMap(eventText):eventText(v));};
+  const release=c=>{c.inputOff?.();c.inputOff=undefined;for(const off of c.off)off();c.off=[];for(const seat of c.views.values())seat.index.dispose();c.views.clear();c.view=c.actions=c.index=undefined;if(controls.get(c.id)===c)controls.delete(c.id);if(active===c){active=undefined;dismissedRange=null;emit({bubble:null,comment:null,preview:null});}};
+  const releaseIdle=c=>{if(!c.views.size&&!c.pending.length)release(c);};
   const observe=c=>{
     const entries=c.binding.eventSource.getSnapshot().entries;
     const echoes=c.binding.session.getSnapshot().pendingSubmissions??[];
@@ -73,15 +75,24 @@ export function apply(ctx) {
     }
     const error=c.binding.session.getSnapshot().promptError;
     if(error&&error!==c.lastError&&c.pending.length){c.pending=[];c.repair=true;setTimeout(()=>reconcile(c),0);}c.lastError=error;
+    releaseIdle(c);
   };
-  const attach=(id,view,props)=>{
+  const attach=(id,view,props,token)=>{
     let c=controls.get(id);const binding=ctx.sessions.binding(id);if(!binding)return;
     if(!c||c.binding!==binding){
-      const pending=c?.pending??[];if(c)for(const off of c.off)off();
-      c={id,binding,input:ctx.conversation.input.for(binding.ctx),view,actions:props.inputActions,known:new Set(),pending,repair:true};controls.set(id,c);
-      c.off=[c.input.state.subscribe(()=>reconcile(c)),binding.eventSource.subscribe(()=>observe(c)),binding.session.subscribe(()=>observe(c))];
+      const pending=c?.pending??[];if(c)release(c);
+      c={id,binding,input:ctx.conversation.input.for(binding.ctx),views:new Map(),known:new Set(),pending,repair:true};controls.set(id,c);
+      c.off=[binding.eventSource.subscribe(()=>observe(c)),binding.session.subscribe(()=>observe(c))];
     }
-    c.view=view;c.actions=props.inputActions;active=c;observe(c);reconcile(c);return c;
+    let seat=c.views.get(token);if(seat?.view!==view){seat?.index.dispose();seat={view,index:createVisibleTextIndex(view)};c.views.set(token,seat);}seat.actions=props.inputActions;
+    c.inputOff??=c.input.state.subscribe(()=>reconcile(c));
+    c.view=view;c.actions=seat.actions;c.index=seat.index;active=c;observe(c);reconcile(c);return c;
+  };
+  const detach=(id,token)=>{
+    const c=controls.get(id);if(!c)return;const seat=c.views.get(token);seat?.index.dispose();c.views.delete(token);
+    const remaining=[...c.views.values()].at(-1);c.view=remaining?.view;c.actions=remaining?.actions;c.index=remaining?.index;
+    if(!remaining){c.inputOff?.();c.inputOff=undefined;if(active===c){active=undefined;dismissedRange=null;emit({bubble:null,comment:null,preview:null});}}
+    releaseIdle(c);
   };
   const serialize=(ref,signal)=>{
     let batch=batches.get(signal);
@@ -110,7 +121,7 @@ export function apply(ctx) {
     if(ui.comment||ui.preview||!active)return;
     if(document.getSelection()?.toString().trim()&&!active.view.querySelector(DOM_ANCHORS.chat)){warn('selection anchors unavailable');emit({bubble:null});return;}
     try{const hit=extractSelection(document.getSelection(),active.id);if(!hit){dismissedRange=null;emit({bubble:null});return;}if(dismissedRange&&hit.range.compareBoundaryPoints(0,dismissedRange)===0&&hit.range.compareBoundaryPoints(2,dismissedRange)===0){emit({bubble:null});return;}dismissedRange=null;if(!canEdit(active)){emit({bubble:null});return;}
-      const obstacles=visibleTextRects(hit.view,hit.bounds),pos=placeFloating(hit.rects,{width:28,height:28},hit.bounds,8,{obstacles,sideBounds:hit.sideBounds});emit({bubble:pos?{...hit,pos}:null,preview:null});
+      const obstacles=active.index.rects(hit.bounds),pos=placeFloating(hit.rects,{width:28,height:28},hit.bounds,8,{obstacles,sideBounds:hit.sideBounds});emit({bubble:pos?{...hit,pos}:null,preview:null});
     }catch{warn('selection anchors unavailable');emit({bubble:null});}
   };
   const schedule=delay=>{clearTimeout(selectionTimer);selectionTimer=setTimeout(selection,delay);};
@@ -178,8 +189,9 @@ export function apply(ctx) {
   function Overlay(){R.useSyncExternalStore(subscribe,()=>ui);return h('div',{className:'jq-root','data-jq':'overlay'},
     !ui.hidden&&ui.bubble&&h('button',{type:'button',className:'jq-surface jq-button jq-bubble','aria-label':t('add'),'data-jq-side':ui.bubble.pos.side,style:{left:ui.bubble.pos.x,top:ui.bubble.pos.y,'--jq-arrow':`${ui.bubble.pos.arrow}px`},onClick:()=>emit({comment:{...ui.bubble,value:'',edit:false},bubble:null})},h(Icon),h(Arrow)),
     !ui.hidden&&ui.comment&&h(CommentForm),!ui.hidden&&ui.preview&&h(Preview),h('div',{className:'jq-sr','aria-live':'polite'},ui.live));}
-  function Dock(props){const marker=R.useRef(null),[rev,rerender]=R.useReducer(x=>x+1,0),[expanded,setExpanded]=R.useState(false),[confirm,setConfirm]=R.useState(false);const state=props.useInput(s=>s);R.useSyncExternalStore(subscribe,()=>ui);
-    R.useLayoutEffect(()=>{const view=marker.current?.closest(DOM_ANCHORS.conversation);if(!view||view.parentElement?.closest(DOM_ANCHORS.conversation))return;attach(props.sessionId,view,props);},[props.sessionId,state,rev]);
+  function Dock(props){const marker=R.useRef(null),token=R.useRef(Symbol()),[rev,rerender]=R.useReducer(x=>x+1,0),[expanded,setExpanded]=R.useState(false),[confirm,setConfirm]=R.useState(false);const state=props.useInput(s=>s);R.useSyncExternalStore(subscribe,()=>ui);
+    R.useLayoutEffect(()=>{const view=marker.current?.closest(DOM_ANCHORS.conversation);if(!view||view.parentElement?.closest(DOM_ANCHORS.conversation))return;attach(props.sessionId,view,props,token.current);},[props.sessionId,state,rev]);
+    R.useLayoutEffect(()=>()=>detach(props.sessionId,token.current),[props.sessionId]);
     R.useEffect(()=>store.subscribe(id=>{if(id===props.sessionId)rerender();}),[props.sessionId]);
     const items=store.items(props.sessionId),c=controls.get(props.sessionId);
     const highlightIndex=state.occurrences.filter(o=>o.source===QUOTE_SOURCE).findIndex(o=>o.ref===ui.highlight);
@@ -206,7 +218,7 @@ export function apply(ctx) {
   ctx.effect(()=>{
     for(const [name,fn] of eventBindings)document.addEventListener(name,fn,{passive:true,capture:true});window.addEventListener('resize',onScroll,{passive:true});
     const offStore=store.subscribe(id=>{const c=controls.get(id);if(c){c.repair=true;reconcile(c);}});
-    const clean=()=>{const list=ctx.sessions.list.getSnapshot();if(list.phase==='ready')store.cleanup(new Set(list.ids));};clean();const offList=ctx.sessions.list.subscribe(clean);
-    return()=>{disposed=true;clearTimeout(selectionTimer);hover.dispose();offStore();offList();for(const c of controls.values()){for(const off of c.off)off();for(const o of sourceRefs(c.input.state.getSnapshot()).toReversed())removeChip(c,o.ref);}for(const [name,fn] of eventBindings)document.removeEventListener(name,fn,true);window.removeEventListener('resize',onScroll);store.dispose();controls.clear();listeners.clear();};
+    const clean=()=>{const list=ctx.sessions.list.getSnapshot();if(list.phase==='ready'){const ids=new Set(list.ids);store.cleanup(ids);for(const c of controls.values())if(!ids.has(c.id))release(c);}};clean();const offList=ctx.sessions.list.subscribe(clean);
+    return()=>{disposed=true;clearTimeout(selectionTimer);hover.dispose();offStore();offList();for(const c of controls.values()){for(const o of sourceRefs(c.input.state.getSnapshot()).toReversed())removeChip(c,o.ref);release(c);}for(const [name,fn] of eventBindings)document.removeEventListener(name,fn,true);window.removeEventListener('resize',onScroll);store.dispose();controls.clear();listeners.clear();};
   });
 }

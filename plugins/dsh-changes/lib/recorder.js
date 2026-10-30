@@ -1,10 +1,11 @@
 import { watch } from 'node:fs';
-import { lstat, open, writeFile, readlink, mkdtemp, mkdir, rm, realpath, unlink } from 'node:fs/promises';
+import { lstat, open, writeFile, readlink, mkdtemp, rm, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve, relative, isAbsolute, join, sep, dirname, basename } from 'node:path';
 import { createHash } from 'node:crypto';
 import { isUtf8 } from 'node:buffer';
 import { checked, parseNumstat, parseHunks } from './git.js';
+import { BlobStore } from './blob-store.js';
 
 export const defaults = { refreshMs: 750, timeoutMs: 15000, maxFiles: 500, maxFileBytes: 2 * 1024 * 1024,
   maxSnapshotBytes: 128 * 1024 * 1024, maxStoredBytes: 512 * 1024 * 1024, maxTrackedFiles: 20000, maxTurns: 30 };
@@ -31,9 +32,13 @@ async function canonical(path) {
   }
 }
 
-/** One turn's private object database; objects never enter the user's Git directory. */
+const sameTree = (a, b) => a.size === b.size && [...a].every(([key, value]) => {
+  const other = b.get(key); return other?.hash === value.hash && other.mode === value.mode;
+});
+
+/** Per-turn trees/index with shared immutable blobs, outside the user's Git directory. */
 export class TurnRecord {
-  constructor({ sessionId, turn, cwd, git, config = {}, signal, watcher = watch, onError = () => {}, budget }) {
+  constructor({ sessionId, turn, cwd, git, config = {}, signal, watcher = watch, onError = () => {}, budget, store }) {
     Object.assign(this, { sessionId, turn, cwd: resolve(cwd), git, config: configOf(config), watcher, onError });
     this.controller = new AbortController();
     this.signal = signal ? AbortSignal.any([signal, this.controller.signal]) : this.controller.signal;
@@ -41,8 +46,9 @@ export class TurnRecord {
     this.revision = 0; this.dirty = true; this.status = 'starting'; this.warning = null; this.error = null;
     this.files = []; this.total = 0; this.added = 0; this.deleted = 0; this.lastScan = 0;
     this.queue = Promise.resolve();
-    this.budget = budget ?? { used: 0, limit: this.config.maxStoredBytes };
-    this.ownedBytes = 0; this.reservedHashes = new Set(); this.writtenHashes = new Set();
+    this.budget = store?.budget ?? budget ?? { used: 0, limit: this.config.maxStoredBytes };
+    this.store = store ?? new BlobStore(this.budget); this.ownsStore = !store;
+    this.heldHashes = new Set();
     this.ready = this.enqueue(async () => {
       try { await this.initialize(); this.status = 'running'; }
       catch (error) { this.fail(error); }
@@ -68,15 +74,16 @@ export class TurnRecord {
     this.tempRoot = await realpath(tmpdir());
     this.directory = await mkdtemp(join(this.tempRoot, 'juzi-dsh-changes-'));
     checked(await this.run(['init', '--bare', '--object-format=sha1', '--quiet', this.directory]), 'private Git init');
-    await mkdir(join(this.directory, 'captures'));
+    await this.store.ready;
+    await writeFile(join(this.directory, 'objects/info/alternates'), slash(this.store.directory) + '\n');
     const found = await this.run(['-C', this.cwd, 'rev-parse', '--show-toplevel']);
     if (found.code === 0) this.root = await realpath(found.stdout.trim());
     else if (found.code === 128 && /not a git repository/i.test(found.stderr)) this.warning = '当前目录没有 Git 仓库，仅记录文件编辑工具；shell 修改不在覆盖范围。';
     else checked(found, 'locate workspace');
-    this.after = await this.readWorkspace(new Map(), true);
+    this.after = await this.readWorkspace(new Map());
     this.before = new Map(this.after);
     this.beforeTree = await this.writeTree(this.before);
-    this.afterTree = this.beforeTree; this.dirty = false;
+    this.afterTree = this.beforeTree; this.baseRevision = this.beforeTree; this.dirty = false;
     if (this.root) {
       try {
         this.observer = this.watcher(this.root, { recursive: true }, (_event, path) => {
@@ -95,7 +102,14 @@ export class TurnRecord {
     try { stat = await lstat(path); } catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null; throw error; }
     if (!stat.isFile() && !stat.isSymbolicLink()) return null;
     const stamp = signature(stat);
-    if (old && old.stamp === stamp && !force) return old;
+    const cached = old ?? this.store.cache.get(path);
+    if (cached && cached.stamp === stamp && (old || !cached.oversized) && !force) {
+      if (this.heldHashes.has(cached.hash) || await this.store.retain(cached.hash)) {
+        this.heldHashes.add(cached.hash);
+        const display = this.label(path);
+        return cached.display === display ? cached : { ...cached, display };
+      }
+    }
     let oversized = stat.size > this.config.maxFileBytes || budget.bytes + stat.size > this.config.maxSnapshotBytes;
     let bytes;
     if (oversized) bytes = Buffer.from(`omitted:${stamp}`);
@@ -117,27 +131,14 @@ export class TurnRecord {
       else budget.bytes += bytes.length;
     }
     const hash = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
-    if (!this.reservedHashes.has(hash)) {
-      if (this.budget.used + bytes.length > this.budget.limit) throw new Error('变更记录空间已达上限，请结束本次运行后重试');
-      this.budget.used += bytes.length; this.ownedBytes += bytes.length; this.reservedHashes.add(hash);
+    if (!this.heldHashes.has(hash)) {
+      await this.store.retain(hash, bytes);
+      this.heldHashes.add(hash);
     }
-    // The public subprocess seam accepts text stdin. Scratch files preserve binary bytes exactly.
-    let scratch;
-    if (!this.writtenHashes.has(hash)) { scratch = join(this.directory, 'captures', this.key(path).slice(2)); await writeFile(scratch, bytes); }
-    return { key: this.key(path), path, display: this.label(path), stamp, hash, scratch,
+    const entry = { key: this.key(path), path, display: this.label(path), stamp, hash,
       mode: stat.isSymbolicLink() ? '120000' : '100644', oversized, binary: !oversized && (bytes.includes(0) || !isUtf8(bytes)) };
-  }
-  async hashEntries(entries) {
-    entries = entries.filter(entry => entry.scratch);
-    if (!entries.length) return;
-    const hashes = (await this.privateRun(['hash-object', '-w', '--no-filters', '--stdin-paths'], {
-      input: entries.map(entry => JSON.stringify(slash(entry.scratch))).join('\n') + '\n',
-    })).trim().split('\n');
-    if (hashes.length !== entries.length || hashes.some(hash => !/^[0-9a-f]{40,64}$/.test(hash))) throw new Error('Incomplete snapshot hashes');
-    for (const [index, entry] of entries.entries()) {
-      if (entry.hash !== hashes[index]) throw new Error('Snapshot content hash mismatch');
-      this.writtenHashes.add(entry.hash); await unlink(entry.scratch); delete entry.scratch;
-    }
+    this.store.remember(entry);
+    return entry;
   }
   async paths() {
     if (!this.root) return [...this.extra];
@@ -148,14 +149,12 @@ export class TurnRecord {
     return paths;
   }
   async readWorkspace(old, force = false, forcedPaths = this.dirtyPaths) {
-    const next = new Map(), budget = { bytes: 0 }; let pending = [];
+    const next = new Map(), budget = { bytes: 0 };
     for (const path of await this.paths()) {
       this.signal.throwIfAborted();
       const entry = await this.readEntry(path, old.get(this.key(path)), force || forcedPaths.has(path), budget);
-      if (entry) { next.set(entry.key, entry); if (entry.scratch) pending.push(entry); }
-      if (pending.length >= 64) { await this.hashEntries(pending); pending = []; }
+      if (entry) next.set(entry.key, entry);
     }
-    await this.hashEntries(pending);
     return next;
   }
   async writeTree(entries) {
@@ -190,7 +189,7 @@ export class TurnRecord {
       if (!covered && !this.before.has(key) && !this.extra.has(path)) {
         const entry = await this.readEntry(path, null, true, { bytes: 0 });
         this.extra.add(path);
-        if (entry) { await this.hashEntries([entry]); this.before.set(key, entry); this.beforeTree = await this.writeTree(this.before); }
+        if (entry) { this.before.set(key, entry); this.beforeTree = await this.writeTree(this.before); }
       }
       this.extra.add(path);
       this.markDirty(path);
@@ -206,7 +205,7 @@ export class TurnRecord {
       try {
         // Keep write events arriving during the scan for the next revision.
         const after = await this.readWorkspace(this.after, false, dirty);
-        const tree = await this.writeTree(after);
+        const tree = sameTree(this.after, after) ? this.afterTree : await this.writeTree(after);
         if (tree !== this.afterTree || this.baseRevision !== this.beforeTree) {
           const rows = parseNumstat(await this.privateRun(['diff-tree', '--no-commit-id', '-r', '-M', '--numstat', '-z', this.beforeTree, tree]));
           this.files = rows.map(row => {
@@ -254,6 +253,11 @@ export class TurnRecord {
     });
   }
   async dispose() {
+    if (this.disposal) return this.disposal;
+    this.disposal = this.release();
+    return this.disposal;
+  }
+  async release() {
     this.controller.abort(); this.observer?.close();
     await this.queue;
     if (this.directory) {
@@ -261,7 +265,9 @@ export class TurnRecord {
       if (dirname(target) !== this.tempRoot || !basename(target).startsWith('juzi-dsh-changes-')) throw new Error('Unexpected snapshot cleanup path');
       await rm(target, { recursive: true, force: true });
     }
-    this.budget.used -= this.ownedBytes; this.ownedBytes = 0;
+    await this.store.release(this.heldHashes); this.heldHashes.clear();
+    if (this.ownsStore) await this.store.dispose();
+    this.before.clear(); this.after.clear();
     this.readBuffer = null;
   }
 }

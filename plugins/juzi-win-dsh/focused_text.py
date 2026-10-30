@@ -1,21 +1,97 @@
 """Read focused UI Automation text without changing focus or clipboard."""
 import json
+import atexit
+import queue
 import subprocess
+import tempfile
+import threading
 import time
 from pathlib import Path
 from paste_text import POWERSHELL
 
 
+class FocusReader:
+    """One owned STA worker, one request at a time; never cache focused text."""
+    def __init__(self, timeout=15):
+        self.timeout = timeout
+        self.lock = threading.Lock()
+        self.process = None
+        self.responses = None
+
+    def _start(self):
+        process = subprocess.Popen(
+            [str(POWERSHELL), '-NoProfile', '-STA', '-NonInteractive', '-File',
+             str(Path(__file__).with_suffix('.ps1'))],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            text=True, encoding='utf-8', cwd=tempfile.gettempdir(),
+            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+        responses = queue.Queue()
+        self.process, self.responses = process, responses
+
+        def receive():
+            try:
+                while True:
+                    line = process.stdout.readline(2 * 1024 * 1024 + 1)
+                    if not line:
+                        raise RuntimeError('UI Automation reader exited')
+                    if len(line) > 2 * 1024 * 1024:
+                        raise RuntimeError('UI Automation response exceeds limit')
+                    responses.put(json.loads(line.lstrip('\ufeff')))
+                    line = None
+            except Exception as exc:
+                responses.put(exc)
+            finally:
+                process.stdout.close()
+
+        threading.Thread(target=receive, name='juzi-focus-reader', daemon=True).start()
+
+    def _close(self):
+        process, self.process = self.process, None
+        self.responses = None
+        if process is None:
+            return
+        try:
+            process.stdin.close()
+        except (OSError, ValueError):
+            pass
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=3)
+
+    def close(self):
+        with self.lock:
+            self._close()
+
+    def read(self, hwnd, max_chars):
+        with self.lock:
+            try:
+                if self.process is None:
+                    self._start()
+                self.process.stdin.write(json.dumps({'hwnd': hwnd, 'max_chars': max_chars}) + '\n')
+                self.process.stdin.flush()
+                response = self.responses.get(timeout=self.timeout)
+                if isinstance(response, Exception):
+                    raise response
+                if not isinstance(response, dict) or not isinstance(response.get('ok'), bool):
+                    raise RuntimeError('Invalid UI Automation response')
+                return response
+            except queue.Empty as exc:
+                self._close()
+                raise TimeoutError('UI Automation reader timed out') from exc
+            except Exception:
+                self._close()
+                raise
+
+
+_reader = FocusReader()
+close = _reader.close
+atexit.register(close)
+
+
 def read(hwnd, max_chars=100000):
-    result = subprocess.run(
-        [str(POWERSHELL), '-NoProfile', '-STA', '-NonInteractive', '-File',
-         str(Path(__file__).with_suffix('.ps1')), '-ExpectedHwnd', str(hwnd),
-         '-MaxChars', str(max_chars)], capture_output=True, text=True,
-        encoding='utf-8', timeout=15,
-        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
-    if result.returncode:
-        raise RuntimeError('UI Automation reader failed: ' + result.stderr[:300])
-    return json.loads(result.stdout.lstrip('\ufeff'))
+    return _reader.read(hwnd, max_chars)
 
 
 def insertion_matches(before, after, text):
@@ -49,8 +125,7 @@ def verify_insertion(hwnd, before, text):
         try:
             after = read(hwnd)
         except Exception as exc:
-            reason = str(exc)
-            continue
+            return False, str(exc)
         if after.get('error') in ('target_changed', 'password_control') or after.get('focus_id') != before.get('focus_id'):
             return False, 'target_changed'
         if after.get('ok') and not after.get('truncated') and insertion_matches(before['text'], after['text'], text):

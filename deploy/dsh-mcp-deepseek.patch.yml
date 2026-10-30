@@ -7,6 +7,5 @@
         command: 'C:\Python314\python.exe'
         args:
           - 'D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-deepseek-tools\server.py'
-        cwd: 'D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-deepseek-tools'
         toolCallTimeoutMs: 90000
         failOnStartupError: false

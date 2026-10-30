@@ -182,8 +182,8 @@ window.__ModuleLoader__.load({
 			function fastControlFor(sessionId) {
 				if (!fastControls.has(sessionId)) fastControls.set(sessionId, createFastControl({
 					sessionId, settings: () => ctx.get("remote.settings"),
-					fetchCapability: async () => {
-						const response = await fetch('api/juzi.ultra.capabilities?' + new URLSearchParams({ sessionId }), { cache: 'no-store', credentials: 'same-origin' });
+					fetchCapability: async (signal) => {
+						const response = await fetch('api/juzi.ultra.capabilities?' + new URLSearchParams({ sessionId }), { cache: 'no-store', credentials: 'same-origin', signal });
 						if (!response.ok) throw new Error('fast-backend-unavailable');
 						return response.json();
 					},
@@ -233,13 +233,17 @@ window.__ModuleLoader__.load({
 				const [menu, setMenu] = react.useState(null);
 				const fastControl = react.useMemo(() => fastControlFor(sessionId), [sessionId]);
 				const fast = react.useSyncExternalStore(fastControl.subscribe, fastControl.getSnapshot);
-				react.useEffect(() => { void fastControl.refresh(); }, [fastControl, menu, fastLocked]);
+				react.useEffect(() => { void fastControl.refresh(); }, [fastControl]);
+				react.useEffect(() => {
+					if (menu === "effort") void fastControl.refresh();
+				}, [fastControl, menu, fastLocked]);
 				react.useEffect(() => {
 					if (menu !== "effort") return;
 					const refresh = () => { void fastControl.refresh(); };
+					const offReset = ctx.on("connection/reset", () => { void fastControl.refresh(undefined, true); });
 					window.addEventListener("focus", refresh);
 					window.addEventListener("online", refresh);
-					return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); };
+					return () => { offReset(); window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); };
 				}, [fastControl, menu]);
 				const [closing, setClosing] = react.useState(false);
 				const closeTimerRef = react.useRef(null);

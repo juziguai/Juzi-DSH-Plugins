@@ -65,7 +65,20 @@ with tempfile.TemporaryDirectory(prefix='juzi-update-') as scratch:
         finally:
             child.communicate(timeout=5)
         assert child.returncode == 0, child.returncode
-print('old cwd blocked; new cwd rename and MCP requests passed')
+    sys.path.insert(0, str(package))
+    import focused_text
+    worker = None
+    try:
+        assert focused_text.read(0)['error'] == 'target_changed'
+        worker = focused_text._reader.process
+        package.rename(moved)
+        moved.rename(package)
+        assert focused_text.read(0)['error'] == 'target_changed'
+        assert focused_text._reader.process is worker
+    finally:
+        focused_text.close()
+    assert worker is not None and worker.poll() is not None
+print('old cwd blocked; new cwd and live STA worker permit rename; MCP requests passed')
 `], { input: JSON.stringify(config), encoding: 'utf8', timeout: 25000,
     env: { ...process.env, ...config.env } });
   assert.equal(run.error, undefined);

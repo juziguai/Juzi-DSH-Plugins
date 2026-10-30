@@ -50,6 +50,35 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class SecurityTests(unittest.TestCase):
+    def test_retry_uses_remaining_total_budget(self):
+        elapsed, timeouts = [0.0], []
+        def slow(_request, timeout):
+            timeouts.append(timeout)
+            elapsed[0] += timeout
+            raise TimeoutError()
+        def sleep(delay):
+            elapsed[0] += delay
+        with patch.object(server, '_api_key', return_value=KEY), patch.object(server, 'TIMEOUT_SECONDS', 60), patch.object(server, 'MAX_RETRIES', 3), patch.object(server.time, 'monotonic', side_effect=lambda: elapsed[0]), patch.object(server.time, 'sleep', side_effect=sleep), patch.object(server._HTTP, 'open', side_effect=slow):
+            result = server._post('/test', {})
+        self.assertEqual(result['error'], 'timeout')
+        self.assertEqual(timeouts, [60, 19.5])
+        self.assertEqual(elapsed[0], 80)
+
+    def test_retry_after_cannot_exceed_remaining_budget(self):
+        elapsed = [0.0]
+        def fail(_request, timeout):
+            elapsed[0] += 79
+            raise urllib.error.HTTPError('fixture', 429, '', {'Retry-After': '8'}, io.BytesIO())
+        with patch.object(server, '_api_key', return_value=KEY), patch.object(server.time, 'monotonic', side_effect=lambda: elapsed[0]), patch.object(server.time, 'sleep') as sleep, patch.object(server._HTTP, 'open', side_effect=fail) as network:
+            self.assertEqual(server._post('/test', {})['error'], 'timeout')
+        self.assertEqual(network.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_response_read_is_bounded_before_json_parsing(self):
+        response = io.BytesIO(b'x' * 33)
+        with patch.object(server, '_api_key', return_value=KEY), patch.object(server, 'MAX_RESPONSE_BYTES', 32), patch.object(server._HTTP, 'open', return_value=response):
+            self.assertEqual(server._post('/test', {})['error'], 'response_too_large')
+
     @classmethod
     def setUpClass(cls):
         cls.target = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

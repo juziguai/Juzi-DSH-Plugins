@@ -6,6 +6,30 @@ import { FAST_POLICY } from '../plugins/dsh-ultra-effort/lib/fast-policy.js';
 
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const settle = () => new Promise(resolve => setTimeout(resolve, 10));
+
+test('overlapping refreshes share I/O; timeout and disposal cancel capability requests', async () => {
+  const b = backend(), gate = deferred(); let calls = 0, signal;
+  const control = b.control('A', { fetchCapability: async value => { calls++; signal = value; return gate.promise; }, timeoutMs: 20 });
+  await Promise.all(Array.from({ length: 20 }, () => control.refresh()));
+  assert.equal(calls, 1); assert.equal(signal.aborted, true);
+  assert.equal(control.getSnapshot().phase, 'unavailable');
+  const next = control.refresh(); await settle(); control.dispose(); await next;
+  assert.equal(calls, 2); assert.equal(signal.aborted, true);
+  gate.resolve({ protocol: 1, namespace: 'ui-ultra-effort', ready: true, writable: true, idle: true, boundary: 'next-turn' });
+  await settle(); assert.equal(control.getSnapshot().enabled, false);
+});
+
+test('a late write during a refresh queues one authoritative reread', async () => {
+  const b = backend(), control = b.control('A', { timeoutMs: 15 }), write = deferred(), read = deferred();
+  await control.refresh();
+  const mutate = b.api.mutate, describe = b.api.describe;
+  b.api.mutate = (...args) => write.promise.then(() => mutate(...args));
+  let reads = 0;
+  b.api.describe = async () => { reads++; if(reads === 1){const old = await describe(); await read.promise; return old;} return describe(); };
+  const toggling = control.toggle(); await new Promise(resolve => setTimeout(resolve, 20));
+  write.resolve(); await settle(); read.resolve(); await toggling; await settle();
+  assert.equal(control.getSnapshot().enabled, true); assert.equal(reads, 2); control.dispose();
+});
 function backend() {
   let revision = 0, values = {}, writable = true, idle = true;
   const calls = [];

@@ -1,7 +1,7 @@
 {
   "name": "@juzi/dsh-ultra-effort",
   "description": "模型选择、推理强度动效、内置版本角标与按会话开启的快速执行（实验）。",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "main": "lib/index.js",

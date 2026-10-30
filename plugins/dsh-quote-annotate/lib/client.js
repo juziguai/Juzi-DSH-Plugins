@@ -192,16 +192,42 @@ const DOM_ANCHORS = Object.freeze({
   codeWrap:'[data-code-wrap]',codeBanner:'[data-code-block-banner]',
   menu:'[role="dialog"][aria-modal="true"],[role="menu"],[role="listbox"],[data-radix-popper-content-wrapper]'
 });
-function visibleTextRects(view,bounds) {
+function visibleTextRects(view,bounds,roots) {
   const chat=view.querySelector(DOM_ANCHORS.chat);if(!chat)return [];
-  const out=[],walker=chat.ownerDocument.createTreeWalker(chat,4),range=chat.ownerDocument.createRange();let node;
-  while((node=walker.nextNode())){
+  const out=[],range=chat.ownerDocument.createRange();
+  for(const root of roots??[chat]){
+   const walker=chat.ownerDocument.createTreeWalker(root,4);let node;
+   while((node=walker.nextNode())){
     if(!node.textContent.trim()||node.parentElement.closest(DOM_ANCHORS.excluded))continue;
     const parent=node.parentElement.getBoundingClientRect();if(parent.bottom<=bounds.top||parent.top>=bounds.bottom)continue;
     range.selectNodeContents(node);if(typeof range.getClientRects!=='function')continue;
     for(const rect of range.getClientRects())if(rect.width>0&&rect.height>0&&rect.bottom>bounds.top&&rect.top<bounds.bottom)out.push({left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom});
+   }
   }
   return out;
+}
+/** Observe message visibility off the selection path; never retain an unmounted view. */
+function createVisibleTextIndex(view) {
+  const win=view.ownerDocument.defaultView,rows=new Set(),visible=new Set();let observed=false;
+  const intersection=win.IntersectionObserver?new win.IntersectionObserver(entries=>{
+    observed=true;for(const entry of entries)if(rows.has(entry.target)){if(entry.isIntersecting)visible.add(entry.target);else visible.delete(entry.target);}
+  }):null;
+  const visit=(node,add)=>{
+    if(node.nodeType!==1)return;
+    const candidates=[...(node.matches(DOM_ANCHORS.row)?[node]:[]),...node.querySelectorAll(DOM_ANCHORS.row)];
+    for(const row of candidates){if(add){if(rows.has(row)||!row.closest(DOM_ANCHORS.chat))continue;rows.add(row);intersection?.observe(row);}else{rows.delete(row);visible.delete(row);intersection?.unobserve(row);}}
+  };
+  visit(view,true);
+  const mutation=new win.MutationObserver(records=>{for(const record of records){for(const node of record.removedNodes)visit(node,false);for(const node of record.addedNodes)visit(node,true);}});
+  mutation.observe(view,{childList:true,subtree:true});
+  return {
+    rects(bounds){
+      // Before the first visibility delivery (or on hosts without IO), prune by row once.
+      const roots=rows.size?(intersection&&observed?[...visible]:[...rows].filter(row=>{const r=row.getBoundingClientRect();return r.bottom>bounds.top&&r.top<bounds.bottom;})):undefined;
+      return visibleTextRects(view,bounds,roots);
+    },
+    dispose(){intersection?.disconnect();mutation.disconnect();rows.clear();visible.clear();}
+  };
 }
 function extractSelection(selection,sessionId) {
   if(!selection||selection.isCollapsed||selection.rangeCount!==1)return null;
@@ -214,9 +240,14 @@ function extractSelection(selection,sessionId) {
   const rects=[...range.getClientRects()].filter(r=>r.width>0&&r.height>0).map(r=>({left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}));
   const contributedRows=new Map();
   let text='',lastRow=null,lastBlock=null;
-  const walker=doc.createTreeWalker(chat,5);
-  let current;
-  while((current=walker.nextNode())) {
+  const root=chat.contains(node)?node:chat;
+  if((root.nodeType===1?root:root.parentElement)?.closest(DOM_ANCHORS.excluded))return null;
+  const walker=doc.createTreeWalker(root,5,{acceptNode(current){
+    if((current.nodeType===1?current:current.parentElement)?.closest(DOM_ANCHORS.excluded)||!range.intersectsNode(current))return 2;
+    return 1;
+  }});
+  let current=root.nodeType===3?root:walker.nextNode();
+  for(;current;current=walker.nextNode()) {
     if(current.nodeType===1){if(current.tagName==='BR'&&!current.closest(DOM_ANCHORS.excluded)&&range.intersectsNode(current))text+='\n';continue;}
     if(!current.textContent||current.parentElement.closest(DOM_ANCHORS.excluded)||!range.intersectsNode(current))continue;
     const part=range.cloneRange();part.selectNodeContents(current);
@@ -390,6 +421,8 @@ function apply(ctx) {
     }catch{warn('composer anchors unavailable');}finally{c.editing=false;}
   };
   const eventText=value=>{if(!value||typeof value!=='object')return[];if(value.type==='text'&&typeof value.text==='string')return[value.text];return Object.values(value).flatMap(v=>Array.isArray(v)?v.flatMap(eventText):eventText(v));};
+  const release=c=>{c.inputOff?.();c.inputOff=undefined;for(const off of c.off)off();c.off=[];for(const seat of c.views.values())seat.index.dispose();c.views.clear();c.view=c.actions=c.index=undefined;if(controls.get(c.id)===c)controls.delete(c.id);if(active===c){active=undefined;dismissedRange=null;emit({bubble:null,comment:null,preview:null});}};
+  const releaseIdle=c=>{if(!c.views.size&&!c.pending.length)release(c);};
   const observe=c=>{
     const entries=c.binding.eventSource.getSnapshot().entries;
     const echoes=c.binding.session.getSnapshot().pendingSubmissions??[];
@@ -403,15 +436,24 @@ function apply(ctx) {
     }
     const error=c.binding.session.getSnapshot().promptError;
     if(error&&error!==c.lastError&&c.pending.length){c.pending=[];c.repair=true;setTimeout(()=>reconcile(c),0);}c.lastError=error;
+    releaseIdle(c);
   };
-  const attach=(id,view,props)=>{
+  const attach=(id,view,props,token)=>{
     let c=controls.get(id);const binding=ctx.sessions.binding(id);if(!binding)return;
     if(!c||c.binding!==binding){
-      const pending=c?.pending??[];if(c)for(const off of c.off)off();
-      c={id,binding,input:ctx.conversation.input.for(binding.ctx),view,actions:props.inputActions,known:new Set(),pending,repair:true};controls.set(id,c);
-      c.off=[c.input.state.subscribe(()=>reconcile(c)),binding.eventSource.subscribe(()=>observe(c)),binding.session.subscribe(()=>observe(c))];
+      const pending=c?.pending??[];if(c)release(c);
+      c={id,binding,input:ctx.conversation.input.for(binding.ctx),views:new Map(),known:new Set(),pending,repair:true};controls.set(id,c);
+      c.off=[binding.eventSource.subscribe(()=>observe(c)),binding.session.subscribe(()=>observe(c))];
     }
-    c.view=view;c.actions=props.inputActions;active=c;observe(c);reconcile(c);return c;
+    let seat=c.views.get(token);if(seat?.view!==view){seat?.index.dispose();seat={view,index:createVisibleTextIndex(view)};c.views.set(token,seat);}seat.actions=props.inputActions;
+    c.inputOff??=c.input.state.subscribe(()=>reconcile(c));
+    c.view=view;c.actions=seat.actions;c.index=seat.index;active=c;observe(c);reconcile(c);return c;
+  };
+  const detach=(id,token)=>{
+    const c=controls.get(id);if(!c)return;const seat=c.views.get(token);seat?.index.dispose();c.views.delete(token);
+    const remaining=[...c.views.values()].at(-1);c.view=remaining?.view;c.actions=remaining?.actions;c.index=remaining?.index;
+    if(!remaining){c.inputOff?.();c.inputOff=undefined;if(active===c){active=undefined;dismissedRange=null;emit({bubble:null,comment:null,preview:null});}}
+    releaseIdle(c);
   };
   const serialize=(ref,signal)=>{
     let batch=batches.get(signal);
@@ -440,7 +482,7 @@ function apply(ctx) {
     if(ui.comment||ui.preview||!active)return;
     if(document.getSelection()?.toString().trim()&&!active.view.querySelector(DOM_ANCHORS.chat)){warn('selection anchors unavailable');emit({bubble:null});return;}
     try{const hit=extractSelection(document.getSelection(),active.id);if(!hit){dismissedRange=null;emit({bubble:null});return;}if(dismissedRange&&hit.range.compareBoundaryPoints(0,dismissedRange)===0&&hit.range.compareBoundaryPoints(2,dismissedRange)===0){emit({bubble:null});return;}dismissedRange=null;if(!canEdit(active)){emit({bubble:null});return;}
-      const obstacles=visibleTextRects(hit.view,hit.bounds),pos=placeFloating(hit.rects,{width:28,height:28},hit.bounds,8,{obstacles,sideBounds:hit.sideBounds});emit({bubble:pos?{...hit,pos}:null,preview:null});
+      const obstacles=active.index.rects(hit.bounds),pos=placeFloating(hit.rects,{width:28,height:28},hit.bounds,8,{obstacles,sideBounds:hit.sideBounds});emit({bubble:pos?{...hit,pos}:null,preview:null});
     }catch{warn('selection anchors unavailable');emit({bubble:null});}
   };
   const schedule=delay=>{clearTimeout(selectionTimer);selectionTimer=setTimeout(selection,delay);};
@@ -508,8 +550,9 @@ function apply(ctx) {
   function Overlay(){R.useSyncExternalStore(subscribe,()=>ui);return h('div',{className:'jq-root','data-jq':'overlay'},
     !ui.hidden&&ui.bubble&&h('button',{type:'button',className:'jq-surface jq-button jq-bubble','aria-label':t('add'),'data-jq-side':ui.bubble.pos.side,style:{left:ui.bubble.pos.x,top:ui.bubble.pos.y,'--jq-arrow':`${ui.bubble.pos.arrow}px`},onClick:()=>emit({comment:{...ui.bubble,value:'',edit:false},bubble:null})},h(Icon),h(Arrow)),
     !ui.hidden&&ui.comment&&h(CommentForm),!ui.hidden&&ui.preview&&h(Preview),h('div',{className:'jq-sr','aria-live':'polite'},ui.live));}
-  function Dock(props){const marker=R.useRef(null),[rev,rerender]=R.useReducer(x=>x+1,0),[expanded,setExpanded]=R.useState(false),[confirm,setConfirm]=R.useState(false);const state=props.useInput(s=>s);R.useSyncExternalStore(subscribe,()=>ui);
-    R.useLayoutEffect(()=>{const view=marker.current?.closest(DOM_ANCHORS.conversation);if(!view||view.parentElement?.closest(DOM_ANCHORS.conversation))return;attach(props.sessionId,view,props);},[props.sessionId,state,rev]);
+  function Dock(props){const marker=R.useRef(null),token=R.useRef(Symbol()),[rev,rerender]=R.useReducer(x=>x+1,0),[expanded,setExpanded]=R.useState(false),[confirm,setConfirm]=R.useState(false);const state=props.useInput(s=>s);R.useSyncExternalStore(subscribe,()=>ui);
+    R.useLayoutEffect(()=>{const view=marker.current?.closest(DOM_ANCHORS.conversation);if(!view||view.parentElement?.closest(DOM_ANCHORS.conversation))return;attach(props.sessionId,view,props,token.current);},[props.sessionId,state,rev]);
+    R.useLayoutEffect(()=>()=>detach(props.sessionId,token.current),[props.sessionId]);
     R.useEffect(()=>store.subscribe(id=>{if(id===props.sessionId)rerender();}),[props.sessionId]);
     const items=store.items(props.sessionId),c=controls.get(props.sessionId);
     const highlightIndex=state.occurrences.filter(o=>o.source===QUOTE_SOURCE).findIndex(o=>o.ref===ui.highlight);
@@ -536,8 +579,8 @@ function apply(ctx) {
   ctx.effect(()=>{
     for(const [name,fn] of eventBindings)document.addEventListener(name,fn,{passive:true,capture:true});window.addEventListener('resize',onScroll,{passive:true});
     const offStore=store.subscribe(id=>{const c=controls.get(id);if(c){c.repair=true;reconcile(c);}});
-    const clean=()=>{const list=ctx.sessions.list.getSnapshot();if(list.phase==='ready')store.cleanup(new Set(list.ids));};clean();const offList=ctx.sessions.list.subscribe(clean);
-    return()=>{disposed=true;clearTimeout(selectionTimer);hover.dispose();offStore();offList();for(const c of controls.values()){for(const off of c.off)off();for(const o of sourceRefs(c.input.state.getSnapshot()).toReversed())removeChip(c,o.ref);}for(const [name,fn] of eventBindings)document.removeEventListener(name,fn,true);window.removeEventListener('resize',onScroll);store.dispose();controls.clear();listeners.clear();};
+    const clean=()=>{const list=ctx.sessions.list.getSnapshot();if(list.phase==='ready'){const ids=new Set(list.ids);store.cleanup(ids);for(const c of controls.values())if(!ids.has(c.id))release(c);}};clean();const offList=ctx.sessions.list.subscribe(clean);
+    return()=>{disposed=true;clearTimeout(selectionTimer);hover.dispose();offStore();offList();for(const c of controls.values()){for(const o of sourceRefs(c.input.state.getSnapshot()).toReversed())removeChip(c,o.ref);release(c);}for(const [name,fn] of eventBindings)document.removeEventListener(name,fn,true);window.removeEventListener('resize',onScroll);store.dispose();controls.clear();listeners.clear();};
   });
 }
 

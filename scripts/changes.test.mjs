@@ -4,6 +4,7 @@ import { readFile, writeFile, rename, rm, access, mkdir } from 'node:fs/promises
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { TurnRecord } from '../plugins/dsh-changes/lib/recorder.js';
+import { BlobStore } from '../plugins/dsh-changes/lib/blob-store.js';
 import { parseNumstat, parseHunks } from '../plugins/dsh-changes/lib/git.js';
 import { workspace, nodeGit, quietWatcher } from '../plugins/dsh-changes/test/helpers.mjs';
 
@@ -125,4 +126,59 @@ test('shared temporary-content budget fails visibly and is released on disposal'
   const r = record(t, cwd, { budget }); await r.ready;
   assert.equal(r.status, 'error'); assert.match(r.error, /上限/);
   await r.dispose(); assert.equal(budget.used, 0);
+});
+
+test('turns share immutable bytes, preserve independent baselines and reclaim the final lease', async t => {
+  const { cwd } = await workspace(t), budget = { used: 0, limit: 1024 * 1024 }, store = new BlobStore(budget), records = [];
+  t.after(async () => { for (const r of records) await r.dispose(); await store.dispose(); });
+  const create = async turn => { const r = new TurnRecord({ sessionId: 'shared', turn, cwd, store, git: nodeGit, watcher: quietWatcher }); records.push(r); await r.ready; assert.equal(r.status, 'running', r.error); return r; };
+  const a = await create(1), initial = budget.used, b = await create(2);
+  assert.equal(budget.used, initial);
+  await writeFile(join(cwd, 'file.txt'), 'second version\n');
+  const first = await a.finish();
+  const c = await create(3);
+  assert.equal((await c.refresh(true)).total, 0);
+  await a.dispose();
+  const old = await b.finish();
+  assert.equal(old.total, first.total);
+  const diff = await b.diff(old.files[0].id, old.revision);
+  assert.ok(diff.hunks.some(h => h.lines.includes('-base') && h.lines.includes('+second version')));
+  await b.dispose(); assert.ok(budget.used > 0);
+  await c.dispose(); assert.equal(budget.used, 0);
+  // Reusing a released hash must recreate the object, never hit a stale cache or EEXIST.
+  await create(4); assert.ok(budget.used > 0);
+});
+
+test('no-change refresh avoids index rebuild and still catches unannounced shell changes', async t => {
+  const { cwd } = await workspace(t), commands = [];
+  const r = record(t, cwd, { git: (args, opts) => { commands.push(args); return nodeGit(args, opts); } });
+  await r.ready; commands.length = 0;
+  r.markDirty(); const initial = await r.refresh(true);
+  assert.equal(initial.total, 0);
+  assert.ok(!commands.some(args => args.includes('update-index') || args.includes('write-tree') || args.includes('hash-object')));
+  await writeFile(join(cwd, 'unannounced.txt'), 'shell wrote this\n');
+  assert.equal((await r.finish()).files[0].display, 'unannounced.txt');
+});
+
+test('unchanged snapshot-budget omissions do not turn into phantom modifications', async t => {
+  const { cwd } = await workspace(t);
+  await writeFile(join(cwd, 'omitted.txt'), 'x'.repeat(40));
+  const r = record(t, cwd, { config: { maxSnapshotBytes: 35 } }); await r.ready;
+  assert.ok([...r.before.values()].some(file => file.oversized));
+  assert.equal((await r.refresh(true)).total, 0);
+  assert.equal((await r.finish()).total, 0);
+});
+
+test('concurrent sessions share first captures without racing object writes or disposal', async t => {
+  const { cwd } = await workspace(t), budget = { used: 0, limit: 1024 * 1024 }, store = new BlobStore(budget);
+  const records = ['A', 'B'].map(sessionId => new TurnRecord({ sessionId, turn: 1, cwd, store, git: nodeGit, watcher: quietWatcher }));
+  t.after(async () => { await Promise.all(records.map(r => r.dispose())); await store.dispose(); });
+  await Promise.all(records.map(r => r.ready));
+  for (const r of records) assert.equal(r.status, 'running', r.error);
+  assert.ok([...store.blobs.values()].every(blob => blob.refs === 2));
+  const initial = budget.used;
+  await records[0].dispose(); assert.equal(budget.used, initial);
+  await writeFile(join(cwd, 'file.txt'), 'concurrent survivor\n');
+  const summary = await records[1].finish(), diff = await records[1].diff(summary.files[0].id, summary.revision);
+  assert.ok(diff.hunks.some(h => h.lines.includes('-base') && h.lines.includes('+concurrent survivor')));
 });

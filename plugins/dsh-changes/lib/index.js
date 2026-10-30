@@ -1,5 +1,6 @@
 import { TurnRecord, configOf } from './recorder.js';
 import { capabilityGit } from './git.js';
+import { BlobStore } from './blob-store.js';
 
 export const name = 'juzi-changes';
 export const inject = ['subprocess', 'fs', 'connection'];
@@ -11,6 +12,7 @@ export function apply(ctx, value) {
   const lifetime = new AbortController();
   const git = capabilityGit(ctx.subprocess, lifetime.signal, config.timeoutMs);
   const budget = { used: 0, limit: config.maxStoredBytes };
+  const store = new BlobStore(budget);
   const sessions = new Map(), actors = new WeakMap(), tasks = new Set();
   const warn = error => { if (!lifetime.signal.aborted) ctx.logger.warn(`changes: ${error.message}`); };
   const track = promise => {
@@ -31,7 +33,7 @@ export function apply(ctx, value) {
       if (state.disposed) return;
       state.released = false;
       if (state.current && !['finished', 'interrupted', 'error'].includes(state.current.status)) await state.current.finish('interrupted');
-      const record = new TurnRecord({ sessionId: session.id, turn, cwd, git, config, budget, signal: lifetime.signal, onError: warn });
+      const record = new TurnRecord({ sessionId: session.id, turn, cwd, git, config, budget, store, signal: lifetime.signal, onError: warn });
       state.current = record; state.turns.set(turn, record);
       await record.ready;
       while (state.turns.size > config.maxTurns) {
@@ -120,5 +122,6 @@ export function apply(ctx, value) {
     lifetime.abort();
     await Promise.all([...sessions.keys()].map(forget));
     await Promise.allSettled(tasks);
+    await store.dispose();
   });
 }

@@ -93,6 +93,7 @@ window.__ModuleLoader__.load({
 		const createFastControl = function createFastControl({ sessionId, settings, fetchCapability, timeoutMs = 8000 }) {
   let state = { enabled: false, phase: 'loading', reason: 'loading', writable: false, idle: false };
   let descriptor, capability, epoch = 0, disposed = false, pending;
+  let refreshing, readController, refreshAgain = false;
   const listeners = new Set();
   const publish = patch => {
     if (disposed) return;
@@ -100,11 +101,14 @@ window.__ModuleLoader__.load({
     for (const listener of listeners) listener();
   };
   const failure = code => Object.assign(new Error(code), { code });
-  const bounded = promise => {
-    let timer;
+  const bounded = (promise, controller) => {
+    let timer, abort;
     return Promise.race([promise, new Promise((_, reject) => {
-      timer = setTimeout(() => reject(failure('timeout')), timeoutMs);
-    })]).finally(() => clearTimeout(timer));
+      abort = () => reject(failure('aborted'));
+      controller?.signal.addEventListener('abort', abort, { once: true });
+      if (controller?.signal.aborted) abort();
+      timer = setTimeout(() => { reject(failure('timeout')); controller?.abort(); }, timeoutMs);
+    })]).finally(() => { clearTimeout(timer); controller?.signal.removeEventListener('abort', abort); });
   };
   const unwrap = result => {
     if (result?.ok === true) return result.value;
@@ -119,17 +123,25 @@ window.__ModuleLoader__.load({
     descriptor = { ns: row.ns, revision: row.revision };
     return value;
   };
-  async function refresh(notice) {
+  function refresh(notice, invalidate = false) {
+    if (refreshing) { refreshAgain ||= invalidate; return refreshing; }
+    refreshing = (async () => {
+      do { refreshAgain = false; await read(notice); } while (refreshAgain && !disposed);
+    })().finally(() => { refreshing = undefined; });
+    return refreshing;
+  }
+  async function read(notice) {
     if (disposed || (pending && !pending.unknown)) return;
     const run = ++epoch;
+    const controller = readController = new AbortController();
     publish({ phase: pending ? 'unknown' : 'loading', reason: pending ? 'unknown' : 'loading' });
     try {
-      const cap = await bounded(Promise.resolve().then(fetchCapability));
+      const cap = await bounded(Promise.resolve().then(() => fetchCapability(controller.signal)), controller);
       if (disposed || run !== epoch) return;
       if (cap?.protocol !== 1 || cap.ready !== true || typeof cap.namespace !== 'string'
         || !cap.namespace || cap.boundary !== 'next-turn' || typeof cap.writable !== 'boolean' || typeof cap.idle !== 'boolean') throw failure('protocol');
       capability = cap;
-      const view = unwrap(await bounded(Promise.resolve().then(() => settings().describe())));
+      const view = unwrap(await bounded(Promise.resolve().then(() => settings().describe()), controller));
       if (disposed || run !== epoch) return;
       if (typeof view?.writable !== 'boolean' || !Array.isArray(view.namespaces)) throw failure('protocol');
       const enabled = accept(view.namespaces.find(row => row.ns === cap.namespace));
@@ -154,7 +166,7 @@ window.__ModuleLoader__.load({
       [{ op: 'set', path: ['fastSessions', sessionId], value }], descriptor.revision));
     const settled = () => {
       attempt.settled = true;
-      if (attempt.unknown && !disposed) { pending = undefined; void refresh(); }
+      if (attempt.unknown && !disposed) { pending = undefined; void refresh(undefined, true); }
     };
     request.then(settled, settled);
     try {
@@ -180,7 +192,7 @@ window.__ModuleLoader__.load({
     getSnapshot: () => state,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     refresh, toggle,
-    dispose() { disposed = true; epoch++; listeners.clear(); },
+    dispose() { disposed = true; epoch++; readController?.abort(); listeners.clear(); },
   };
 };
 		//#region src/client/index.ts
@@ -334,8 +346,8 @@ window.__ModuleLoader__.load({
 			function fastControlFor(sessionId) {
 				if (!fastControls.has(sessionId)) fastControls.set(sessionId, createFastControl({
 					sessionId, settings: () => ctx.get("remote.settings"),
-					fetchCapability: async () => {
-						const response = await fetch('api/juzi.ultra.capabilities?' + new URLSearchParams({ sessionId }), { cache: 'no-store', credentials: 'same-origin' });
+					fetchCapability: async (signal) => {
+						const response = await fetch('api/juzi.ultra.capabilities?' + new URLSearchParams({ sessionId }), { cache: 'no-store', credentials: 'same-origin', signal });
 						if (!response.ok) throw new Error('fast-backend-unavailable');
 						return response.json();
 					},
@@ -385,13 +397,17 @@ window.__ModuleLoader__.load({
 				const [menu, setMenu] = react.useState(null);
 				const fastControl = react.useMemo(() => fastControlFor(sessionId), [sessionId]);
 				const fast = react.useSyncExternalStore(fastControl.subscribe, fastControl.getSnapshot);
-				react.useEffect(() => { void fastControl.refresh(); }, [fastControl, menu, fastLocked]);
+				react.useEffect(() => { void fastControl.refresh(); }, [fastControl]);
+				react.useEffect(() => {
+					if (menu === "effort") void fastControl.refresh();
+				}, [fastControl, menu, fastLocked]);
 				react.useEffect(() => {
 					if (menu !== "effort") return;
 					const refresh = () => { void fastControl.refresh(); };
+					const offReset = ctx.on("connection/reset", () => { void fastControl.refresh(undefined, true); });
 					window.addEventListener("focus", refresh);
 					window.addEventListener("online", refresh);
-					return () => { window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); };
+					return () => { offReset(); window.removeEventListener("focus", refresh); window.removeEventListener("online", refresh); };
 				}, [fastControl, menu]);
 				const [closing, setClosing] = react.useState(false);
 				const closeTimerRef = react.useRef(null);

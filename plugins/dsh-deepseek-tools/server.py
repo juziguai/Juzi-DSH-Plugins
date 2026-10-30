@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sys
 import time
@@ -33,7 +34,7 @@ from mcp.server.fastmcp import FastMCP
 
 from usage_store import record_success
 
-VERSION = "1.1.1"
+VERSION = "1.1.4"
 
 # 显式自定义网关必须可信且使用 HTTPS；不会跟随任何重定向。
 BASE_URL = os.environ.get("DEEPSEEK_API_BASE", "https://api.deepseek.com").rstrip("/")
@@ -67,7 +68,7 @@ def _env_float(name: str, default: float) -> float:
     except (TypeError, ValueError):
         print(f"[deepseek-tools] {name} 不是数字，回退默认值 {default:g}。", file=sys.stderr)
         return default
-    return value if value > 0 else default
+    return value if math.isfinite(value) and value > 0 else default
 
 
 def _env_int(name: str, default: int, minimum: int = 0, maximum: int = 10) -> int:
@@ -84,6 +85,9 @@ def _env_int(name: str, default: int, minimum: int = 0, maximum: int = 10) -> in
 
 
 TIMEOUT_SECONDS = _env_float("DEEPSEEK_TOOLS_TIMEOUT", 60.0)
+# Leave time for serialization and usage accounting within the Host's 90s call limit.
+REQUEST_BUDGET_SECONDS = 80.0
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
 # 追加尝试次数：默认 1 次重试（最多 2 次请求），仅在 408/429/5xx 与超时上生效。
 MAX_RETRIES = _env_int("DEEPSEEK_TOOLS_RETRIES", 1, minimum=0, maximum=3)
 RETRYABLE_STATUS = {408, 425, 429, 500, 502, 503, 504}
@@ -183,8 +187,13 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     attempts = MAX_RETRIES + 1
     last: dict[str, Any] | None = None
+    deadline = time.monotonic() + REQUEST_BUDGET_SECONDS
+    exhausted = {"error": "timeout", "message": "请求与重试已用尽本次调用时间预算。"}
 
     for attempt in range(attempts):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return exhausted
         retry_exc: urllib.error.HTTPError | None = None
         request = urllib.request.Request(
             url=endpoint,
@@ -198,8 +207,13 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             },
         )
         try:
-            with _HTTP.open(request, timeout=TIMEOUT_SECONDS) as response:
-                raw = response.read().decode("utf-8", errors="replace")
+            with _HTTP.open(request, timeout=min(TIMEOUT_SECONDS, remaining)) as response:
+                data = response.read(MAX_RESPONSE_BYTES + 1)
+            if time.monotonic() >= deadline:
+                return exhausted
+            if len(data) > MAX_RESPONSE_BYTES:
+                return {"error": "response_too_large", "message": "接口响应超过大小上限。"}
+            raw = data.decode("utf-8", errors="replace")
             if not raw:
                 return {"error": "empty_response", "message": "DeepSeek 返回了空响应体。"}
             try:
@@ -246,6 +260,8 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
             last = result
 
         delay = _retry_delay(retry_exc, attempt)
+        if delay >= deadline - time.monotonic():
+            return exhausted
         print(
             f"[deepseek-tools] {path} 第 {attempt + 1}/{attempts} 次失败，{delay:.2f}s 后重试。",
             file=sys.stderr,

@@ -201,13 +201,24 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
         }, []);
         React.useEffect(() => {
           if (!tab.visible) return;
-          const controller = new AbortController(); let timer, first = true;
+          const controller = new AbortController();
+          let timer, offCatalog, offEvents, binding, first = true, loading = false, queued = false, running = false;
           const epoch = requestGeneration.current;
           const stale = () => controller.signal.aborted || epoch !== requestGeneration.current;
+          const invalidate = () => {
+            if (stale()) return;
+            clearTimeout(timer);
+            if (loading) { queued = true; return; }
+            timer = setTimeout(poll, 0);
+          };
           const poll = async () => {
+            if (stale()) return;
+            loading = true; queued = false;
+            let active = false;
             try {
               const info = await read('list', { sessionId }, controller.signal);
               if (stale()) return;
+              active = info.turns.some(turn => turn.status === 'starting' || turn.status === 'running');
               setTurns(info.turns); setMaxTurns(info.maxTurns);
               const turn = selection === 'latest' ? info.turns[0]?.turn : selection === 'previous' ? info.turns[1]?.turn : Number(selection);
               if (turn === undefined) { setSummary(null); setExpanded(new Set()); }
@@ -218,10 +229,33 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
               }
               setError(null);
             } catch (error) { if (!stale()) setError(error.message); }
-            finally { first = false; if (!stale()) timer = setTimeout(poll, 1000); }
+            finally {
+              first = false; loading = false;
+              if (!stale()) {
+                if (queued) invalidate();
+                else if (running || active) timer = setTimeout(poll, 1000);
+              }
+            }
           };
-          poll();
-          return () => { controller.abort(); clearTimeout(timer); };
+          const connect = () => {
+            const next = ctx.sessions.binding(sessionId);
+            const nextRunning = ctx.sessions.list.getSnapshot().byId[sessionId]?.running === true;
+            const changed = next !== binding || nextRunning !== running;
+            running = nextRunning;
+            if (next !== binding) {
+              offEvents?.(); binding = next;
+              offEvents = binding?.eventSource.subscribe(() => {
+                const change = binding.eventSource.getSnapshot().change;
+                // Transient token deltas never invalidate file snapshots or scan history.
+                if (change.kind === 'replace' || change.kind === 'append' && change.entries.some(entry =>
+                  entry.type === 'event' && ['turn/start', 'turn/end', 'tool/result', 'workspace/changes'].includes(entry.event.type))) invalidate();
+              });
+            }
+            if (changed) invalidate();
+          };
+          offCatalog = ctx.sessions.list.subscribe(connect);
+          connect(); invalidate();
+          return () => { controller.abort(); clearTimeout(timer); offCatalog(); offEvents?.(); };
         }, [sessionId, tab.visible, selection, refresh, generation]);
         React.useEffect(() => tab.actions.bindCommands({ refresh: () => setRefresh(value => value + 1) }), [tab.actions]);
         const isExpanded = id => expanded === 'all' || expanded.has(id);
@@ -298,6 +332,6 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
       ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({ name: 'conversation.session.header.utilities', id: ID, order: 30 },
         () => h('button', { className: 'jc-open', title: '查看文件变更', 'aria-label': '查看文件变更', onClick: () => ctx.sidebarRight.openTab(KIND) }, h(Icon), '变更')));
     }
-    return { apply, inject: ['slots', 'sidebarRightTabs', 'sidebarRight'] };
+    return { apply, inject: ['slots', 'sidebarRightTabs', 'sidebarRight', 'sessions'] };
   }
 });

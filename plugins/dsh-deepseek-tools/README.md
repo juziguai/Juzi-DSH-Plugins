@@ -18,6 +18,12 @@
 C:\Python314\python.exe -m pip install -r requirements.txt
 ```
 
+### Windows更新
+
+1.1.4起，插件启动的Python使用系统临时目录作为工作目录，`server.py`与辅助模块仍从安装包的绝对路径加载，避免Windows占用安装目录而导致更新长时间等待后报`ERR_PNPM_EPERM`。
+
+从1.1.3及更早版本首次迁移时，先停用本搜索插件，确认其Python子进程退出，再安装并启用新版；无需停用其它插件。默认计数文件位置不变，自定义`DEEPSEEK_USAGE_PATH`和`CLAUDE_CONFIG_DIR`建议使用绝对路径。通过官方插件管理器安装正式包，安装后核对1.1.4版本及两个工具的可调用状态。
+
 ## 鉴权
 
 仅按以下顺序读取专用 `DEEPSEEK_API_KEY`，命中即止，不写入插件包或日志：
@@ -61,12 +67,11 @@ HTTP 错误仅返回状态码和固定说明，不返回上游响应体/响应�
         command: 'C:\Python314\python.exe'
         args:
           - 'D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-deepseek-tools\server.py'
-        cwd: 'D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-deepseek-tools'
         toolCallTimeoutMs: 90000
         failOnStartupError: false
 ```
 
-独立 MCP 配置样例见仓库根目录 `deploy/dsh-mcp-deepseek.patch.yml`；不要与本插件同时启用同名服务。改完保存即会触发 profile 热重组，
+独立 MCP 配置样例见仓库根目录 `deploy/dsh-mcp-deepseek.patch.yml`；不要与本插件同时启用同名服务。独立样例不指定`cwd`，由宿主管理工作目录；如需覆盖，选择安装包以外已存在的目录。改完保存即会触发 profile 热重组，
 工具以 `mcp__deepseek__DeepSeek-Search` 形式出现在工具列表；没出现就重启桌面端。
 
 ## 环境变量
@@ -77,6 +82,8 @@ HTTP 错误仅返回状态码和固定说明，不返回上游响应体/响应�
 | `DEEPSEEK_TOOLS_TIMEOUT` | `60` | 单次请求超时秒数；非数字会告警并回退 60（不再导致启动失败） |
 | `DEEPSEEK_TOOLS_RETRIES` | `1` | 追加重试次数（0~3），只对 408 / 425 / 429 / 5xx 与超时生效 |
 | `DEEPSEEK_USAGE_PATH` | `<CLAUDE_CONFIG_DIR 或 ~/.claude>/deepseek-tools-usage.json` | 计数文件位置 |
+
+请求尝试与退避共用 80 秒预算，后续尝试的超时不会超过剩余预算；默认两次网络超时不会再各自等待完整 60 秒。该预算控制重试调度，不将 urllib 的 socket 超时解释为严格的全链路墙钟截止：持续慢速传输仍可能延长单次读取。响应体最多读取 8MiB 加一个探测字节，超限返回 `response_too_large`，不会先读完整响应再截断。
 
 ## 用量统计
 

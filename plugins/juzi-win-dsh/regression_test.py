@@ -13,6 +13,7 @@ import json
 import sys
 import time
 import unittest
+import subprocess
 from pathlib import Path
 from unittest import mock
 
@@ -203,6 +204,7 @@ class RegressionTests(unittest.TestCase):
         sleeps = []
         events = []
         with mock.patch.object(winapi, "resolve_click_point", side_effect=[(0, 0), (100, 100)]), \
+             mock.patch.object(winapi.user32, "SetCursorPos", return_value=True), \
              mock.patch.object(winapi, "window_at_point", side_effect=target_at), \
              mock.patch.object(winapi, "_mouse_event", side_effect=lambda *args, **kwargs: events.append(args)), \
              mock.patch.object(time, "sleep", side_effect=lambda seconds: sleeps.append(seconds)):
@@ -329,6 +331,56 @@ class RegressionTests(unittest.TestCase):
     def test_r13_pillow_minimum(self):
         requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
         self.assertIn("Pillow>=11.2.1", requirements)
+
+
+class FocusWorkerTests(unittest.TestCase):
+    def test_reuses_worker_and_closes_it_on_eof(self):
+        module = server.focused_text
+        real_popen = subprocess.Popen
+        processes = []
+        program = "import sys,json\nfor line in sys.stdin:\n r=json.loads(line);print(json.dumps({'ok':True,'text':str(r['hwnd'])}),flush=True)"
+        def spawn(_args, **kwargs):
+            process = real_popen([sys.executable, '-u', '-c', program], **kwargs)
+            processes.append(process)
+            return process
+        reader = module.FocusReader(timeout=10)
+        with mock.patch.object(module.subprocess, 'Popen', side_effect=spawn):
+            try:
+                self.assertEqual(reader.read(1, 10)['text'], '1')
+                self.assertEqual(reader.read(2, 10)['text'], '2')
+                self.assertEqual(len(processes), 1)
+            finally:
+                reader.close()
+        self.assertIsNotNone(processes[0].poll())
+
+    def test_worker_timeout_releases_process_and_next_call_starts_fresh(self):
+        module = server.focused_text
+        real_popen = subprocess.Popen
+        processes = []
+        programs = ["import sys,time\nfor line in sys.stdin: time.sleep(.3)",
+                    "import sys,json\nfor line in sys.stdin: print(json.dumps({'ok':False,'error':'target_changed'}),flush=True)"]
+        def spawn(_args, **kwargs):
+            process = real_popen([sys.executable, '-u', '-c', programs[len(processes)]], **kwargs)
+            processes.append(process)
+            return process
+        reader = module.FocusReader(timeout=.1)
+        with mock.patch.object(module.subprocess, 'Popen', side_effect=spawn):
+            try:
+                with self.assertRaises(TimeoutError): reader.read(1, 10)
+                self.assertIsNone(reader.process)
+                self.assertIsNotNone(processes[0].poll())
+                reader.timeout = 10
+                self.assertEqual(reader.read(2, 10)['error'], 'target_changed')
+            finally:
+                reader.close()
+        self.assertTrue(all(process.poll() is not None for process in processes))
+
+    def test_transport_timeout_is_not_retried_as_delayed_text(self):
+        with mock.patch.object(server.focused_text, 'read', side_effect=TimeoutError('fixture timeout')) as read:
+            ok, reason = server.focused_text.verify_insertion(1, {'ok':True,'text':'before','focus_id':'1'}, 'text')
+        self.assertFalse(ok)
+        self.assertEqual(reason, 'fixture timeout')
+        self.assertEqual(read.call_count, 1)
 
 
 if __name__ == "__main__":

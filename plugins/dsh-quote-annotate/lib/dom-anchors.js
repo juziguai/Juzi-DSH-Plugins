@@ -6,16 +6,42 @@ export const DOM_ANCHORS = Object.freeze({
   codeWrap:'[data-code-wrap]',codeBanner:'[data-code-block-banner]',
   menu:'[role="dialog"][aria-modal="true"],[role="menu"],[role="listbox"],[data-radix-popper-content-wrapper]'
 });
-export function visibleTextRects(view,bounds) {
+export function visibleTextRects(view,bounds,roots) {
   const chat=view.querySelector(DOM_ANCHORS.chat);if(!chat)return [];
-  const out=[],walker=chat.ownerDocument.createTreeWalker(chat,4),range=chat.ownerDocument.createRange();let node;
-  while((node=walker.nextNode())){
+  const out=[],range=chat.ownerDocument.createRange();
+  for(const root of roots??[chat]){
+   const walker=chat.ownerDocument.createTreeWalker(root,4);let node;
+   while((node=walker.nextNode())){
     if(!node.textContent.trim()||node.parentElement.closest(DOM_ANCHORS.excluded))continue;
     const parent=node.parentElement.getBoundingClientRect();if(parent.bottom<=bounds.top||parent.top>=bounds.bottom)continue;
     range.selectNodeContents(node);if(typeof range.getClientRects!=='function')continue;
     for(const rect of range.getClientRects())if(rect.width>0&&rect.height>0&&rect.bottom>bounds.top&&rect.top<bounds.bottom)out.push({left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom});
+   }
   }
   return out;
+}
+/** Observe message visibility off the selection path; never retain an unmounted view. */
+export function createVisibleTextIndex(view) {
+  const win=view.ownerDocument.defaultView,rows=new Set(),visible=new Set();let observed=false;
+  const intersection=win.IntersectionObserver?new win.IntersectionObserver(entries=>{
+    observed=true;for(const entry of entries)if(rows.has(entry.target)){if(entry.isIntersecting)visible.add(entry.target);else visible.delete(entry.target);}
+  }):null;
+  const visit=(node,add)=>{
+    if(node.nodeType!==1)return;
+    const candidates=[...(node.matches(DOM_ANCHORS.row)?[node]:[]),...node.querySelectorAll(DOM_ANCHORS.row)];
+    for(const row of candidates){if(add){if(rows.has(row)||!row.closest(DOM_ANCHORS.chat))continue;rows.add(row);intersection?.observe(row);}else{rows.delete(row);visible.delete(row);intersection?.unobserve(row);}}
+  };
+  visit(view,true);
+  const mutation=new win.MutationObserver(records=>{for(const record of records){for(const node of record.removedNodes)visit(node,false);for(const node of record.addedNodes)visit(node,true);}});
+  mutation.observe(view,{childList:true,subtree:true});
+  return {
+    rects(bounds){
+      // Before the first visibility delivery (or on hosts without IO), prune by row once.
+      const roots=rows.size?(intersection&&observed?[...visible]:[...rows].filter(row=>{const r=row.getBoundingClientRect();return r.bottom>bounds.top&&r.top<bounds.bottom;})):undefined;
+      return visibleTextRects(view,bounds,roots);
+    },
+    dispose(){intersection?.disconnect();mutation.disconnect();rows.clear();visible.clear();}
+  };
 }
 export function extractSelection(selection,sessionId) {
   if(!selection||selection.isCollapsed||selection.rangeCount!==1)return null;
@@ -28,9 +54,14 @@ export function extractSelection(selection,sessionId) {
   const rects=[...range.getClientRects()].filter(r=>r.width>0&&r.height>0).map(r=>({left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:r.width,height:r.height}));
   const contributedRows=new Map();
   let text='',lastRow=null,lastBlock=null;
-  const walker=doc.createTreeWalker(chat,5);
-  let current;
-  while((current=walker.nextNode())) {
+  const root=chat.contains(node)?node:chat;
+  if((root.nodeType===1?root:root.parentElement)?.closest(DOM_ANCHORS.excluded))return null;
+  const walker=doc.createTreeWalker(root,5,{acceptNode(current){
+    if((current.nodeType===1?current:current.parentElement)?.closest(DOM_ANCHORS.excluded)||!range.intersectsNode(current))return 2;
+    return 1;
+  }});
+  let current=root.nodeType===3?root:walker.nextNode();
+  for(;current;current=walker.nextNode()) {
     if(current.nodeType===1){if(current.tagName==='BR'&&!current.closest(DOM_ANCHORS.excluded)&&range.intersectsNode(current))text+='\n';continue;}
     if(!current.textContent||current.parentElement.closest(DOM_ANCHORS.excluded)||!range.intersectsNode(current))continue;
     const part=range.cloneRange();part.selectNodeContents(current);

@@ -1,5 +1,6 @@
-﻿param([long]$ExpectedHwnd, [int]$MaxChars = 100000)
+﻿# Private newline-JSON worker; types are initialized once per owned STA process.
 $ErrorActionPreference = 'Stop'
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -35,6 +36,7 @@ public static class JuziFocusNative {
  public static bool Editable() { return (GetWindowLong(Focus(),-16)&0x800)==0; }
 }
 "@
+function Read-FocusedText([long]$ExpectedHwnd, [int]$MaxChars) {
 $identity = $null
 $method = 'uia'
 try {
@@ -65,4 +67,14 @@ try {
  @{ok=$true; text=$value.Substring(0, [Math]::Min($value.Length,$MaxChars)); truncated=($value.Length -gt $MaxChars); focus_id=$identity; editable=$editable; control_type=$element.Current.ControlType.ProgrammaticName; read_method=$method} | ConvertTo-Json -Compress
 } catch {
  @{ok=$false; error=$(if ($_.Exception.Message -match 'password_control') {'password_control'} elseif ($_.Exception.Message -match 'target_changed') {'target_changed'} else {'focused_text_unavailable'}); focus_id=$identity; message=$_.Exception.Message} | ConvertTo-Json -Compress
+}
+}
+
+while ($null -ne ($line = [Console]::ReadLine())) {
+ $request = $line | ConvertFrom-Json
+ if ($request.max_chars -lt 1 -or $request.max_chars -gt 100000) { throw 'invalid_max_chars' }
+ [Console]::WriteLine((Read-FocusedText ([long]$request.hwnd) ([int]$request.max_chars)))
+ [Console]::Out.Flush()
+ $request = $null
+ $line = $null
 }

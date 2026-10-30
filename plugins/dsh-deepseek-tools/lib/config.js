@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 export function createConfig(config = {}) {
@@ -10,7 +11,8 @@ export function createConfig(config = {}) {
     transport: 'stdio',
     command: python,
     args: [fileURLToPath(new URL('../server.py', import.meta.url))],
-    cwd: fileURLToPath(new URL('../', import.meta.url)),
+    // A package directory used as cwd stays locked by Windows for the process lifetime.
+    cwd: tmpdir(),
     toolCallTimeoutMs: 90000,
     failOnStartupError: true,
   };
