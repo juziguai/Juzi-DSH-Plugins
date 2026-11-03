@@ -1,5 +1,5 @@
 # ⚠️ 本文件由 build/patch.mjs 生成，请勿手改。
-# 源：prompts/persona.md（人格真源） + vendor/standard.patch.yml（官方工具清单快照）
+# 源：prompts/persona.txt（人格真源） + vendor/standard.patch.yml（官方工具清单快照）
 # 重新生成：node build/patch.mjs
 - insert:
     - id: juzi-preset-unlock

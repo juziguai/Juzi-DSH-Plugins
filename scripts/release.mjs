@@ -7,6 +7,7 @@ import {createMarketIndex, validateIndex, verifyPinnedIndex} from './market-inde
 import {digest,json,save,inside,git,withLock,command,fingerprint,gate,materialize,mergeIndex,verifyFiles,deployPackages,normalizedSpec} from './release-core.mjs';
 import {openHost} from './release-host.mjs';
 import {withTiming,timingReport} from './release-timing.mjs';
+import {checkMarkdownScope} from './git-source.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 const runtimeKeys=['DSH_SLOT_CORE_MODULE','DSH_CORDIS_MODULE','DSH_PRESET_MODULE','DSH_FAST_RUNTIME_ANCHOR','DSH_ULTRA_UI_RUNTIME_ANCHOR','DSH_CONVERSATION_BUNDLE','DSH_LAYOUT_SHARES_MODULE','DSH_LAYOUT_SOURCE_FILE'];
@@ -43,6 +44,7 @@ async function pinned(options){
 }
 async function prepare(options,directory,measure){
   const started=performance.now();
+  await measure('markdown-scope',()=>checkMarkdownScope(root));
   const catalog=select(await json(join(root,'marketplace/catalog.json')),options.plugins??'all');
   for(const p of catalog.plugins){
     const build=({'plugins/dsh-ultra-effort':'build/client.mjs','plugins/dsh-layout-memory':'build/client.mjs','plugins/dsh-quote-annotate':'build/client.mjs','plugins/dsh-preset-unlock':'build/patch.mjs'})[p.path];

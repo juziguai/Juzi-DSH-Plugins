@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 由 persona.md + 官方 standard 预设清单，生成 cordis.patch.yml。
+ * 由 persona.txt + 官方 standard 预设清单，生成 cordis.patch.yml。
  *
  * 为什么用「文本锚点替换」而不是 YAML 解析：
  * 本仓库的检查流程不安装任何 npm 依赖（见根 README 的「开发检查」），
@@ -21,7 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = join(here, '..');
 
 const VENDOR = join(pkgRoot, 'vendor', 'standard.patch.yml');
-const PERSONA = join(pkgRoot, 'prompts', 'persona.md');
+const PERSONA = join(pkgRoot, 'prompts', 'persona.txt');
 const OUTPUT = join(pkgRoot, 'cordis.patch.yml');
 
 /** 统一换行，避免 CRLF/LF 差异造成 --check 误报。 */
@@ -31,7 +31,7 @@ const readNormalized = (path) => readFileSync(path, 'utf8').replace(/\r\n/g, '\n
 function generate() {
   const vendor = readNormalized(VENDOR);
   const persona = readNormalized(PERSONA).replace(/\n+$/, '');
-  if (!persona.trim()) throw new Error('persona.md 不能为空');
+  if (!persona.trim()) throw new Error('persona.txt 不能为空');
   const lines = vendor.split('\n');
 
   // ── 锚点 1：官方预设行只能出现一次 ──────────────────────────────────────
@@ -70,7 +70,7 @@ function generate() {
 
   const header = [
     '# ⚠️ 本文件由 build/patch.mjs 生成，请勿手改。',
-    '# 源：prompts/persona.md（人格真源） + vendor/standard.patch.yml（官方工具清单快照）',
+    '# 源：prompts/persona.txt（人格真源） + vendor/standard.patch.yml（官方工具清单快照）',
     '# 重新生成：node build/patch.mjs',
     '- insert:',
     "    - id: juzi-preset-unlock",

@@ -10,7 +10,7 @@
  * （scripts/check.mjs）都要求补丁中存在指向本包自身的行，
  * 因此这里提供一个最小可加载的 Cordis 插件。
  *
- * 人格文本不在这里：真源是 `prompts/persona.md`，
+ * 人格文本不在这里：真源是 `prompts/persona.txt`，
  * 由 `build/patch.mjs` 在构建时嵌入 `cordis.patch.yml`。
  */
 

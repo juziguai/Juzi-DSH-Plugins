@@ -17,3 +17,7 @@ deepseek-tools-usage.json
 # Historical local artifacts; source patches already tracked remain preserved
 plugins/dsh-ultra-effort/docs/
 plugins/dsh-ultra-effort/archive/legacy-patches/apply-v1[2-9]*.ps1
+# Markdown is local unless it is a README or version history
+*.[mM][dD]
+![Rr][Ee][Aa][Dd][Mm][Ee].[mM][dD]
+![Cc][Hh][Aa][Nn][Gg][Ee][Ll][Oo][Gg].[mM][dD]

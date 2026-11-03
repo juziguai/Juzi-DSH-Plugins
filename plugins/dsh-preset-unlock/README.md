@@ -2,7 +2,7 @@
 
 一个**纯声明型** DSH 插件包：入口不注册工具、路由或客户端，只通过 `cordis.patch.yml` 声明 `@deepseek-ai/dsh-agent-preset`，让 DSH 的预设选择器里出现「解锁模式」。选中后由官方预设服务装配标准工具组。
 
-该预设的人格来自 [`prompts/persona.md`](prompts/persona.md)，工具清单与官方 `standard` 预设同构。要求 DSH 0.2.1-rc.3 或更新版本，当前工具快照已与官方 rc.3 包逐字核对。
+该预设的人格来自 [`prompts/persona.txt`](prompts/persona.txt)，工具清单与官方 `standard` 预设同构。要求 DSH 0.2.1-rc.3 或更新版本，当前工具快照已与官方 rc.3 包逐字核对。
 
 ## 它到底改了什么
 
@@ -48,7 +48,7 @@ dsh plugin --profile desktop add "github:juziguai/Juzi-DSH-Plugins#<commit>&path
 
 ### 改人格
 
-唯一真源是 `prompts/persona.md`。以下维护命令在本仓库根目录执行；安装包不包含构建工具和官方源快照。改完重新生成补丁：
+唯一真源是 `prompts/persona.txt`。安装包只收录这一份人格文本资源。以下维护命令在本仓库根目录执行；安装包不包含构建工具和官方源快照。改完重新生成补丁：
 
 ```powershell
 npm run preset:build
@@ -85,4 +85,4 @@ npm test           # 仓库级检查（含本包的清单、语法与生成漂�
 git diff --check
 ```
 
-真实验收：装包 → 重启 DSH → 新会话选「解锁模式」→ 检查该会话的 `system/message` 是否以 `prompts/persona.md` 的正文开头。
+真实验收：装包 → 重启 DSH → 新会话选「解锁模式」→ 检查该会话的 `system/message` 是否以 `prompts/persona.txt` 的正文开头。

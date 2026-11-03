@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 const root = fileURLToPath(new URL('../plugins/dsh-preset-unlock/', import.meta.url));
 const normalized = path => readFileSync(path, 'utf8').replaceAll('\r\n', '\n');
 const vendor = normalized(join(root, 'vendor/standard.patch.yml'));
-const persona = normalized(join(root, 'prompts/persona.md'));
+const persona = normalized(join(root, 'prompts/persona.txt'));
 function fixture(t, source = vendor, text = persona) {
   const parent = realpathSync(tmpdir()), cwd = mkdtempSync(join(parent, 'juzi-preset-test-'));
   t.after(() => {
@@ -22,7 +22,7 @@ function fixture(t, source = vendor, text = persona) {
   for (const dir of ['build', 'vendor', 'prompts']) mkdirSync(join(cwd, dir));
   copyFileSync(join(root, 'build/patch.mjs'), join(cwd, 'build/patch.mjs'));
   writeFileSync(join(cwd, 'vendor/standard.patch.yml'), source);
-  writeFileSync(join(cwd, 'prompts/persona.md'), text);
+  writeFileSync(join(cwd, 'prompts/persona.txt'), text);
   return cwd;
 }
 test('preset generation is deterministic and check detects edits without overwriting them', t => {

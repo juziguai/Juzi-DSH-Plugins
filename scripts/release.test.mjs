@@ -6,7 +6,7 @@ import {join,resolve,dirname,basename} from 'node:path';
 import {execFileSync} from 'node:child_process';
 import {Script} from 'node:vm';
 import {gate,fingerprint,materialize,mergeIndex,withLock,deployPackages,json,save,normalizedSpec,digest,command,verifyFiles} from './release-core.mjs';
-import {readBlobs} from './git-source.mjs';
+import {readBlobs,checkMarkdownScope} from './git-source.mjs';
 import {openHost} from './release-host.mjs';
 import {withTiming,timingReport,summarizeTimings} from './release-timing.mjs';
 
@@ -43,6 +43,15 @@ test('run lock prevents a second writer and releases on failure',async()=>{
 const env={...Object.fromEntries(Object.entries(process.env).filter(([k])=>!k.startsWith('GIT_'))),GIT_AUTHOR_NAME:'Release fixture',GIT_AUTHOR_EMAIL:'fixture@example.invalid',GIT_COMMITTER_NAME:'Release fixture',GIT_COMMITTER_EMAIL:'fixture@example.invalid'};
 function git(cwd,args,input){return execFileSync('git',args,{cwd,env,input,encoding:'utf8',stdio:['pipe','pipe','pipe'],windowsHide:true}).trim();}
 async function repository(){const cwd=await fixture();git(cwd,['init','--quiet','--object-format=sha1']);await mkdir(join(cwd,'plugins/p'),{recursive:true});await mkdir(join(cwd,'scripts'));await writeFile(join(cwd,'.gitignore'),'.codex/\nnode_modules/\n');await writeFile(join(cwd,'package.json'),'{}');await writeFile(join(cwd,'plugins/p/a.bin'),Buffer.from([0,1,2,10,255]));await writeFile(join(cwd,'scripts/a.mjs'),'export const a=1;');git(cwd,['add','.']);git(cwd,['-c','commit.gpgsign=false','commit','--quiet','-m','fixture']);return cwd;}
+
+test('Markdown policy checks the index while preserving private local files',async()=>{
+  const cwd=await repository();
+  await writeFile(join(cwd,'README.md'),'public readme');await writeFile(join(cwd,'plugins/p/CHANGELOG.md'),'version history');
+  await writeFile(join(cwd,'private.MD'),'private draft');checkMarkdownScope(cwd);
+  git(cwd,['add','README.md','plugins/p/CHANGELOG.md']);checkMarkdownScope(cwd);
+  git(cwd,['add','private.MD']);assert.throws(()=>checkMarkdownScope(cwd),/keep these files local: private.MD/);
+  git(cwd,['rm','--cached','private.MD']);checkMarkdownScope(cwd);assert.equal(await readFile(join(cwd,'private.MD'),'utf8'),'private draft');
+});
 test('fingerprint covers untracked source, runtime contents and locks, and ignores docs',async()=>{
   const cwd=await repository(),runtime=join(cwd,'.codex/runtime');await mkdir(join(runtime,'node_modules/pkg'),{recursive:true});
   const entry=join(runtime,'node_modules/pkg/index.js');await writeFile(entry,'one');await writeFile(join(runtime,'package-lock.json'),'one');

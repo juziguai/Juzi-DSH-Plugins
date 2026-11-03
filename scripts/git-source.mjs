@@ -4,6 +4,12 @@ export const git = (cwd, args, options={}) => execFileSync('git', args, {
   cwd, encoding:'utf8', windowsHide:true, stdio:['pipe','pipe','pipe'], maxBuffer:32*1024*1024, ...options,
 });
 
+export function checkMarkdownScope(cwd) {
+  const files=git(cwd,['ls-files','-z']).split('\0').filter(Boolean);
+  const invalid=files.filter(file=>/\.md$/i.test(file)&&!/^(README|CHANGELOG)\.md$/i.test(file.split('/').at(-1)));
+  if(invalid.length)throw Error('Only README.md and CHANGELOG.md may be tracked; keep these files local: '+invalid.join(', '));
+}
+
 export function readTree(cwd, commit, paths=[]) {
   const rows=git(cwd,['ls-tree','-rz','--full-tree',commit,'--',...paths]).split('\0').filter(Boolean);
   return new Map(rows.map(row=>{

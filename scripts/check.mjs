@@ -3,8 +3,10 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { checkMarkdownScope } from './git-source.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+checkMarkdownScope(root);
 execFileSync(process.execPath, [join(root, 'plugins/dsh-ultra-effort/build/client.mjs'), '--check'], { stdio: 'pipe' });
 execFileSync(process.execPath, [join(root, 'plugins/dsh-layout-memory/build/client.mjs'), '--check'], { stdio: 'pipe' });
 execFileSync(process.execPath, [join(root, 'plugins/dsh-preset-unlock/build/patch.mjs'), '--check'], { stdio: 'pipe' });

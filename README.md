@@ -11,13 +11,12 @@ Juzi 自研 DeepSeek Harness（DSH）插件源仓库。各插件独立维护清�
 | [dsh-model-version-badge](plugins/dsh-model-version-badge/README.md) | 旧版独立角标，已由 Ultra 0.2.2 替代 | 冻结保留，供回退 |
 | [dsh-deepseek-tools](plugins/dsh-deepseek-tools/README.md) | 官方 Search / Fetch，复用 DSH MCP 桥接 | `lib/`、`server.py`、`usage_store.py` |
 | [juzi-win-dsh](plugins/juzi-win-dsh/README.md) | Windows 窗口、截图、输入、窗口管理、剪贴板、应用启动与OCR找字 | `lib/`、`server.py`、`winapi.py` |
-| [dsh-preset-unlock](plugins/dsh-preset-unlock/README.md) | 纯声明型 Agent 预设「解锁模式」，人格来自 Markdown | `prompts/persona.md`、`build/patch.mjs` |
+| [dsh-preset-unlock](plugins/dsh-preset-unlock/README.md) | 纯声明型 Agent 预设「解锁模式」，人格来自文本资源 | `prompts/persona.txt`、`build/patch.mjs` |
 
 ```text
 plugins/       布局记忆、文本引用、变更、Ultra、搜索、电脑控制、解锁模式预设及冻结的旧角标包
 scripts/       仓库检查、插件测试与分阶段发布部署工具
 deploy/        独立 MCP 接入样例
-docs/          开发、安装与迁移说明
 ```
 
 ## 开发检查
@@ -39,11 +38,11 @@ Ultra 快速执行的 Host/React 集成测试需先解析插件自身依赖，�
 Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp` 就报错；未设置时，依次尝试 Windows 的 `C:\Python314\python.exe` 和 PATH 中的 `python`，取能导入依赖的解释器。
 搜索服务运行时另需使用目标 Python 安装 `plugins/dsh-deepseek-tools/requirements.txt`。
 
-升级到 Ultra 0.2.2 或更新版本后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退步骤见 [合并迁移指南](docs/ultra-migration.md)。
+升级到 Ultra 0.2.2 或更新版本后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退说明见 [Ultra 自述](plugins/dsh-ultra-effort/README.md#模型版本角标)。
 
-安装、迁移、构建边界见 [开发指南](docs/development.md)。真实 API 冒烟会产生请求，需主动执行插件的 `smoke_test.py`。
+各插件的安装、迁移和构建边界见上方对应 README。真实 API 冒烟会产生请求，需主动执行插件的 `smoke_test.py`。
 
-维护者可用 `npm run release -- prepare --python <解释器绝对路径>` 合并构建与验证，输入不变时复用成功回执。固定提交制包、市场预览和逐包部署见 [发布流程](docs/release-workflow.md)；提交、推送和真实部署仍分别按授权执行。
+维护者可用 `npm run release -- prepare --python <解释器绝对路径>` 合并构建与验证，输入不变时复用成功回执。`pack` 从固定提交制包，`market` 预览选定市场条目的更新，`deploy` 默认展示部署计划；参数见 `npm run release -- --help`。提交、推送和真实部署仍分别按授权执行。
 
 ## 插件市场
 
@@ -69,10 +68,11 @@ Ultra 0.3.1 需要 DSH 0.2.1-rc.3 或更新版本。闪电提供按会话保存�
 
 市场名称、插件名称、分类与描述已适配 DSH 中文界面；已安装页的中文描述随对应插件更新生效。
 
-市场格式、接入前提和发布方法见 [市场指南](docs/marketplace.md)。安装者使用自己的专用 API Key，源码和索引不携带发布者凭证。
+`npm run market:check` 使用官方校验器核对索引格式与固定源码。安装者使用自己的专用 API Key，源码和索引不携带发布者凭证。
 
 ## Git 与版本
 
 保留复制来源的 Git 历史；仓库版本以根 `package.json` 为准，插件版本各自维护。
 本地配置、密钥、运行数据、缓存和检查点不入库。上游许可证随原插件保留，不替其他组件推断授权。
+Markdown 仅跟踪各目录中的 `README.md` 和 `CHANGELOG.md`；其他 Markdown 保留在本地并忽略。`npm run check` 与发布工具 `prepare` 会拒绝 Git 索引中不符合此范围的文件；复用测试回执时也执行此检查。
 提交、推送、发布分别执行，不由检查命令触发。用户可见变更记录在 [CHANGELOG.md](CHANGELOG.md)。
