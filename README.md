@@ -6,6 +6,7 @@ Juzi 自研 DeepSeek Harness（DSH）插件源仓库。各插件独立维护清�
 |---|---|---|
 | [dsh-layout-memory](plugins/dsh-layout-memory/README.md) | 记住左右侧栏宽度，冷启动恢复，面板开关与标签由DSH管理 | `lib/memory.js`、`src/client.mjs`、`build/client.mjs` |
 | [dsh-quote-annotate](plugins/dsh-quote-annotate/README.md) | 选中文字、添加评论并引用到草稿，已发送引用可折叠查看 | `src/`、`lib/`、`build/client.mjs` |
+| [dsh-memory](plugins/dsh-memory/README.md) | 按项目隔离的LocalMemory、独立采集/召回开关及证据管理；本地CLI审核 | `lib/` |
 | [dsh-changes](plugins/dsh-changes/README.md) | 执行中实时查看轮次文件变更与差异 | `lib/` |
 | [dsh-ultra-effort](plugins/dsh-ultra-effort/README.md) | 模型选择、推理强度动效、内置角标与快速执行（实验） | `src/`、`lib/fast-*.js`、`build/client.mjs` |
 | [dsh-model-version-badge](plugins/dsh-model-version-badge/README.md) | 旧版独立角标，已由 Ultra 0.2.2 替代 | 冻结保留，供回退 |

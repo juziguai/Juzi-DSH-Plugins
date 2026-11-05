@@ -1,5 +1,14 @@
 # 更新日志
 
+## Unreleased
+
+- 记忆插件声明宿主 peerDependencies（home-paths/llm/session/mcp-client/system-prompt/tools），修复目录 link 安装启用时 ERR_MODULE_NOT_FOUND。
+- 记忆插件修复回合改绑串用、自然过期快照与提炼未完成状态；新绑定下一回合生效，按时间边界刷新，支持同键续做并保留拒绝原因。修复失败启动后的会话服务释放。
+- 新增独立 `@juzi/dsh-memory` 0.1.0 源码包，使用正式主导航/设置/会话右侧槽及官方MCP接入LocalMemory 2.0.0/schema7。
+- 独立默认关闭的采集/召回、可信Host项目绑定、带证据回执与预览纠正/遗忘；待审核仅查看并指向本地CLI，无页面批准能力。
+- 仅在独立DSH_HOME/profile及数据目录验证；未修改已安装profile或调用付费模型。
+
+
 ## [0.1.37] - 2026-11-03
 
 ### 变更

@@ -91,6 +91,28 @@
       },
       "author": "Juzi",
       "metadata": { "category": "presets", "keywords": ["preset", "persona", "agent", "预设", "人格"] }
+    },
+    {
+      "path": "plugins/dsh-memory",
+      "title": {
+        "en": "Agent Memory",
+        "zh": "记忆"
+      },
+      "description": {
+        "en": "Scoped LocalMemory evidence, opt-in recall/capture and native memory management. Requires separately configured LocalMemory 2.0.0/schema7 and DSH 0.2.1-rc.3.",
+        "zh": "按项目隔离的证据记忆、独立采集与召回开关及原生管理页。需单独配置LocalMemory 2.0.0/schema7，面向DSH 0.2.1-rc.3。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "tools",
+        "keywords": [
+          "memory",
+          "MCP",
+          "evidence",
+          "记忆",
+          "项目隔离"
+        ]
+      }
     }
   ]
 }
