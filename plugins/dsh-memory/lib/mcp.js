@@ -2,6 +2,17 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { digest, sign } from './protocol.js';
 
+// Host-owned LocalMemory core. The server entry and working directory come from
+// absolute Host config, never from this replaceable package or a Python interpreter.
+export function mcpClientConfig(config, settings, scope, key) {
+  const args = [config.coreEntry, 'mcp', '--root', config.memoryRoot, '--scope', scope];
+  if (scope !== 'global' && settings.includeGlobal) args.push('--include-global');
+  const env = { LOCALMEMORY_HOST_KEY: key };
+  if (config.coreConfig) env.LOCALMEMORY_BRAIN_CONFIG = config.coreConfig;
+  return { transport: 'stdio', serverName: 'juzi-memory-' + digest(scope).slice(0, 12), command: process.execPath, args, env, cwd: path.dirname(config.coreEntry), toolCallTimeoutMs: config.timeoutMs,
+    failOnStartupError: true, reconnect: { enabled: true, initialDelayMs: 100, maxDelayMs: 1000, maxAttempts: 2 } };
+}
+
 export class MemoryConnections {
   constructor(ctx, config, settings) {
     this.ctx = ctx; this.config = config; this.settings = settings; this.entries = new Map(); this.cleanups = new Set(); this.closed = false;
@@ -52,12 +63,7 @@ export class MemoryConnections {
     // 0.2.2 rejects ToolRuntime `{ mode: 'native' }` (`mode` is never). Native
     // execution is a separate executor mounted beside the registry.
     await install(SystemPrompt); await install(ToolRuntime); await install(executor);
-    const args = [this.config.coreEntry, 'mcp', '--root', this.config.memoryRoot, '--scope', scope];
-    if (scope !== 'global' && this.settings.includeGlobal) args.push('--include-global');
-    const env = { LOCALMEMORY_HOST_KEY: this.key };
-    if (this.config.coreConfig) env.LOCALMEMORY_BRAIN_CONFIG = this.config.coreConfig;
-    await install(mcp, { transport: 'stdio', serverName: 'juzi-memory-' + digest(scope).slice(0, 12), command: process.execPath, args, env, cwd: path.dirname(this.config.coreEntry), toolCallTimeoutMs: this.config.timeoutMs,
-      failOnStartupError: true, reconnect: { enabled: true, initialDelayMs: 100, maxDelayMs: 1000, maxAttempts: 2 } });
+    await install(mcp, mcpClientConfig(this.config, this.settings, scope, this.key));
     // The calling plugin already injects the root tools service. get() reads
     // this isolated service instead of its inherited injection snapshot.
     entry.tools = context.get('tools');
