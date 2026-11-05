@@ -1,20 +1,21 @@
 # DSH Memory · 记忆
 
-`@juzi/dsh-memory` **0.1.0**，面向 DSH **0.2.1-rc.3**，通过官方 MCP stdio 连接 LocalMemory 2.0.0 / schema7。新增左侧记忆管理、设置中的独立采集／召回开关及会话右侧本轮记录；候选没有页面批准能力。
+`@juzi/dsh-memory` **0.1.0**，已在 DSH **0.2.1-rc.5** 验证，通过官方 MCP stdio 连接 LocalMemory 2.0.0 / schema7。新增左侧记忆管理、设置中的独立采集／召回开关及会话右侧本轮记录；候选没有页面批准能力。
 
 ## 本地配置
 
-本包源码先在隔离 Home/profile 验证，不能直接替换生产 profile。无需新依赖、外部服务或付费 API；使用 DSH 已提供的 Cordis、Session、ToolRuntime 和 MCP 客户端。
+先在独立 `DSH_HOME`、profile 和空库验证，勿直接替换生产 profile。在 DSH「插件 → 添加插件 → 安装第三方插件」中安装本地目录或打包后的 `.tgz`；包中声明的宿主 peer 依赖需由官方安装器解析。目录与 tarball 相互切换后若仍报旧来源路径，保存错误并正常重启该测试 Web 后复验。
+
+安装后，备份当前 profile 的 `cordis.patch.yml`，在其中合并以下按组件 ID 更新的可信配置；已有同 ID 配置时更新原项。随后从 UI 启用插件。这里不使用 `insert`，也不覆盖 `disabled`：组件由包自带的 bundle 注册，避免外加组件绕过 UI 停用。
 
 ```yaml
-- insert:
-    - id: juzi-memory
-      name: '@juzi/dsh-memory'
-      config:
-        coreEntry: 'D:/path/to/LocalMemory/src/interfaces/cli/index.js'
-        memoryRoot: 'D:/isolated-memory'
-        coreConfig: 'D:/isolated-memory/config.json'
-        timeoutMs: 2500
+- id: juzi-memory
+  name: '@juzi/dsh-memory'
+  config:
+    coreEntry: 'D:/path/to/LocalMemory/src/interfaces/cli/index.js'
+    memoryRoot: 'D:/isolated-memory'
+    coreConfig: 'D:/isolated-memory/config.json'
+    timeoutMs: 2500
 ```
 
 三条路径仅由可信本地 Host 配置给出；页面不能设置可执行文件、数据路径或任意工作目录。未配置连接时页面仍可打开并显示配置提示。旧库须先在副本显式迁移，不自动升级。
@@ -23,7 +24,7 @@
 
 ## 通讯与生命周期
 
-页面使用 DSH 原生同源 `/api/juzi.memory.*` 通道。Host 使用私有 ToolRuntime + 官方 MCP 客户端，每连接启动固定scope；首次描述schema的连接随即释放，最多3个实际范围的按需连接，空闲连接可释放，卸载统一关闭。不会启动Worker或工作队列。
+页面使用 DSH 原生同源 `/api/juzi.memory.*` 通道。Host 使用私有 ToolRuntime + 官方 MCP 客户端，每连接启动固定scope；首次描述schema的连接随即释放，最多3个实际范围的按需连接，满额时淘汰最久未用连接（暂无空闲定时释放），卸载统一关闭。不会启动Worker或工作队列。
 
 模型工具 `memory_query/get/remember/correct/forget/feedback` 从原MCP schema生成，Host按 `exec.agent.session`及原生回合记录绑定scope，召回、工具与采集使用同一范围。运行中改绑下一回合生效，右侧显示当前及待生效范围；缺失可信回合绑定时拒绝记忆操作。模型没有capture签名密钥或approve工具。MCP进程内写入身份为DSH客户端，非独立Agent凭证，不能视为多用户安全隔离。
 
@@ -35,7 +36,7 @@
 
 证据保存与候选提炼分阶段原子提交。单次提炼最多新增128个候选，复用已有事实不占新建预算，剩余项明确返回partial及pending原因；右侧分别显示证据、候选、复用、待提炼及拒绝数，可续做未完成提炼。同一请求重试不重复保存证据或已完成候选；旧格式回执可补齐漏提炼项。可信批量提炼不消耗模型交互限额，交互写入仍按身份和项目限制10条/分钟、200条/天；候选始终需要本地审核。
 
-纠正／遗忘先预览目标、scope及expected_version；保护对象进入既有本地CLI审核。候选不会因为存在引用就语义已证实；所有采集、证据校验、审核、版本和事务规则留在Core。
+纠正／遗忘建议先dry_run预览目标、scope及expected_version（当前实现不强制预览，可直接执行）；保护对象进入既有本地CLI审核。候选不会因为存在引用就语义已证实；所有采集、证据校验、审核、版本和事务规则留在Core。
 
 ## 验证与回退
 
