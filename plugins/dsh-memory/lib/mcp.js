@@ -2,6 +2,17 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { digest, sign } from './protocol.js';
 
+// Host-owned LocalMemory core. The server entry and working directory come from
+// absolute Host config, never from this replaceable package or a Python interpreter.
+export function mcpClientConfig(config, settings, scope, key) {
+  const args = [config.coreEntry, 'mcp', '--root', config.memoryRoot, '--scope', scope];
+  if (scope !== 'global' && settings.includeGlobal) args.push('--include-global');
+  const env = { LOCALMEMORY_HOST_KEY: key };
+  if (config.coreConfig) env.LOCALMEMORY_BRAIN_CONFIG = config.coreConfig;
+  return { transport: 'stdio', serverName: 'juzi-memory-' + digest(scope).slice(0, 12), command: process.execPath, args, env, cwd: path.dirname(config.coreEntry), toolCallTimeoutMs: config.timeoutMs,
+    failOnStartupError: true, reconnect: { enabled: true, initialDelayMs: 100, maxDelayMs: 1000, maxAttempts: 2 } };
+}
+
 export class MemoryConnections {
   constructor(ctx, config, settings) {
     this.ctx = ctx; this.config = config; this.settings = settings; this.entries = new Map(); this.cleanups = new Set(); this.closed = false;
@@ -46,16 +57,13 @@ export class MemoryConnections {
     } finally { if (stop) combined.removeEventListener('abort', stop); }
   }
   async open(scope, entry) {
-    const [{ default: SystemPrompt }, { default: ToolRuntime }, mcp] = await Promise.all([import('@deepseek-ai/dsh-system-prompt'), import('@deepseek-ai/dsh-tools'), import('@deepseek-ai/dsh-mcp-client')]);
+    const [{ default: SystemPrompt }, { default: ToolRuntime }, executor, mcp] = await Promise.all([import('@deepseek-ai/dsh-system-prompt'), import('@deepseek-ai/dsh-tools'), import('@deepseek-ai/dsh-tool-executor-native'), import('@deepseek-ai/dsh-mcp-client')]);
     const context = this.ctx.isolate('tools').isolate('systemPrompt'); entry.context = context;
     const install = async (plugin, config) => { entry.controller.signal.throwIfAborted(); const fiber = context.plugin(plugin, config); entry.fibers.push(fiber); await fiber; };
-    await install(SystemPrompt); await install(ToolRuntime, { mode: 'native' });
-    const args = [this.config.coreEntry, 'mcp', '--root', this.config.memoryRoot, '--scope', scope];
-    if (scope !== 'global' && this.settings.includeGlobal) args.push('--include-global');
-    const env = { LOCALMEMORY_HOST_KEY: this.key };
-    if (this.config.coreConfig) env.LOCALMEMORY_BRAIN_CONFIG = this.config.coreConfig;
-    await install(mcp, { transport: 'stdio', serverName: 'juzi-memory-' + digest(scope).slice(0, 12), command: process.execPath, args, env, cwd: path.dirname(this.config.coreEntry), toolCallTimeoutMs: this.config.timeoutMs,
-      failOnStartupError: true, reconnect: { enabled: true, initialDelayMs: 100, maxDelayMs: 1000, maxAttempts: 2 } });
+    // 0.2.2 rejects ToolRuntime `{ mode: 'native' }` (`mode` is never). Native
+    // execution is a separate executor mounted beside the registry.
+    await install(SystemPrompt); await install(ToolRuntime); await install(executor);
+    await install(mcp, mcpClientConfig(this.config, this.settings, scope, this.key));
     // The calling plugin already injects the root tools service. get() reads
     // this isolated service instead of its inherited injection snapshot.
     entry.tools = context.get('tools');
@@ -76,9 +84,11 @@ export class MemoryConnections {
       const tool = entry.tools.schemas().find(s => s.parameters?.title === `localmemory.${operation}`);
       if (!tool) throw Error('incompatible_core_contract');
       const parameters = operation === 'capture' ? { ...args, signature: sign(this.key, scope, args) } : args;
-      const result = await entry.tools.execute({ callId: `memory-${digest({ scope, operation, args }).slice(0, 24)}`, name: tool.name, arguments: parameters, signal: combined });
-      if (result.isError) {
-        const text = [result.error?.message ?? '', ...(result.content ?? []).filter(c => c.type === 'text').map(c => c.text)].join('\n');
+      // Batch API: `arguments` is the raw JSON string, and the canonical outcome is `results[0].result`.
+      const settled = await entry.tools.execute({ signal: combined, calls: [{ type: 'tool-call', id: `memory-${digest({ scope, operation, args }).slice(0, 24)}`, name: tool.name, arguments: JSON.stringify(parameters) }] });
+      const result = settled.results?.[0]?.result;
+      if (!result || result.isError) {
+        const text = [result?.error?.message ?? '', ...(result?.content ?? []).filter(c => c.type === 'text').map(c => c.text)].join('\n');
         const code = /^([a-z][a-z0-9]*(?:_[a-z0-9]+)+)(?::[a-zA-Z0-9_.:-]+)?$/mu.exec(text)?.[1]
           ?? /MCP error -?\d+:\s*([a-z][a-z0-9_]+)/u.exec(text)?.[1]
           ?? /"reason"\s*:\s*"([a-z][a-z0-9_]+)"/u.exec(text)?.[1];

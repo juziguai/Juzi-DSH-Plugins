@@ -1,6 +1,6 @@
 {
   "name": "@juzi/dsh-memory",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "通过官方 MCP 接入 LocalMemory 的项目记忆与证据管理。",
@@ -11,15 +11,16 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "dsh": ">=0.2.1-rc.3"
+    "dsh": ">=0.2.2-rc.1 <0.2.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-home-paths": ">=0.2.1-rc.3 <0.2.2",
-    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.3 <0.2.2",
-    "@deepseek-ai/dsh-mcp-client": ">=0.2.1-rc.3 <0.2.2",
-    "@deepseek-ai/dsh-session": ">=0.2.1-rc.3 <0.2.2",
-    "@deepseek-ai/dsh-system-prompt": ">=0.2.1-rc.3 <0.2.2",
-    "@deepseek-ai/dsh-tools": ">=0.2.1-rc.3 <0.2.2"
+    "@deepseek-ai/dsh-home-paths": ">=0.2.2-rc.1 <0.2.3",
+    "@deepseek-ai/dsh-llm": ">=0.2.2-rc.1 <0.2.3",
+    "@deepseek-ai/dsh-mcp-client": ">=0.2.2-rc.1 <0.2.3",
+    "@deepseek-ai/dsh-session": ">=0.2.2-rc.1 <0.2.3",
+    "@deepseek-ai/dsh-system-prompt": ">=0.2.2-rc.1 <0.2.3",
+    "@deepseek-ai/dsh-tool-executor-native": ">=0.2.2-rc.1 <0.2.3",
+    "@deepseek-ai/dsh-tools": ">=0.2.2-rc.1 <0.2.3"
   },
   "dsh": {
     "bundle": {
