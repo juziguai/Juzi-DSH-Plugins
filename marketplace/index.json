@@ -101,15 +101,15 @@
       },
       "versions": [
         {
-          "version": "0.1.2",
-          "publishTimestamp": 1793349395,
+          "version": "0.1.3",
+          "publishTimestamp": 1794760139,
           "engines": {
-            "dsh": ">=0.2.1-rc.3"
+            "dsh": ">=0.2.1-rc.3 <0.2.3-0"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
-            "commit": "c8d685c9217f022dbfe63dce0a0ad34cb258a21c",
+            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
             "path": "plugins/dsh-quote-annotate"
           }
         }
@@ -143,15 +143,15 @@
       },
       "versions": [
         {
-          "version": "0.1.4",
-          "publishTimestamp": 1793349395,
+          "version": "0.1.5",
+          "publishTimestamp": 1794760139,
           "engines": {
-            "dsh": ">=0.2.1-rc.3"
+            "dsh": ">=0.2.1-rc.3 <0.2.3-0"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
-            "commit": "c8d685c9217f022dbfe63dce0a0ad34cb258a21c",
+            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
             "path": "plugins/dsh-changes"
           }
         }
@@ -184,15 +184,15 @@
       },
       "versions": [
         {
-          "version": "0.3.1",
-          "publishTimestamp": 1793349395,
+          "version": "0.3.2",
+          "publishTimestamp": 1794760139,
           "engines": {
-            "dsh": ">=0.2.1-rc.3"
+            "dsh": ">=0.2.1-rc.3 <0.2.3-0"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
-            "commit": "c8d685c9217f022dbfe63dce0a0ad34cb258a21c",
+            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
             "path": "plugins/dsh-ultra-effort"
           }
         }
@@ -265,15 +265,15 @@
       },
       "versions": [
         {
-          "version": "1.1.4",
-          "publishTimestamp": 1793349395,
+          "version": "1.2.0",
+          "publishTimestamp": 1794760139,
           "engines": {
-            "dsh": ">=0.2.1-rc.2"
+            "dsh": ">=0.2.1-rc.2 <0.2.3-0"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
-            "commit": "c8d685c9217f022dbfe63dce0a0ad34cb258a21c",
+            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
             "path": "plugins/dsh-deepseek-tools"
           }
         }
@@ -308,15 +308,15 @@
       },
       "versions": [
         {
-          "version": "1.1.3",
-          "publishTimestamp": 1793349395,
+          "version": "1.1.4",
+          "publishTimestamp": 1794760139,
           "engines": {
-            "dsh": ">=0.2.1-rc.2"
+            "dsh": ">=0.2.1-rc.2 <0.2.3-0"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
-            "commit": "c8d685c9217f022dbfe63dce0a0ad34cb258a21c",
+            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
             "path": "plugins/juzi-win-dsh"
           }
         }
@@ -349,16 +349,57 @@
       },
       "versions": [
         {
-          "version": "0.1.1",
-          "publishTimestamp": 1793208021,
+          "version": "0.2.0",
+          "publishTimestamp": 1794760139,
           "engines": {
-            "dsh": ">=0.2.1-rc.3"
+            "dsh": ">=0.2.2-rc.3 <0.2.3-0"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
-            "commit": "1496362bb6025fa654a7d2b0e71d4016ee123485",
+            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
             "path": "plugins/dsh-preset-unlock"
+          }
+        }
+      ]
+    },
+    {
+      "title": {
+        "en": "Agent Memory",
+        "zh": "记忆"
+      },
+      "description": {
+        "en": "Scoped LocalMemory evidence, opt-in recall/capture and native memory management. Requires separately configured LocalMemory 2.0.0/schema7 and DSH 0.2.2.",
+        "zh": "按项目隔离的证据记忆、独立采集与召回开关及原生管理页。需单独配置LocalMemory 2.0.0/schema7，面向DSH 0.2.2。"
+      },
+      "author": "Juzi",
+      "metadata": {
+        "category": "tools",
+        "keywords": [
+          "memory",
+          "MCP",
+          "evidence",
+          "记忆",
+          "项目隔离"
+        ]
+      },
+      "name": "@juzi/dsh-memory",
+      "repository": {
+        "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
+        "directory": "plugins/dsh-memory"
+      },
+      "versions": [
+        {
+          "version": "0.2.0",
+          "publishTimestamp": 1794760139,
+          "engines": {
+            "dsh": ">=0.2.2-rc.1 <0.2.3-0"
+          },
+          "source": {
+            "type": "git",
+            "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
+            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
+            "path": "plugins/dsh-memory"
           }
         }
       ]
