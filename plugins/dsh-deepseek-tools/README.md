@@ -7,7 +7,7 @@
 
 | 工具 | 完整调用名 | 说明 |
 |---|---|---|
-| `DeepSeek-Search` | `mcp__deepseek__DeepSeek-Search` | 调 `POST /v1/tools/search`，返回标题 / URL / 摘要 / 发布时间 / `authority` / `rerank_score`；支持 `site:`、`-site:`、`"精确短语"`、`lang:`、`after:` / `before:` |
+| `DeepSeek-Search` | `mcp__deepseek__DeepSeek-Search` | 调 `POST /v1/tools/search`（失败且配置了可信本地 `wb-proxy` 时回退），返回标题 / URL / 摘要 / 发布时间 / `authority` / `rerank_score`；支持 `freshness`、`include_domains`、`exclude_domains` 以及 `site:`、`-site:`、`"精确短语"`、`lang:`、`after:` / `before:` |
 | `DeepSeek-Fetch` | `mcp__deepseek__DeepSeek-Fetch` | 调 `POST /v1/tools/fetch`，把单个网页转成 Markdown |
 
 两者都只读，不会修改任何远端状态。
@@ -67,7 +67,7 @@ HTTP 错误仅返回状态码和固定说明，不返回上游响应体/响应�
         command: 'C:\Python314\python.exe'
         args:
           - 'D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-deepseek-tools\server.py'
-        toolCallTimeoutMs: 90000
+        toolCallTimeoutMs: 120000
         failOnStartupError: false
 ```
 

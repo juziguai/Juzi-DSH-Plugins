@@ -1,5 +1,18 @@
 # 更新记录
 
+## [0.1.3] - 2026-11-15
+
+### 变更
+
+- 适配 DSH `0.2.2-rc.3`：支持与官方内置文本引用（`QuoteNode` 及选区「引用文本」工具条）共存，选区气泡自动避让 `[data-text-interaction-surface]`，浮层盒子补充 `data-window-drag-exclude`。
+- 扩展菜单、工具卡片与代码块锚点（`data-menu-material`、`data-tool`、`data-sample`、`.md-code-block`）。
+
+### 修复
+
+- 通过编辑器桥直接计算含原生 `quote` 与命令 chip 节点时的精确 detect 范围，修复混合原生引用时删除 chip 失败及队列/回执匹配问题。
+- 保护 `sending` 普通消息发送阶段的引用草稿，禁止发送冻结期间误删或提前对账清空引用。
+- 代码块语言提取优先读取 `code` 的 `language-*` 类名，回退横幅仅接受小写合法标识符，过滤 `Code` / `代码` 等本地化默认标题。
+
 ## [0.1.2] - 2026-10-30
 
 ### 变更

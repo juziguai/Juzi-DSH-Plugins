@@ -1,7 +1,7 @@
 {
   "name": "@juzi/dsh-ultra-effort",
   "description": "模型选择、推理强度动效、内置版本角标与按会话开启的快速执行（实验）。",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": true,
   "type": "module",
   "main": "lib/index.js",
@@ -11,7 +11,7 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "dsh": ">=0.2.1-rc.3"
+    "dsh": ">=0.2.1-rc.3 <0.2.3-0"
   },
   "dsh": {
     "bundle": {
@@ -36,6 +36,6 @@
     "LICENSE"
   ],
   "dependencies": {
-    "@deepseek-ai/schemastery": "3.18.5"
+    "@deepseek-ai/schemastery": "^3.18.5"
   }
 }

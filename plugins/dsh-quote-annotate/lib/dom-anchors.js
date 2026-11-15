@@ -1,10 +1,11 @@
 export const DOM_ANCHORS = Object.freeze({
   conversation:'[data-conversation-content][data-conversation-session]',chat:'[data-chat-flow]',row:'[data-chat-node-key]',scroll:'[data-conversation-scroll]',
   composer:'[data-composer-seat]',editor:'[contenteditable="true"][role="textbox"]',chip:'[data-composer-chip="juzi.quote-annotate"]',
-  reasoning:'[data-variant="think"]',tool:'[data-variant="others"]',
+  reasoning:'[data-variant="think"]',tool:'[data-variant="others"],[data-tool],[data-sample]',
   excluded:'button,[role="button"],[role="status"][aria-live],[aria-hidden="true"],[hidden],[inert],[data-jq],.jq-root,[data-line-number],.line-number,[data-composer-seat],[data-clock],[data-code-block-banner],[data-chat-flow-kind="turn-tail"]',
-  codeWrap:'[data-code-wrap]',codeBanner:'[data-code-block-banner]',
-  menu:'[role="dialog"][aria-modal="true"],[role="menu"],[role="listbox"],[data-radix-popper-content-wrapper]'
+  codeWrap:'[data-code-wrap],.md-code-block',codeBanner:'[data-code-block-banner]',
+  menu:'[role="dialog"],[role="menu"],[role="listbox"],[data-menu-material],[data-radix-popper-content-wrapper]',
+  nativeQuoteSurface:'[data-text-interaction-surface]'
 });
 export function visibleTextRects(view,bounds,roots) {
   const chat=view.querySelector(DOM_ANCHORS.chat);if(!chat)return [];
@@ -42,6 +43,15 @@ export function createVisibleTextIndex(view) {
     },
     dispose(){intersection?.disconnect();mutation.disconnect();rows.clear();visible.clear();}
   };
+}
+function codeLanguage(code) {
+  if(!code)return '';
+  const fromClass=[...(code.classList??[])].find(c=>c.startsWith('language-'))?.slice(9)??'';
+  if(fromClass)return fromClass;
+  const banner=code.closest(DOM_ANCHORS.codeWrap)?.querySelector(DOM_ANCHORS.codeBanner);
+  const leaf=banner?.querySelector?.('.language')??banner?.firstElementChild?.firstElementChild??banner?.firstElementChild;
+  const token=leaf?.textContent?.trim()??'';
+  return /^[a-z0-9_+.-]+$/.test(token)?token:'';
 }
 export function extractSelection(selection,sessionId) {
   if(!selection||selection.isCollapsed||selection.rangeCount!==1)return null;
@@ -82,20 +92,24 @@ export function extractSelection(selection,sessionId) {
   const anchor=selectedRows[0]?.querySelector('[data-jq-message]');
   const kind=selectedRows[0]?.dataset.chatFlowKind;
   if(source==='unknown')source=anchor||kind==='assistant-step'?'assistant':kind==='user'?'user':'unknown';
-  const language=code?.closest(DOM_ANCHORS.codeWrap)?.querySelector(DOM_ANCHORS.codeBanner)?.firstElementChild?.textContent.trim();
   const metadata={source,...(anchor&&source!=='mixed'?{messageId:anchor.dataset.jqMessage}:{}),
     ...(source!=='mixed'&&Number(selectedRows[0]?.dataset.chatTurn)>0?{turn:Number(selectedRows[0].dataset.chatTurn)}:{}),
-    ...(code&&code.contains(end)?{kind:'code',lang:language??[...code.classList].find(c=>c.startsWith('language-'))?.slice(9)??''}:{})};
+    ...(code&&code.contains(end)?{kind:'code',lang:codeLanguage(code)}:{})};
   const bounds=chat.getBoundingClientRect(),scroll=chat.closest(DOM_ANCHORS.scroll)?.getBoundingClientRect(),composer=view.querySelector(DOM_ANCHORS.composer)?.getBoundingClientRect();
   const viewport=view.getBoundingClientRect(),vertical={top:Math.max(0,scroll?.top??bounds.top),bottom:Math.min(doc.defaultView.innerHeight,composer?.top??doc.defaultView.innerHeight)};
   return {text,metadata,rects,view,range:range.cloneRange(),bounds:{left:Math.max(0,bounds.left),right:Math.min(doc.defaultView.innerWidth,bounds.right),...vertical},sideBounds:{left:Math.max(0,viewport.width?viewport.left:bounds.left),right:Math.min(doc.defaultView.innerWidth,viewport.width?viewport.right:bounds.right),...vertical},sessionId};
 }
-export function editorBridge(view,source) {
+export function editorBridge(view,source='juzi.quote-annotate') {
   const element=view?.querySelector(DOM_ANCHORS.composer)?.querySelector(DOM_ANCHORS.editor);
   const editor=element?.__lexicalEditor;
   if(!editor||typeof editor.update!=='function'||!(editor.getEditorState()?._nodeMap instanceof Map))throw new Error('DSH editor bridge unavailable');
-  const nodes=()=>[...editor.getEditorState()._nodeMap.values()].filter(n=>n.getType?.()==='reference-chip'&&n.__source===source);
+  const chipSource=n=>n.__source??n.getSource?.();
+  const chipRef=n=>n.__ref??n.__reference??n.getReference?.();
+  const nodes=()=>[...editor.getEditorState()._nodeMap.values()].filter(n=>n.getType?.()==='reference-chip'&&chipSource(n)===source);
+  const readState=fn=>{const state=editor.getEditorState();return typeof state?.read==='function'?state.read(()=>fn(state)):fn(state);};
   return {element,
-    prefix(order){if(order?.length===0||nodes().length===0)return;editor.update(()=>{const map=editor.getEditorState()._nodeMap,root=map.get('root'),first=root?.getFirstChild();if(!first?.getChildren)return;const own=nodes(),refs=order?order.map(ref=>own.find(node=>node.__ref===ref)).filter(Boolean):own;for(const node of refs.toReversed()) {const head=first.getFirstChild();if(head!==node)head?head.insertBefore(node):first.append(node);}},{discrete:true});}
+    prefix(order){if(order?.length===0||nodes().length===0)return;editor.update(()=>{const map=editor.getEditorState()._nodeMap,root=map.get('root'),first=root?.getFirstChild();if(!first?.getChildren)return;const own=nodes(),refs=order?order.map(ref=>own.find(node=>chipRef(node)===ref)).filter(Boolean):own;for(const node of refs.toReversed()) {const head=first.getFirstChild();if(head!==node)head?head.insertBefore(node):first.append(node);}},{discrete:true});},
+    spanOf(ref){try{return readState(state=>{const root=state?._nodeMap?.get('root');if(typeof root?.getChildren!=='function')return null;let offset=0;const walk=el=>{for(const kid of el.getChildren?.()??[]){const type=kid.getType?.();if(type==='reference-chip'){if(chipSource(kid)===source&&chipRef(kid)===ref)return {start:offset,end:offset+1};offset+=1;}else if(type==='command-chip'||type==='quote'||type==='linebreak')offset+=1;else if(typeof kid.getChildren==='function'){const hit=walk(kid);if(hit)return hit;}else if(type==='text'||type==='composer-text-ref')offset+=(kid.getTextContent?.()??'').length;else offset+=(kid.getTextContent?.()??'').length||1;}return null;};const blocks=root.getChildren();for(let i=0;i<blocks.length;i++){if(i>0)offset+=1;const hit=walk(blocks[i]);if(hit)return hit;}return null;});}catch{return null;}},
+    hasQuotes(){try{return Boolean(readState(state=>{const root=state?._nodeMap?.get('root');if(typeof root?.getChildren==='function'){const scan=el=>(el.getChildren?.()??[]).some(k=>k.getType?.()==='quote'||(typeof k.getChildren==='function'&&scan(k)));return scan(root);}return [...(state?._nodeMap?.values()??[])].some(n=>n.getType?.()==='quote');}));}catch{return false;}}
   };
 }

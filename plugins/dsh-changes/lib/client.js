@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
 .jc-page *{box-sizing:border-box}.jc-page svg,.jc-open svg,.jc-title svg{flex:none;vertical-align:middle}
 .jc-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 10px;min-height:50px;flex:none;border-bottom:1px solid var(--jc-line)}
 .jc-turn-group,.jc-tools{display:inline-flex;align-items:center;gap:4px;padding:3px;border:1px solid var(--jc-line);border-radius:24px;box-shadow:0 2px 7px #00000004;min-width:0}.jc-turn-group{gap:7px;padding-right:9px}.jc-turn{position:relative;display:inline-flex;align-items:center;min-width:0}.jc-turn>svg{position:absolute;right:6px;pointer-events:none;color:var(--jc-muted)}
-.jc-select{appearance:none;min-width:78px;max-width:135px;border:0;border-radius:18px;background:transparent;color:inherit;padding:4px 23px 4px 9px;font:inherit;cursor:pointer;line-height:20px}.jc-count{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:13px;font-weight:400;font-variant-numeric:tabular-nums}.jc-add{color:var(--jc-green)}.jc-del{color:var(--jc-red)}.jc-grow{flex:1;min-width:0}
+.jc-select{appearance:none;min-width:78px;max-width:135px;border:0;border-radius:18px;background:transparent;color:inherit;padding:4px 23px 4px 9px;font:inherit;cursor:pointer;line-height:20px}.jc-select:disabled{opacity:.5;cursor:default}.jc-count{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;font-size:13px;font-weight:400;font-variant-numeric:tabular-nums}.jc-add{color:var(--jc-green)}.jc-del{color:var(--jc-red)}.jc-grow{flex:1;min-width:0}
 .jc-button,.jc-open{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--jc-line);background:transparent;color:inherit;border-radius:8px;min-height:30px;padding:4px 8px;cursor:pointer;font:inherit;white-space:nowrap;flex:none}.jc-icon-button{width:28px;min-height:28px;padding:5px;border-color:transparent;color:var(--jc-muted)}.jc-tools>.jc-icon-button,.jc-tools>.jc-menu>.jc-icon-button{border-radius:50%}.jc-button:hover,.jc-open:hover,.jc-file-toggle:hover{background:color-mix(in srgb,currentColor 5%,transparent)}.jc-button[aria-expanded=true]{color:var(--jc-accent);background:color-mix(in srgb,var(--jc-accent) 7%,transparent)}.jc-button:disabled{opacity:.35;cursor:default}
 .jc-open{font-size:12px;color:var(--jc-muted)}.jc-title{display:inline-flex;align-items:center;gap:7px;min-width:0}.jc-title svg{color:var(--jc-muted)}.jc-page button:focus-visible,.jc-page select:focus-visible,.jc-page [tabindex]:focus-visible,.jc-open:focus-visible{outline:2px solid var(--jc-accent);outline-offset:-2px}
 .jc-menu{position:relative;display:inline-flex;flex:none}.jc-menu-panel{position:absolute;right:0;top:calc(100% + 5px);z-index:10;min-width:166px;padding:5px;border:1px solid var(--jc-line);border-radius:9px;background:var(--jc-bg);box-shadow:0 6px 24px #0000001a;color:var(--jc-text);font-size:12px}.jc-menu[data-above=true]>.jc-menu-panel{top:auto;bottom:calc(100% + 5px)}.jc-menu-item{display:grid;grid-template-columns:14px 1fr;gap:7px;align-items:center;width:100%;min-height:30px;border:0;border-radius:5px;padding:5px 7px;color:inherit;background:transparent;font:inherit;text-align:left;white-space:nowrap;cursor:pointer}.jc-menu-item:hover,.jc-menu-item:focus-visible{background:color-mix(in srgb,currentColor 6%,transparent)}.jc-menu-item:disabled{opacity:.4;cursor:default}
@@ -153,6 +153,13 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
           active && result && result.revision !== revision ? h('span', { className: 'jc-updating' }, '更新中…') : null,
           active ? h(Diff, { value: result?.value, wrap }) : h('div', { className: 'jc-diff-placeholder', style: { height: retainedHeight.current }, 'aria-hidden': true }));
     }
+    function fileResourceAddress(sessionId, rawPath) {
+      const path = rawPath.replaceAll('\\', '/').replace(/^(?:\.\/)+/, '').split('/').map((part, idx) => {
+        const seg = encodeURIComponent(part);
+        return idx === 0 && /^[A-Za-z]%3A$/i.test(seg) ? seg.slice(0, 1) + ':' : seg;
+      }).join('/');
+      return 'dsh-resource://file/session/' + encodeURIComponent(sessionId).replace(/%3A/gi, ':') + '/' + path;
+    }
     function FileEntry({ file, expanded, onToggle, actions, id, ...diffProps }) {
       const root = React.useRef(null);
       const toggle = () => onToggle(file.id);
@@ -163,22 +170,23 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
             title: (file.oldDisplay ? file.oldDisplay + ' → ' : '') + file.display, onClick: toggle }, h(FileIcon, { display: file.display }), h(FileLabel, { display: file.display })),
           file.binary || file.oversized ? h('span', { className: 'jc-file-kind' }, file.binary ? '二进制' : '超限') : counts(file),
           h('button', { className: 'jc-button jc-icon-button', disabled: file.status === 'deleted', title: file.status === 'deleted' ? '文件已删除，无法打开' : '打开当前文件', 'aria-label': '打开 ' + file.display,
-            onClick: () => {
-              const path = file.path.replaceAll('\\', '/').split('/').map(part => encodeURIComponent(part)).join('/');
-              actions.openResource('dsh-resource://file/session/' + encodeURIComponent(diffProps.sessionId) + '/' + path);
-            } }, h(Icon, { name: 'external-link', size: 15 })),
+            onClick: () => actions.openResource(fileResourceAddress(diffProps.sessionId, file.path)) }, h(Icon, { name: 'external-link', size: 15 })),
           h(Menu, { label: file.display + ' 的更多操作', items: [{ label: expanded ? '折叠差异' : '展开差异', run: toggle }] })),
         expanded ? h(FileDiff, { ...diffProps, file, entryRef: root, id }) : null);
     }
     function apply(ctx) {
       const resetListeners = new Set();
+      const isSubagentSession = (sessionId, useSession) =>
+        Boolean(useSession?.(session => session?.subagent != null)) ||
+        (Boolean(sessionId) && ctx.sessions?.subagentAddress?.(sessionId) !== undefined);
       ctx.effect(() => {
         const style = document.createElement('style'); style.textContent = CSS; document.head.appendChild(style);
         return () => style.remove();
       });
       ctx.on('connection/reset', () => resetListeners.forEach(listener => listener()));
-      function Page({ sessionId, useTabInfo }) {
+      function Page({ sessionId, useTabInfo, useSession }) {
         const { tab } = useTabInfo();
+        const subagent = isSubagentSession(sessionId, useSession);
         const [turns, setTurns] = React.useState([]), [selection, setSelection] = React.useState('latest'), [maxTurns, setMaxTurns] = React.useState(30);
         const [summary, setSummary] = React.useState(null), [error, setError] = React.useState(null);
         const [expanded, setExpanded] = React.useState(() => new Set());
@@ -200,7 +208,7 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
           resetListeners.add(reset); return () => resetListeners.delete(reset);
         }, []);
         React.useEffect(() => {
-          if (!tab.visible) return;
+          if (!tab.visible || subagent) return;
           const controller = new AbortController();
           let timer, offCatalog, offEvents, binding, first = true, loading = false, queued = false, running = false;
           const epoch = requestGeneration.current;
@@ -256,7 +264,7 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
           offCatalog = ctx.sessions.list.subscribe(connect);
           connect(); invalidate();
           return () => { controller.abort(); clearTimeout(timer); offCatalog(); offEvents?.(); };
-        }, [sessionId, tab.visible, selection, refresh, generation]);
+        }, [sessionId, tab.visible, subagent, selection, refresh, generation]);
         React.useEffect(() => tab.actions.bindCommands({ refresh: () => setRefresh(value => value + 1) }), [tab.actions]);
         const isExpanded = id => expanded === 'all' || expanded.has(id);
         const expandedFiles = summary?.files.filter(item => isExpanded(item.id)) ?? [];
@@ -286,7 +294,8 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
             if (attempt === copyAttempt.current) setCopy({ kind: 'error', message: '复制失败：' + error.message });
           }
         };
-        const emptyTitle = !turns.length ? '等待新一轮任务' : !summary ? '正在读取轮次…' : summary.status === 'running' ? '正在等待文件修改' : '这一轮没有文件变更';
+        const emptyTitle = subagent ? '子代理会话不单独记录' : !turns.length ? '等待新一轮任务' : !summary ? '正在读取轮次…' : summary.status === 'running' ? '正在等待文件修改' : '这一轮没有文件变更';
+        const emptyBody = subagent ? '子代理会话不单独记录轮次，文件变更汇总在主会话对应轮次中查看。' : !turns.length ? 'Agent 开始新任务后，文件修改会在这里实时出现。' : summary?.status === 'running' ? 'Agent 修改文件后会自动显示，无需手动刷新。' : '可以切换轮次查看其他修改。';
         return h('section', { className: 'jc-page', 'aria-label': '文件变更', ref: pageRef, onKeyDown: event => {
           if (event.key === 'Escape' && expandedFiles.length) {
             event.stopPropagation();
@@ -296,7 +305,7 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
         } },
           h('div', { className: 'jc-toolbar' },
             h('span', { className: 'jc-turn-group', title: summary ? `第 ${summary.turn} 轮 · ${statusName[summary.status] ?? summary.status} · ${summary.total} 个文件` : '选择轮次' },
-              h('span', { className: 'jc-turn' }, h('select', { className: 'jc-select', 'aria-label': '选择轮次', value: selection, onChange: changeTurn },
+              h('span', { className: 'jc-turn' }, h('select', { className: 'jc-select', 'aria-label': '选择轮次', disabled: subagent, value: selection, onChange: changeTurn },
               h('option', { value: 'latest' }, turns[0]?.status === 'running' ? '当前轮' : '最近一轮'),
               turns.length > 1 ? h('option', { value: 'previous' }, '上一轮') : null,
               turns.map(item => h('option', { key: item.turn, value: String(item.turn) }, `第 ${item.turn} 轮`))), h(Icon, { name: 'chevron-down', size: 14 })),
@@ -306,7 +315,7 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
                 { label: '自动换行', checked: wrap, run: () => setWrap(value => !value) },
                 { label: allOpen ? '折叠全部差异' : '展开全部差异', disabled: !summary?.files.length, run: () => setExpanded(allOpen ? new Set() : 'all') },
               ] }),
-              h('button', { className: 'jc-button jc-icon-button', onClick: () => setRefresh(value => value + 1), title: '刷新变更', 'aria-label': '刷新变更' }, h(Icon, { name: 'refresh-cw' })),
+              h('button', { className: 'jc-button jc-icon-button', disabled: subagent, onClick: () => setRefresh(value => value + 1), title: '刷新变更', 'aria-label': '刷新变更' }, h(Icon, { name: 'refresh-cw' })),
               h('button', { className: 'jc-button jc-icon-button', disabled: !summary || copy?.kind === 'pending', onClick: copySummary, title: copy?.kind === 'pending' ? '正在复制…' : '复制变更摘要', 'aria-label': '复制变更摘要' }, h(Icon, { name: copy?.kind === 'success' ? 'check' : 'copy' })))),
           summary ? h('span', { className: 'jc-sr-only', role: 'status' }, `第 ${summary.turn} 轮 · ${statusName[summary.status] ?? summary.status} · ${summary.total} 个文件`) : null,
           copy?.message ? h('div', { className: 'jc-copy-feedback' + (copy.kind === 'error' ? ' jc-error' : ''), role: copy.kind === 'error' ? 'alert' : 'status' }, copy.message) : null,
@@ -315,7 +324,7 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
           summary?.warning ? h('div', { className: 'jc-note' }, summary.warning) : null,
           h('div', { className: 'jc-main' },
             h('div', { className: 'jc-files', 'aria-label': '变更文件列表' }, !summary || !summary.files.length ? h('div', { className: 'jc-empty' }, h(Icon, { size: 30 }), h('strong', null, emptyTitle),
-              !turns.length ? 'Agent 开始新任务后，文件修改会在这里实时出现。' : summary?.status === 'running' ? 'Agent 修改文件后会自动显示，无需手动刷新。' : '可以切换轮次查看其他修改。') : summary.files.map(item => h(FileEntry, {
+              emptyBody) : summary.files.map(item => h(FileEntry, {
                 key: summary.turn + ':' + item.id, id: diffId + item.id, file: item, sessionId, turn: summary.turn, revision: summary.revision, wrap,
                 visible: tab.visible, generation, epochRef: requestGeneration, expanded: isExpanded(item.id), onToggle: toggleFile, actions: tab.actions,
               }))),
@@ -330,7 +339,8 @@ html[data-ds-dark-theme] .jc-page,body[data-ds-dark-theme] .jc-page{--jc-bg:var(
       ctx.slots.inject('sidebar.right.pane.tab.title', () => ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: ID },
         () => h('span', { className: 'jc-title' }, h(Icon, { size: 17 }), h('span', null, '变更'))));
       ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({ name: 'conversation.session.header.utilities', id: ID, order: 30 },
-        () => h('button', { className: 'jc-open', title: '查看文件变更', 'aria-label': '查看文件变更', onClick: () => ctx.sidebarRight.openTab(KIND) }, h(Icon), '变更')));
+        (props = {}) => isSubagentSession(props.sessionId, props.useSession) ? null :
+          h('button', { className: 'jc-open', title: '查看文件变更', 'aria-label': '查看文件变更', onClick: () => ctx.sidebarRight.openTab(KIND) }, h(Icon), '变更')));
     }
     return { apply, inject: ['slots', 'sidebarRightTabs', 'sidebarRight', 'sessions'] };
   }

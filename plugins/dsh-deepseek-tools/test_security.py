@@ -191,10 +191,71 @@ class SecurityTests(unittest.TestCase):
             self.assertEqual(json.loads(server.search(" "))["error"], "invalid_query")
             self.assertEqual(json.loads(server.fetch("bad"))["error"], "invalid_url")
             self.assertEqual(usage.call_count, 2)
-        with patch.object(server, "_post", return_value={"error": "http_error", "status": 401}), patch.object(server, "_record_usage") as usage:
+        with patch.object(server, "_post", return_value={"error": "http_error", "status": 401}), patch.object(
+            server, "_wb_search", return_value={"error": "wb_unavailable"}
+        ), patch.object(server, "_record_usage") as usage:
             self.assertEqual(json.loads(server.search("test"))["status"], 401)
             self.assertEqual(json.loads(server.fetch("https://example.com"))["status"], 401)
             usage.assert_not_called()
+
+    def test_search_falls_back_to_workbuddy_when_primary_unavailable(self):
+        wb_items = [
+            {
+                "title": "WB Result",
+                "url": "https://example.com/wb",
+                "snippet": "Snippet from WorkBuddy",
+                "site_name": "Example",
+                "published_time": "2026-11-06",
+            }
+        ]
+        with patch.object(server, "_post", return_value={"error": "http_error", "status": 402}), patch.object(
+            server, "_wb_search", return_value={"results": wb_items}
+        ) as wb_mock, patch.object(server, "_record_usage") as usage:
+            parsed = json.loads(
+                server.search(
+                    "Python 3.13",
+                    count=5,
+                    allowed_domains=["python.org"],
+                    blocked_domains=["csdn.net"],
+                    freshness="m",
+                )
+            )
+            self.assertEqual(parsed["source"], "workbuddy_fallback")
+            self.assertEqual(parsed["fallback_reason"], "http_error:402")
+            self.assertEqual(parsed["count"], 1)
+            self.assertEqual(parsed["results"][0]["title"], "WB Result")
+            wb_mock.assert_called_once_with(
+                query="Python 3.13",
+                count=5,
+                allowed_domains=["python.org"],
+                blocked_domains=["csdn.net"],
+                freshness="m",
+                trigger_mode="fallback:http_error:402",
+            )
+            usage.assert_not_called()
+
+    def test_search_provider_workbuddy_direct_and_markdown_parser(self):
+        md = (
+            'Web search results for query: "test query"\n\n'
+            "1. [Hello World](https://example.com/hello) (ExampleSite | 2026-11-06)\n"
+            "   URL: https://example.com/hello\n"
+            "   This is a test snippet.\n"
+        )
+        parsed_md = server._parse_wb_markdown_results(md)
+        self.assertEqual(len(parsed_md), 1)
+        self.assertEqual(parsed_md[0]["title"], "Hello World")
+        self.assertEqual(parsed_md[0]["url"], "https://example.com/hello")
+        self.assertEqual(parsed_md[0]["site_name"], "ExampleSite")
+        self.assertEqual(parsed_md[0]["published_time"], "2026-11-06")
+        self.assertEqual(parsed_md[0]["snippet"], "This is a test snippet.")
+
+        with patch.object(server, "_post") as primary_mock, patch.object(
+            server, "_wb_search", return_value={"results": parsed_md}
+        ):
+            direct = json.loads(server.search("test query", provider="workbuddy"))
+            self.assertEqual(direct["source"], "workbuddy")
+            self.assertEqual(direct["count"], 1)
+            primary_mock.assert_not_called()
 
     def test_invalid_numeric_config_does_not_print_values(self):
         stderr = io.StringIO()

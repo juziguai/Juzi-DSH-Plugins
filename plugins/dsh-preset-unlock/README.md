@@ -2,7 +2,7 @@
 
 一个**纯声明型** DSH 插件包：入口不注册工具、路由或客户端，只通过 `cordis.patch.yml` 声明 `@deepseek-ai/dsh-agent-preset`，让 DSH 的预设选择器里出现「解锁模式」。选中后由官方预设服务装配标准工具组。
 
-该预设的人格来自 [`prompts/persona.txt`](prompts/persona.txt)，工具清单与官方 `standard` 预设同构。要求 DSH 0.2.1-rc.3 或更新版本，当前工具快照已与官方 rc.3 包逐字核对。
+该预设的人格来自 [`prompts/persona.txt`](prompts/persona.txt)，工具清单与官方 `standard` 预设同构。0.2.0 面向 DSH `0.2.2-rc.3`（`>=0.2.2-rc.3 <0.2.3-0`），当前工具快照已与官方 `0.2.2-rc.3` 包逐字核对。
 
 ## 它到底改了什么
 
@@ -16,7 +16,7 @@
         id: unlock
         name: 解锁模式
         order: 2
-        plugins: [ ... 与 standard 一致的 22 行 ... ]
+        plugins: [ ... 与 standard 一致的 23 行 ... ]
 ```
 
 - 只新增一个预设条目，**不修改** `standard` 或其它既有预设。

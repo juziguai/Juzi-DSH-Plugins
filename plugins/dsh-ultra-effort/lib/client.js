@@ -30,43 +30,76 @@ window.__ModuleLoader__.load({
 		//#endregion
 		let react = require("react");
 		react = __toESM(react, 1);
+		let reactDom = null;
+		try {
+			reactDom = require("react-dom");
+		} catch {
+			reactDom = null;
+		}
+		const createPortal = reactDom !== null && typeof reactDom.createPortal === "function"
+			? reactDom.createPortal.bind(reactDom)
+			: (reactDom !== null && reactDom.default && typeof reactDom.default.createPortal === "function"
+				? reactDom.default.createPortal.bind(reactDom.default)
+				: null);
 		const ModelVersionBadge = (function createModelLabel(React, VERSIONS) {
 	const wrapStyle = {
 		display: "inline-flex",
 		alignItems: "center",
 		gap: "4px",
+		maxWidth: "100%",
+		minWidth: 0,
 		whiteSpace: "nowrap",
 		verticalAlign: "baseline"
 	};
-	const pillStyle = {
-		display: "inline-block",
-		padding: "0 6px",
-		borderRadius: "999px",
-		fontSize: "11px",
-		lineHeight: "16px",
-		fontWeight: 500,
-		background: "rgba(59, 130, 246, 0.12)",
-		color: "#3b82f6",
-		letterSpacing: "0.02em"
+	const triggerWrapStyle = {
+		...wrapStyle,
+		gap: "3px"
 	};
 	/**
-	 * Decorate official DeepSeek model labels with a structured snapshot badge.
+	 * Decorate model labels with DSH 0.2.2+ catalog `model.badge` first,
+	 * falling back to the bundled DeepSeek snapshot version table when absent.
 	 *
-	 * @param props.provider Provider identity (`{ id, name }`), provided by the model control.
-	 * @param props.model    Catalog model entry (`{ id, name }`), provided by the model control.
-	 * @returns The untouched catalog name when no published version is known.
+	 * @param props.providerId  Optional provider id string.
+	 * @param props.provider    Provider identity (`{ id, name }`), provided by the model control.
+	 * @param props.model       Catalog model entry (`{ id, name, badge? }`).
+	 * @param props.placement   Render surface (`"trigger" | "menu" | "option"`).
+	 * @param props.resolveText Optional DSH `ctx.locale.resolveText` resolver for localized badge text.
 	 */
-	function ModelVersionBadge({ provider, model }) {
-		// Only official DeepSeek channels carry published snapshot versions.
-		const isDeepSeek = typeof provider?.id === "string" && provider.id.indexOf("deepseek") === 0;
+	function ModelVersionBadge({ providerId, provider, model, placement = "option", resolveText }) {
+		const isTrigger = placement === "trigger";
+		if (model?.badge !== void 0 && model.badge !== null) {
+			const raw = model.badge.text;
+			const badgeText = typeof resolveText === "function"
+				? resolveText(raw)
+				: (typeof raw === "string" ? raw : raw?.zh ?? raw?.en ?? "");
+			if (!badgeText) return model.name;
+			const tone = model.badge.tone || "neutral";
+			return React.createElement("span", {
+				className: "ue-model-label" + (isTrigger ? " ue-model-labelTrigger" : ""),
+				style: isTrigger ? triggerWrapStyle : wrapStyle,
+				title: model.name + " · " + badgeText
+			}, React.createElement("span", {
+				className: "ue-model-labelName"
+			}, model.name), " ", React.createElement("span", {
+				className: "ue-ver-badge",
+				"data-tone": tone
+			}, badgeText));
+		}
+		// Fallback: only official DeepSeek channels carry bundled snapshot versions.
+		const pid = providerId ?? provider?.id;
+		const isDeepSeek = typeof pid === "string" && pid.indexOf("deepseek") === 0;
 		const hit = isDeepSeek ? VERSIONS[model.id] : void 0;
 		if (!hit) return model.name;
 		return React.createElement("span", {
-			style: wrapStyle,
+			className: "ue-model-label" + (isTrigger ? " ue-model-labelTrigger" : ""),
+			style: isTrigger ? triggerWrapStyle : wrapStyle,
 			// Full official name on hover, e.g. "DeepSeek-V4.1-Flash-1017".
 			title: hit.full
-		}, React.createElement("span", null, model.name), " ", React.createElement("span", {
-			style: pillStyle
+		}, React.createElement("span", {
+			className: "ue-model-labelName"
+		}, model.name), " ", React.createElement("span", {
+			className: "ue-ver-badge",
+			"data-tone": "info"
 		}, hit.badge));
 	}
 	return ModelVersionBadge;
@@ -202,21 +235,10 @@ window.__ModuleLoader__.load({
 		* session's provider-grouped directory through `session.models` and submits
 		* through `session.selectModel` (the same session-scoped RPC the first-party
 		* selector uses), so a switch made here takes effect on the current session and
-		* is what `/model` shows next. Above the model list it renders a two-level
-		* (Off/Max) reasoning-effort slider for models that declare `reasoningEfforts`,
-		* remembering each model's last effort.
-		*/
-		/**
-		* Required Browser Services, exported as the Client Loader's declaration site.
-		*
-		* The Client Loader creates this package's entry from the module table and the
-		* fiber's dependencies come from THIS export — `dsh.client.inject` in
-		* package.json only orders bundle arrival. Without the export the fiber injects
-		* nothing, every `ctx.<service>` below stays undefined, and the shell reports
-		* the package as "is waiting for activation".
-		*
-		* Same six names the first-party `@deepseek-ai/dsh-client-ui-model-selection`
-		* declares; `modelDirectories` is the Service that plugin provides.
+		* is what `/model` shows next. Above the model list it renders a continuous
+		* reasoning-effort slider for models that declare `reasoningEfforts`,
+		* remembering each model's last effort, and hosts `conversation.input.model.options`
+		* contributions (such as DSH 0.2.2+ Agent Teamwork).
 		*/
 		const inject = [
 			"locale",
@@ -227,11 +249,12 @@ window.__ModuleLoader__.load({
 			"slots"
 		];
 		/** Dictionary namespace owned by this plugin. */
-		/** Ultra skin: purple gradient track, sparkles, Ultra title. Visual only. */
-				const ULTRA_CSS = "\n/* ── Ultra 面板 V7 · Codex 原型对齐 ─────────────────────────────\n   尺寸基准：面板 266×~100、padding 4、头部 min-height 56、滑杆行 32。\n   选择器统一 .sk5-root 前缀提高特异性，不使用 important 声明。\n   ───────────────────────────────────────────────────────────── */\n.sk5-root .sk5-drop{font-family:inherit;}\n.sk5-root{--ue-blue:#3a83f7;--ue-brand:#3a83f7;--ue-purple:#924ff7;--ue-hover:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);--ue-border:var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));--ue-tertiary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 38%,transparent);--ue-secondary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);--ue-track:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 10%,transparent);--ue-motion:cubic-bezier(.23,1,.32,1);}\n/* 触发器：模型名 + 档位名 + ▾ 合并成一个按钮 */\n.sk5-root .ue-trigger{display:inline-flex;align-items:center;gap:4px;max-width:260px;padding:2px 6px;border:0;border-radius:8px;background:transparent;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#0f172a);cursor:pointer;transition:background .14s ease;}\n.sk5-root .ue-trigger:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}\n.sk5-root.ue-open .ue-trigger{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 8%,transparent);}\n.sk5-root .ue-trigger[disabled]{opacity:.5;cursor:default;}\n.sk5-root .ue-triggerModel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-triggerLevel{flex:none;font-weight:500;}\n.sk5-root .ue-triggerChev{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;opacity:.45;transition:transform .18s var(--ue-motion);}\n.sk5-root.ue-open .ue-triggerChev{transform:rotate(180deg);}\n/* 档位配色 */\n.sk5-root .ue-lv-max{color:var(--ue-purple);}\n.sk5-root .ue-lv-norm{color:var(--ue-blue);}\n.sk5-root .ue-lv-def{color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);}\n.sk5-root .ue-lv-text{color:var(--dsw-alias-label-primary,#0f172a);}\n.sk5-root .ue-resetHidden{visibility:hidden;pointer-events:none;}\n/* 面板 */\n.sk5-root .sk5-drop{bottom:calc(100% + 8px);right:var(--ue-drop-right,0px);}\n.sk5-root .ue-panel[data-state=\"closing\"]{opacity:0;transform:translateY(4px) scale(.98);pointer-events:none;transition:opacity .15s ease,transform .15s ease;transform-origin:bottom right;}\n.sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 12px 32px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 16%,transparent),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);\nbody[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.4);}overflow:hidden;}\n/* 头部 */\n.sk5-root .ue-head{position:relative;display:flex;align-items:center;justify-content:center;min-height:46px;padding:2px 36px 4px;}\n.sk5-root .ue-center{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;max-width:100%;}\n.sk5-root .ue-title{font-size:16px;line-height:22px;font-weight:500;letter-spacing:.01em;}\n.sk5-root .ue-model{display:inline-flex;align-items:center;gap:2px;max-width:100%;padding:2px 4px;border:0;border-radius:6px;background:transparent;color:var(--ue-secondary);font-size:12px;line-height:16px;font-weight:400;cursor:pointer;transition:background .12s ease;}\n.sk5-root .ue-model:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}\n.sk5-root .ue-model[aria-expanded=\"true\"] .ue-modelChev{transform:rotate(180deg);}\n.sk5-root .ue-model:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}\n.sk5-root .ue-modelName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-modelChev{flex:none;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.5;transition:transform .18s var(--ue-motion);}\n.sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 45%,transparent);cursor:pointer;transition:background .12s ease,color .12s ease;}\n.sk5-root .ue-icon:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 60%,transparent);}\n.sk5-root .ue-icon:active{transform:translateY(-50%) scale(.94);}\n.sk5-root .ue-icon:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}\n.sk5-root .ue-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}\n.sk5-root .ue-bolt{left:2px;}\n.sk5-root .ue-bolt.ue-fastOn{color:light-dark(#a65300,#ffd182);background:light-dark(#fff3dc,#45361f);}\n.sk5-root .ue-bolt.ue-fastOn svg{fill:currentColor;stroke-width:1;}\n.sk5-root .ue-bolt[aria-disabled=\"true\"]{cursor:default;opacity:.6;}\n.sk5-root .ue-bolt[aria-busy=\"true\"]{opacity:.65;}\n.sk5-root .ue-fastStatus{padding:4px 2px 7px;color:var(--ue-secondary);font-size:11px;line-height:1.5;overflow-wrap:anywhere;}\n.sk5-root .ue-fastStatus button{border:0;background:transparent;color:var(--ue-brand,#3a83f7);font:inherit;cursor:pointer;padding:0 4px;text-decoration:underline;}\n.sk5-root .ue-fastStatus button:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:2px;}\n.sk5-root .ue-reset{right:2px;}\n.sk5-root .ue-resetFlash{background:rgba(146,79,247,.14);color:var(--ue-purple);}\n/* 滑杆区 */\n.sk5-root .ue-sliderArea{position:relative;margin-inline:2px;padding:1px 6px 2px;}\n.sk5-root .ue-sliderRow{position:relative;height:32px;display:flex;align-items:center;}\n.sk5-root .ue-track{corner-shape:round;position:relative;width:100%;height:24px;border-radius:12px;background:var(--ue-track);box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent);cursor:pointer;touch-action:none;outline:none;overflow:visible;isolation:isolate;transition:background .2s ease;}\n.sk5-root .ue-fill{corner-shape:round;position:absolute;left:0;top:0;bottom:0;width:calc(28px + (100% - 28px) * var(--ue-pos,0));border-radius:12px;background:var(--ue-blue);transition:width .3s var(--ue-motion),opacity .2s ease;z-index:1;}\n.sk5-root .ue-trackMax .ue-fill{opacity:0;}\n/* Ultra 渐变 + 揭示 */\n.sk5-root .ue-ultraLayer{position:absolute;inset:0;border-radius:12px;transition:opacity .35s ease;background:linear-gradient(90deg,color-mix(in srgb,#3a83f7 60%,#924ff7) 0%,#924ff7 55%,color-mix(in srgb,#924ff7 72%,#3a83f7) 100%);opacity:0;pointer-events:none;z-index:1;}\n.sk5-root .ue-trackMax .ue-ultraLayer{opacity:1;animation:ue-reveal 2s cubic-bezier(.19,1,.22,1) both;}\n.sk5-root .ue-ultraLayer::after{content:\"\";position:absolute;inset:0;border-radius:12px;background-image:radial-gradient(ellipse 50% 120% at 50% 50%,rgba(196,160,255,.55) 0%,rgba(196,160,255,0) 72%);background-size:40% 100%;background-repeat:no-repeat;background-position:-12% 50%;animation:ue-sheen 10s ease-in-out infinite alternate;pointer-events:none;}\n@keyframes ue-sheen{0%{background-position:-12% 50%}100%{background-position:112% 50%}}\n@keyframes ue-reveal{0%{-webkit-mask-position:110% 0;mask-position:110% 0}100%{-webkit-mask-position:0 0;mask-position:0 0}}\n.sk5-root .ue-ultraLayer{-webkit-mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);-webkit-mask-size:220% 100%;-webkit-mask-repeat:no-repeat;mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);mask-size:220% 100%;mask-repeat:no-repeat;}\n/* 持续流动光点 */\n.sk5-root .ue-stream{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .35s ease;z-index:2;}\n.sk5-root .ue-trackMax .ue-stream{opacity:1;}\n.sk5-root .ue-stream i{corner-shape:round;position:absolute;width:3px;height:3px;border-radius:999px;background:#ffffffb8;box-shadow:0 0 5px #ffffff57;animation-name:ue-flow;animation-timing-function:linear;animation-iteration-count:infinite;}\n.sk5-root .ue-stream i:nth-child(1){top:28%;animation-delay:-.2s}\n.sk5-root .ue-stream i:nth-child(2){top:58%;animation-delay:-1.1s}\n.sk5-root .ue-stream i:nth-child(3){top:40%;animation-delay:-2.0s}\n.sk5-root .ue-stream i:nth-child(4){top:68%;animation-delay:-2.8s}\n.sk5-root .ue-stream i:nth-child(5){top:34%;animation-delay:-1.6s}\n.sk5-root .ue-stream i:nth-child(6){top:52%;animation-delay:-.7s}\n.sk5-root .ue-stream i:nth-child(7){top:46%;animation-delay:-2.4s}\n.sk5-root .ue-stream i:nth-child(8){top:62%;animation-delay:-3.2s}\n@keyframes ue-flow{0%{left:102%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:-2%;opacity:0}}\n/* 迸发 */\n.sk5-root .ue-burstLayer{position:absolute;left:0;top:50%;width:1px;height:1px;pointer-events:none;z-index:3;opacity:0;}\n.sk5-root .ue-track.ue-burst .ue-burstLayer{opacity:1;}\n.sk5-root .ue-burstLayer span{position:absolute;left:0;top:0;width:5px;height:5px;border-radius:999px;background:var(--ue-purple);transform:translate(-50%,-50%) scale(.2);opacity:0;}\n.sk5-root .ue-track.ue-burst .ue-burstLayer span{animation:ue-burst .62s cubic-bezier(.25,1,.5,1) both;}\n.sk5-root .ue-burstLayer span:nth-child(4n+3){background:color-mix(in srgb,var(--ue-purple) 82%,var(--ue-blue));}\n.sk5-root .ue-burstLayer span:nth-child(4n+1):not(:first-child){background:color-mix(in srgb,var(--ue-purple) 68%,var(--ue-blue));}\n.sk5-root .ue-burstLayer span:nth-child(1){--x:-3px;--y:-34px}\n.sk5-root .ue-burstLayer span:nth-child(2){--x:15px;--y:-29px;animation-delay:8ms}\n.sk5-root .ue-burstLayer span:nth-child(3){--x:30px;--y:-19px}\n.sk5-root .ue-burstLayer span:nth-child(4){--x:34px;--y:-2px;animation-delay:12ms}\n.sk5-root .ue-burstLayer span:nth-child(5){--x:26px;--y:20px}\n.sk5-root .ue-burstLayer span:nth-child(6){--x:12px;--y:31px;animation-delay:10ms}\n.sk5-root .ue-burstLayer span:nth-child(7){--x:-6px;--y:34px}\n.sk5-root .ue-burstLayer span:nth-child(8){--x:-22px;--y:26px;animation-delay:14ms}\n.sk5-root .ue-burstLayer span:nth-child(9){--x:-32px;--y:9px}\n.sk5-root .ue-burstLayer span:nth-child(10){--x:-32px;--y:-10px;animation-delay:8ms}\n.sk5-root .ue-burstLayer span:nth-child(11){--x:-21px;--y:-26px}\n.sk5-root .ue-burstLayer span:nth-child(12){--x:7px;--y:-24px;animation-delay:6ms}\n.sk5-root .ue-burstLayer span:nth-child(13){--x:24px;--y:-9px}\n.sk5-root .ue-burstLayer span:nth-child(14){--x:20px;--y:10px;animation-delay:10ms}\n.sk5-root .ue-burstLayer span:nth-child(15){--x:-9px;--y:21px}\n.sk5-root .ue-burstLayer span:nth-child(16){--x:-25px;--y:-5px;animation-delay:12ms}\n@keyframes ue-burst{0%{opacity:1;transform:translate(-50%,-50%) scale(.2)}100%{opacity:0;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(.55)}}\n/* 刻度点 */\n.sk5-root .ue-tick{corner-shape:round;position:absolute;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 50%,transparent);pointer-events:none;transition:transform .12s ease,opacity .2s ease;z-index:3;}\n.sk5-root .ue-tickOn{background:rgba(255,255,255,.3);}\n.sk5-root .ue-trackMax .ue-tick{opacity:0;}\n.sk5-root .ue-track:hover .ue-tick{transform:scale(1.6);}\n/* 手柄 */\n.sk5-root .ue-handle{corner-shape:round;border-radius:999px;position:absolute;box-sizing:border-box;top:50%;left:calc(14px + (100% - 28px) * var(--ue-pos,0));width:28px;height:28px;margin:-14px 0 0 0;border-radius:999px;background:#fff;border:.5px solid color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 28%,transparent);box-shadow:0 0 2px rgba(0,0,0,.1);transform:translateX(-50%);z-index:4;will-change:left;transition:left .3s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;}\n.sk5-root .ue-moving .ue-handle{transition:left .15s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;transform:translateX(-50%) scale(1.14);box-shadow:0 0 2px rgba(0,0,0,.1),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent);}\n.sk5-root .ue-track:focus-visible{outline:none;}\n.sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}\n.sk5-root:not(.ue-kb) .ue-track:focus-visible .ue-handle{outline:none;}\n/* 端点标签：按住 150ms 才出现 */\n.sk5-root .ue-labels{position:absolute;left:8px;right:8px;bottom:2px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;opacity:0;transition:opacity .15s var(--ue-motion);font-size:11px;line-height:14px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);z-index:6;}\n.sk5-root .ue-labels.ue-labelsOn{opacity:1;}\n.sk5-root .ue-model.ue-modelHidden{opacity:0;pointer-events:none;}\n.sk5-root .ue-model{transition:opacity .15s var(--ue-motion),background .12s ease;}\n/* 内容进场 */\n.sk5-root .ue-head{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 40ms both;}\n.sk5-root .ue-sliderArea{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 56ms both;}\n@keyframes ue-enter{to{opacity:1;translate:0 0}}\n@keyframes ue-list-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}\n/* 模型列表 */\n.sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}\n.sk5-root .ue-models::-webkit-scrollbar,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar{width:6px;height:6px;}\n.sk5-root .ue-models::-webkit-scrollbar-track,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-track{background:transparent;}\n.sk5-root .ue-models::-webkit-scrollbar-thumb,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 20%,transparent);border-radius:999px;}\n.sk5-root .ue-models::-webkit-scrollbar-thumb:hover,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 32%,transparent);}\n.sk5-root .ue-models::-webkit-scrollbar-button,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-button{display:none;width:0;height:0;}\n\n.sk5-root .ue-group{margin-top:16px;}\n.sk5-root .ue-group:first-child{margin-top:2px;}\n\n.sk5-root .ue-groupName{margin:0 2px 6px;font-size:13px;line-height:18px;font-weight:600;letter-spacing:0;text-transform:none;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 58%,transparent);cursor:default;user-select:none;}\n.sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 14px);margin-left:14px;min-height:34px;padding:7px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .14s ease;}\n.sk5-root .ue-rowHasDesc{min-height:44px;}\n.sk5-root .ue-row:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 5%,transparent);}\n.sk5-root .ue-row:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:-2px;}\n.sk5-root .ue-row.ue-rowActive{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 12%,transparent);}\n.sk5-root .ue-row.ue-rowActive:hover{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 16%,transparent);}\n.sk5-root .ue-rowText{display:flex;flex-direction:column;min-width:0;}\n.sk5-root .ue-rowName{font-size:13px;line-height:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-rowDesc{margin-top:2px;font-size:11px;line-height:15px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-check{flex:none;color:var(--ue-brand,#3a83f7);font-size:14px;line-height:1;}\n/* 屏幕阅读器 */\n.sk5-root .ue-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}\n/* 减少动画 */\n@media (prefers-reduced-motion: reduce){\n.sk5-root .ue-head,.sk5-root .ue-sliderArea,.sk5-root .ue-models{animation:none;opacity:1;translate:0 0;transform:none;}\n.sk5-root .ue-panel[data-state=\"closing\"]{transition:none;}\n.sk5-root .ue-modelChev,.sk5-root .ue-triggerChev{transition:none;}\n.sk5-root .ue-model[aria-expanded=\"true\"] .ue-modelChev{transform:none;}\n.sk5-root .ue-ultraLayer,.sk5-root .ue-stream i,.sk5-root .ue-burstLayer span,.sk5-root .ue-tick,.sk5-root .ue-handle,.sk5-root .ue-fill{animation:none;transition:none;}\n.sk5-root .ue-trackMax .ue-ultraLayer{-webkit-mask-image:none;mask-image:none;}\n.sk5-root .ue-ultraLayer::after{animation:none;background-position:60% 50%;}\n}\n";		const NS = "ui-skin-switcher";
+		const ULTRA_CSS = "\n/* ── Ultra 面板 V7 · Codex 原型对齐 ─────────────────────────────\n   尺寸基准：面板 266×~100、padding 4、头部 min-height 56、滑杆行 32。\n   选择器统一 .sk5-root 前缀提高特异性，不使用 important 声明。\n   ───────────────────────────────────────────────────────────── */\n.sk5-root .sk5-drop{font-family:inherit;}\n.sk5-root{--ue-blue:#3a83f7;--ue-brand:#3a83f7;--ue-purple:#924ff7;--ue-hover:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);--ue-border:var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));--ue-tertiary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 38%,transparent);--ue-secondary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);--ue-track:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 10%,transparent);--ue-motion:cubic-bezier(.23,1,.32,1);}\n/* 触发器：模型名 + 档位名 + ▾ 合并成一个按钮，兼容 0.2.2 输入框紧凑断点 CSS 变量 */\n.sk5-root .ue-trigger{display:inline-flex;align-items:center;gap:4px;max-width:260px;padding:2px 6px;border:0;border-radius:8px;background:transparent;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#0f172a);cursor:pointer;transition:background .14s ease;}\n.sk5-root .ue-trigger:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}\n.sk5-root.ue-open .ue-trigger{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 8%,transparent);}\n.sk5-root .ue-trigger[disabled]{opacity:.5;cursor:default;}\n.sk5-root .ue-triggerIcon{display:var(--dsh-composer-model-icon-display,none);align-items:center;justify-content:center;flex:none;width:16px;height:16px;opacity:.72;}\n.sk5-root .ue-triggerIcon svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}\n.sk5-root .ue-triggerModel{display:var(--dsh-composer-model-text-display,inline);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-triggerLevel{display:var(--dsh-composer-model-text-display,inline);flex:none;font-weight:500;}\n.sk5-root .sk5-tModel,.sk5-root .sk5-tLevel,.sk5-root .sk5-sep{display:var(--dsh-composer-model-text-display,inline);}\n.sk5-root .ue-triggerChev{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;opacity:.45;transition:transform .18s var(--ue-motion);}\n.sk5-root.ue-open .ue-triggerChev{transform:rotate(180deg);}\n/* 模型角标与 0.2.2 语义色调 */\n.sk5-root .ue-model-label{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;white-space:nowrap;vertical-align:baseline;}\n.sk5-root .ue-model-labelTrigger{gap:3px;}\n.sk5-root .ue-model-labelName{min-width:0;overflow:hidden;text-overflow:ellipsis;}\n.sk5-root .ue-ver-badge{flex:none;display:inline-block;padding:0 6px;border-radius:999px;font-size:11px;line-height:16px;font-weight:500;letter-spacing:.02em;background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 9%,transparent);color:var(--ue-secondary);}\n.sk5-root .ue-ver-badge[data-tone=\"neutral\"]{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 9%,transparent);color:var(--ue-secondary);}\n.sk5-root .ue-ver-badge[data-tone=\"info\"]{background:rgba(59,130,246,.12);color:#3b82f6;}\n.sk5-root .ue-ver-badge[data-tone=\"success\"]{background:light-dark(rgba(16,185,129,.14),rgba(52,211,153,.16));color:light-dark(#059669,#34d399);}\n.sk5-root .ue-ver-badge[data-tone=\"warning\"]{background:light-dark(rgba(245,158,11,.15),rgba(251,191,36,.18));color:light-dark(#b45309,#fbbf24);}\n/* 档位配色 */\n.sk5-root .ue-lv-max{color:var(--ue-purple);}\n.sk5-root .ue-lv-norm{color:var(--ue-blue);}\n.sk5-root .ue-lv-def{color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);}\n.sk5-root .ue-lv-text{color:var(--dsw-alias-label-primary,#0f172a);}\n.sk5-root .ue-resetHidden{visibility:hidden;pointer-events:none;}\n/* 面板与 body Portal 防裁剪容器 */\n.sk5-root .sk5-drop{bottom:calc(100% + 8px);right:var(--ue-drop-right,0px);}\n.sk5-portal{position:fixed;inset:0;pointer-events:none;z-index:1200;}\n.sk5-root.sk5-portal .sk5-drop,.sk5-portal .sk5-drop{pointer-events:auto;position:fixed;bottom:var(--ue-drop-bottom,56px);right:var(--ue-drop-right,12px);top:auto;left:auto;max-height:min(420px,calc(100dvh - 72px));}\n.sk5-root .ue-panel[data-state=\"closing\"]{opacity:0;transform:translateY(4px) scale(.98);pointer-events:none;transition:opacity .15s ease,transform .15s ease;transform-origin:bottom right;}\n.sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 12px 32px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 16%,transparent),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);overflow:hidden;}\nhtml[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel,body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.4);}\n/* 头部 */\n.sk5-root .ue-head{position:relative;display:flex;align-items:center;justify-content:center;min-height:46px;padding:2px 36px 4px;}\n.sk5-root .ue-center{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;max-width:100%;}\n.sk5-root .ue-title{font-size:16px;line-height:22px;font-weight:500;letter-spacing:.01em;}\n.sk5-root .ue-model{display:inline-flex;align-items:center;gap:2px;max-width:100%;padding:2px 4px;border:0;border-radius:6px;background:transparent;color:var(--ue-secondary);font-size:12px;line-height:16px;font-weight:400;cursor:pointer;transition:background .12s ease;}\n.sk5-root .ue-model:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}\n.sk5-root .ue-model[aria-expanded=\"true\"] .ue-modelChev{transform:rotate(180deg);}\n.sk5-root .ue-model:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}\n.sk5-root .ue-modelName{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-modelChev{flex:none;width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;opacity:.5;transition:transform .18s var(--ue-motion);}\n.sk5-root .ue-icon{position:absolute;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 45%,transparent);cursor:pointer;transition:background .12s ease,color .12s ease;}\n.sk5-root .ue-icon:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 60%,transparent);}\n.sk5-root .ue-icon:active{transform:translateY(-50%) scale(.94);}\n.sk5-root .ue-icon:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}\n.sk5-root .ue-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}\n.sk5-root .ue-bolt{left:2px;}\n.sk5-root .ue-bolt.ue-fastOn{color:light-dark(#a65300,#ffd182);background:light-dark(#fff3dc,#45361f);}\n.sk5-root .ue-bolt.ue-fastOn svg{fill:currentColor;stroke-width:1;}\n.sk5-root .ue-bolt[aria-disabled=\"true\"]{cursor:default;opacity:.6;}\n.sk5-root .ue-bolt[aria-busy=\"true\"]{opacity:.65;}\n.sk5-root .ue-fastStatus{padding:4px 2px 7px;color:var(--ue-secondary);font-size:11px;line-height:1.5;overflow-wrap:anywhere;}\n.sk5-root .ue-fastStatus button{border:0;background:transparent;color:var(--ue-brand,#3a83f7);font:inherit;cursor:pointer;padding:0 4px;text-decoration:underline;}\n.sk5-root .ue-fastStatus button:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:2px;}\n.sk5-root .ue-reset{right:2px;}\n.sk5-root .ue-resetFlash{background:rgba(146,79,247,.14);color:var(--ue-purple);}\n/* 滑杆区与 conversation.input.model.options 扩展区（如 Teamwork 开关） */\n.sk5-root .ue-sliderArea{position:relative;margin-inline:2px;padding:1px 6px 2px;}\n.sk5-root .ue-options{border-top:.5px solid var(--dsw-alias-border-l1,var(--ue-border));margin-top:6px;padding-top:4px;}\n.sk5-root .ue-options:empty{display:none;}\n.sk5-root .ue-sliderRow{position:relative;height:32px;display:flex;align-items:center;}\n.sk5-root .ue-track{corner-shape:round;position:relative;width:100%;height:24px;border-radius:12px;background:var(--ue-track);box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent);cursor:pointer;touch-action:none;outline:none;overflow:visible;isolation:isolate;transition:background .2s ease;}\n.sk5-root .ue-fill{corner-shape:round;position:absolute;left:0;top:0;bottom:0;width:calc(28px + (100% - 28px) * var(--ue-pos,0));border-radius:12px;background:var(--ue-blue);transition:width .3s var(--ue-motion),opacity .2s ease;z-index:1;}\n.sk5-root .ue-trackMax .ue-fill{opacity:0;}\n/* Ultra 渐变 + 揭示 */\n.sk5-root .ue-ultraLayer{position:absolute;inset:0;border-radius:12px;transition:opacity .35s ease;background:linear-gradient(90deg,color-mix(in srgb,#3a83f7 60%,#924ff7) 0%,#924ff7 55%,color-mix(in srgb,#924ff7 72%,#3a83f7) 100%);opacity:0;pointer-events:none;z-index:1;}\n.sk5-root .ue-trackMax .ue-ultraLayer{opacity:1;animation:ue-reveal 2s cubic-bezier(.19,1,.22,1) both;}\n.sk5-root .ue-ultraLayer::after{content:\"\";position:absolute;inset:0;border-radius:12px;background-image:radial-gradient(ellipse 50% 120% at 50% 50%,rgba(196,160,255,.55) 0%,rgba(196,160,255,0) 72%);background-size:40% 100%;background-repeat:no-repeat;background-position:-12% 50%;animation:ue-sheen 10s ease-in-out infinite alternate;pointer-events:none;}\n@keyframes ue-sheen{0%{background-position:-12% 50%}100%{background-position:112% 50%}}\n@keyframes ue-reveal{0%{-webkit-mask-position:110% 0;mask-position:110% 0}100%{-webkit-mask-position:0 0;mask-position:0 0}}\n.sk5-root .ue-ultraLayer{-webkit-mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);-webkit-mask-size:220% 100%;-webkit-mask-repeat:no-repeat;mask-image:linear-gradient(90deg,#000 0%,#000 62%,transparent 100%);mask-size:220% 100%;mask-repeat:no-repeat;}\n/* 持续流动光点 */\n.sk5-root .ue-stream{position:absolute;inset:0;border-radius:12px;overflow:hidden;pointer-events:none;opacity:0;transition:opacity .35s ease;z-index:2;}\n.sk5-root .ue-trackMax .ue-stream{opacity:1;}\n.sk5-root .ue-stream i{corner-shape:round;position:absolute;width:3px;height:3px;border-radius:999px;background:#ffffffb8;box-shadow:0 0 5px #ffffff57;animation-name:ue-flow;animation-timing-function:linear;animation-iteration-count:infinite;}\n.sk5-root .ue-stream i:nth-child(1){top:28%;animation-delay:-.2s}\n.sk5-root .ue-stream i:nth-child(2){top:58%;animation-delay:-1.1s}\n.sk5-root .ue-stream i:nth-child(3){top:40%;animation-delay:-2.0s}\n.sk5-root .ue-stream i:nth-child(4){top:68%;animation-delay:-2.8s}\n.sk5-root .ue-stream i:nth-child(5){top:34%;animation-delay:-1.6s}\n.sk5-root .ue-stream i:nth-child(6){top:52%;animation-delay:-.7s}\n.sk5-root .ue-stream i:nth-child(7){top:46%;animation-delay:-2.4s}\n.sk5-root .ue-stream i:nth-child(8){top:62%;animation-delay:-3.2s}\n@keyframes ue-flow{0%{left:102%;opacity:0}8%{opacity:1}92%{opacity:1}100%{left:-2%;opacity:0}}\n/* 迸发 */\n.sk5-root .ue-burstLayer{position:absolute;left:0;top:50%;width:1px;height:1px;pointer-events:none;z-index:3;opacity:0;}\n.sk5-root .ue-track.ue-burst .ue-burstLayer{opacity:1;}\n.sk5-root .ue-burstLayer span{position:absolute;left:0;top:0;width:5px;height:5px;border-radius:999px;background:var(--ue-purple);transform:translate(-50%,-50%) scale(.2);opacity:0;}\n.sk5-root .ue-track.ue-burst .ue-burstLayer span{animation:ue-burst .62s cubic-bezier(.25,1,.5,1) both;}\n.sk5-root .ue-burstLayer span:nth-child(4n+3){background:color-mix(in srgb,var(--ue-purple) 82%,var(--ue-blue));}\n.sk5-root .ue-burstLayer span:nth-child(4n+1):not(:first-child){background:color-mix(in srgb,var(--ue-purple) 68%,var(--ue-blue));}\n.sk5-root .ue-burstLayer span:nth-child(1){--x:-3px;--y:-34px}\n.sk5-root .ue-burstLayer span:nth-child(2){--x:15px;--y:-29px;animation-delay:8ms}\n.sk5-root .ue-burstLayer span:nth-child(3){--x:30px;--y:-19px}\n.sk5-root .ue-burstLayer span:nth-child(4){--x:34px;--y:-2px;animation-delay:12ms}\n.sk5-root .ue-burstLayer span:nth-child(5){--x:26px;--y:20px}\n.sk5-root .ue-burstLayer span:nth-child(6){--x:12px;--y:31px;animation-delay:10ms}\n.sk5-root .ue-burstLayer span:nth-child(7){--x:-6px;--y:34px}\n.sk5-root .ue-burstLayer span:nth-child(8){--x:-22px;--y:26px;animation-delay:14ms}\n.sk5-root .ue-burstLayer span:nth-child(9){--x:-32px;--y:9px}\n.sk5-root .ue-burstLayer span:nth-child(10){--x:-32px;--y:-10px;animation-delay:8ms}\n.sk5-root .ue-burstLayer span:nth-child(11){--x:-21px;--y:-26px}\n.sk5-root .ue-burstLayer span:nth-child(12){--x:7px;--y:-24px;animation-delay:6ms}\n.sk5-root .ue-burstLayer span:nth-child(13){--x:24px;--y:-9px}\n.sk5-root .ue-burstLayer span:nth-child(14){--x:20px;--y:10px;animation-delay:10ms}\n.sk5-root .ue-burstLayer span:nth-child(15){--x:-9px;--y:21px}\n.sk5-root .ue-burstLayer span:nth-child(16){--x:-25px;--y:-5px;animation-delay:12ms}\n@keyframes ue-burst{0%{opacity:1;transform:translate(-50%,-50%) scale(.2)}100%{opacity:0;transform:translate(calc(-50% + var(--x)),calc(-50% + var(--y))) scale(.55)}}\n/* 刻度点 */\n.sk5-root .ue-tick{corner-shape:round;position:absolute;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 50%,transparent);pointer-events:none;transition:transform .12s ease,opacity .2s ease;z-index:3;}\n.sk5-root .ue-tickOn{background:rgba(255,255,255,.3);}\n.sk5-root .ue-trackMax .ue-tick{opacity:0;}\n.sk5-root .ue-track:hover .ue-tick{transform:scale(1.6);}\n/* 手柄 */\n.sk5-root .ue-handle{corner-shape:round;border-radius:999px;position:absolute;box-sizing:border-box;top:50%;left:calc(14px + (100% - 28px) * var(--ue-pos,0));width:28px;height:28px;margin:-14px 0 0 0;border-radius:999px;background:#fff;border:.5px solid color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 28%,transparent);box-shadow:0 0 2px rgba(0,0,0,.1);transform:translateX(-50%);z-index:4;will-change:left;transition:left .3s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;}\n.sk5-root .ue-moving .ue-handle{transition:left .15s var(--ue-motion),transform .18s var(--ue-motion),box-shadow .18s ease;transform:translateX(-50%) scale(1.14);box-shadow:0 0 2px rgba(0,0,0,.1),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 18%,transparent);}\n.sk5-root .ue-track:focus-visible{outline:none;}\n.sk5-root .ue-track:focus-visible .ue-handle{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;}\n.sk5-root:not(.ue-kb) .ue-track:focus-visible .ue-handle{outline:none;}\n/* 端点标签：按住 150ms 才出现 */\n.sk5-root .ue-labels{position:absolute;left:8px;right:8px;bottom:2px;display:flex;align-items:center;justify-content:space-between;pointer-events:none;opacity:0;transition:opacity .15s var(--ue-motion);font-size:11px;line-height:14px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);z-index:6;}\n.sk5-root .ue-labels.ue-labelsOn{opacity:1;}\n.sk5-root .ue-model.ue-modelHidden{opacity:0;pointer-events:none;}\n.sk5-root .ue-model{transition:opacity .15s var(--ue-motion),background .12s ease;}\n/* 内容进场 */\n.sk5-root .ue-head{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 40ms both;}\n.sk5-root .ue-sliderArea{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 56ms both;}\n@keyframes ue-enter{to{opacity:1;translate:0 0}}\n@keyframes ue-list-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}\n/* 模型列表与目录分提供商告警 */\n.sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}\n.sk5-root .ue-failure{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin:2px 2px 6px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-module-platform,color-mix(in srgb,#f59e0b 12%,transparent));color:var(--dsw-alias-state-warn-label,light-dark(#b45309,#fbbf24));font-size:11px;line-height:16px;}\n.sk5-root .ue-failureText{min-width:0;overflow-wrap:anywhere;}\n.sk5-root .ue-failureRetry{flex:none;border:0;background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer;padding:0 2px;text-decoration:underline;}\n.sk5-root .ue-failureRetry:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;border-radius:4px;}\n.sk5-root .ue-models::-webkit-scrollbar,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar{width:6px;height:6px;}\n.sk5-root .ue-models::-webkit-scrollbar-track,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-track{background:transparent;}\n.sk5-root .ue-models::-webkit-scrollbar-thumb,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 20%,transparent);border-radius:999px;}\n.sk5-root .ue-models::-webkit-scrollbar-thumb:hover,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 32%,transparent);}\n.sk5-root .ue-models::-webkit-scrollbar-button,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-button{display:none;width:0;height:0;}\n\n.sk5-root .ue-group{margin-top:16px;}\n.sk5-root .ue-group:first-child{margin-top:2px;}\n\n.sk5-root .ue-groupName{margin:0 2px 6px;font-size:13px;line-height:18px;font-weight:600;letter-spacing:0;text-transform:none;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 58%,transparent);cursor:default;user-select:none;}\n.sk5-root .ue-row{display:flex;align-items:center;justify-content:space-between;gap:10px;width:calc(100% - 14px);margin-left:14px;min-height:34px;padding:7px 10px;border:0;border-radius:10px;background:transparent;text-align:left;cursor:pointer;color:var(--dsw-alias-label-primary,#0f172a);transition:background .14s ease;}\n.sk5-root .ue-rowHasDesc{min-height:44px;}\n.sk5-root .ue-row:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 5%,transparent);}\n.sk5-root .ue-row:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:-2px;}\n.sk5-root .ue-row.ue-rowActive{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 12%,transparent);}\n.sk5-root .ue-row.ue-rowActive:hover{background:color-mix(in srgb,var(--ue-brand,#3a83f7) 16%,transparent);}\n.sk5-root .ue-rowText{display:flex;flex-direction:column;min-width:0;}\n.sk5-root .ue-rowName{font-size:13px;line-height:18px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-rowDesc{margin-top:2px;font-size:11px;line-height:15px;color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 48%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n.sk5-root .ue-check{flex:none;color:var(--ue-brand,#3a83f7);font-size:14px;line-height:1;}\n/* 屏幕阅读器 */\n.sk5-root .ue-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}\n/* 减少动画 */\n@media (prefers-reduced-motion: reduce){\n.sk5-root .ue-head,.sk5-root .ue-sliderArea,.sk5-root .ue-models{animation:none;opacity:1;translate:0 0;transform:none;}\n.sk5-root .ue-panel[data-state=\"closing\"]{transition:none;}\n.sk5-root .ue-modelChev,.sk5-root .ue-triggerChev{transition:none;}\n.sk5-root .ue-model[aria-expanded=\"true\"] .ue-modelChev{transform:none;}\n.sk5-root .ue-ultraLayer,.sk5-root .ue-stream i,.sk5-root .ue-burstLayer span,.sk5-root .ue-tick,.sk5-root .ue-handle,.sk5-root .ue-fill{animation:none;transition:none;}\n.sk5-root .ue-trackMax .ue-ultraLayer{-webkit-mask-image:none;mask-image:none;}\n.sk5-root .ue-ultraLayer::after{animation:none;background-position:60% 50%;}\n}\n";
+		const NS = "ui-skin-switcher";
 		/** Plugin-owned copy: `zh` is the key-set source of truth, `en` mirrors it. */
 		const DICTS = {
 			zh: {
+				"provider.account": "DeepSeek 账号",
 				"trigger.fallbackModel": "模型",
 				"trigger.selectModel": "选择模型",
 				"effort.title": "思考强度",
@@ -246,6 +269,8 @@ window.__ModuleLoader__.load({
 				"hint.slider": "使用左右方向键调整强度",
 				"status.loading": "加载中…",
 				"status.noModels": "暂无可用模型",
+				"warning.groupLoad": "{name} 加载失败：{message}",
+				"action.retry": "重试",
 				"fast.name": "快速执行（实验）",
 				"fast.on": "快速执行已开启；下一轮生效，保持当前模型和推理强度",
 				"fast.off": "快速执行已关闭；点击开启，下一轮生效",
@@ -261,6 +286,7 @@ window.__ModuleLoader__.load({
 				"fast.retry": "重新检查"
 			},
 			en: {
+				"provider.account": "DeepSeek Account",
 				"trigger.fallbackModel": "Model",
 				"trigger.selectModel": "Select model",
 				"effort.title": "Reasoning effort",
@@ -275,6 +301,8 @@ window.__ModuleLoader__.load({
 				"hint.slider": "Use the left and right arrow keys to adjust",
 				"status.loading": "Loading…",
 				"status.noModels": "No models available",
+				"warning.groupLoad": "{name} failed to load: {message}",
+				"action.retry": "Retry",
 				"fast.name": "Quick execution (experimental)",
 				"fast.on": "Quick execution on; applies next turn, keeping your model and reasoning effort",
 				"fast.off": "Quick execution off; enable for the next turn",
@@ -311,28 +339,92 @@ window.__ModuleLoader__.load({
 			if (g === void 0) return void 0;
 			return g.models.find((m) => m.id === model);
 		}
+		/** Order providers matching official DSH 0.2.2+: deepseek-account -> deepseek-official -> others. */
+		function providerRank(id) {
+			if (id === "deepseek-account") return 0;
+			if (id === "deepseek-official") return 1;
+			return 2;
+		}
+		function orderModelProviders(list) {
+			return Array.isArray(list) ? [...list].sort((a, b) => providerRank(a.id) - providerRank(b.id)) : [];
+		}
 		/** Effort slider / matrix / model list styles, injected once for this plugin. */
-		const CSS = ".sk5-root{position:relative;display:inline-flex;}.sk5-drop{font-family:inherit;position:absolute;bottom:calc(100% + 6px);right:0;border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 32px rgb(0 0 0 / .35);z-index:1200;color:var(--dsw-alias-label-primary);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}.sk5-status{padding:14px;font-size:12.5px;opacity:.65;text-align:center;}.sk5-err{padding:8px 4px 0;font-size:11.5px;color:var(--dsw-alias-state-error-primary);text-align:left;}.sk5-effort{width:225px;max-width:calc(100vw - 32px);box-sizing:border-box;padding:10px 12px 12px;}.sk5-track{position:relative;height:23px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 15%,transparent);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;}";
+		const CSS = ".sk5-root{position:relative;display:inline-flex;}.sk5-drop{font-family:inherit;position:absolute;bottom:calc(100% + 6px);right:0;border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 32px rgb(0 0 0 / .35);z-index:1200;color:var(--dsw-alias-label-primary);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}.sk5-status{padding:14px;font-size:12.5px;opacity:.65;text-align:center;}.sk5-err{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;padding:8px 4px 0;font-size:11.5px;color:var(--dsw-alias-state-error-primary);text-align:left;}.sk5-effort{width:225px;max-width:calc(100vw - 32px);box-sizing:border-box;padding:10px 12px 12px;}.sk5-track{position:relative;height:23px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 15%,transparent);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;}";
 		/** Per-model (provider\u0000model) effort memory, shared across the whole page. */
 		const effortMemory = /* @__PURE__ */ new Map();
 		/**
 		* Snapshot handed to `useSyncExternalStore` when a session resolved no
 		* directory. Module-level on purpose: `useSyncExternalStore` compares snapshots
-		* by identity, so a literal rebuilt on every render would report a change on
-		* every render and re-render forever.
+		* by identity.
 		*/
 		const NO_DIRECTORY_STATE = {
 			current: null,
 			groups: [],
+			failures: [],
 			status: "idle",
 			error: null
 		};
-		/** Two-level mask curve: right side opaque, left transparent, transition over 5%→75%. */
-		function fadeAt(fx) {
-			if (fx <= .05) return 0;
-			if (fx >= .75) return 1;
-			const t = (fx - .05) / .7;
-			return t * t * (3 - 2 * t);
+		const OPTIONS_SLOT = "conversation.input.model.options";
+		const NOOP_UNSUB = () => () => {};
+		const STRIPPED_OWNER_KEYS = /* @__PURE__ */ new Set([
+			"locked",
+			"t",
+			"directory",
+			"available",
+			"load",
+			"select",
+			"resolveText",
+			"renderSlot",
+			"renderSlotChain"
+		]);
+		const OptionErrorBoundary = typeof react.Component === "function"
+			? class OptionErrorBoundary extends react.Component {
+				constructor(p) {
+					super(p);
+					this.state = { failed: false };
+				}
+				static getDerivedStateFromError() {
+					return { failed: true };
+				}
+				componentDidCatch(err) {
+					if (typeof console !== "undefined" && typeof console.error === "function") {
+						console.error("[ultra-effort] model option crashed:", err);
+					}
+				}
+				render() {
+					return this.state.failed ? null : this.props.children;
+				}
+			}
+			: null;
+		function bindInjectedFace(raw) {
+			if (!raw || typeof raw !== "object") return {};
+			const { hooks, ...rest } = raw;
+			if (!hooks || typeof hooks !== "object") return rest;
+			const bound = { ...rest };
+			for (const [name, source] of Object.entries(hooks)) {
+				if (!name || !source || typeof source.subscribe !== "function" || typeof source.getSnapshot !== "function") continue;
+				const propName = "use" + name[0].toUpperCase() + name.slice(1);
+				const sub = (cb) => source.subscribe(cb);
+				bound[propName] = function useInjectedSource(selector = (v) => v) {
+					return react.useSyncExternalStore(sub, () => selector(source.getSnapshot()));
+				};
+			}
+			return bound;
+		}
+		let fallbackEntrySeq = 0;
+		const fallbackEntryKeys = /* @__PURE__ */ new WeakMap();
+		function keyOfOptionEntry(entry, idx) {
+			const id = entry?.options?.id ?? entry?.id;
+			if (typeof id === "string" && id.length > 0) return "id:" + id;
+			if (entry !== null && typeof entry === "object") {
+				let k = fallbackEntryKeys.get(entry);
+				if (k === void 0) {
+					k = ++fallbackEntrySeq;
+					fallbackEntryKeys.set(entry, k);
+				}
+				return "ref:" + k;
+			}
+			return "idx:" + idx;
 		}
 		/**
 		* Client plugin body: inject the stylesheet once, then register the composer
@@ -341,6 +433,71 @@ window.__ModuleLoader__.load({
 		* @param ctx - client root context carrying connection and slots.
 		*/
 		function apply(ctx) {
+			function OptionEntryItem({ entry, sessionId, standardProps, localeRev, ownerProps }) {
+				const injected = react.useMemo(() => {
+					const fn = entry.inject ?? entry.options?.inject;
+					const raw = typeof fn === "function" ? fn(sessionId) : (fn ?? {});
+					return bindInjectedFace(raw);
+				}, [entry, sessionId]);
+				const entryLocale = entry.locale ?? entry.options?.locale;
+				const entryT = react.useMemo(() => {
+					void localeRev;
+					if (entryLocale !== void 0 && typeof ctx.locale?.bind === "function") {
+						const bound = ctx.locale.bind(entryLocale);
+						return (k, params) => bound(k, params);
+					}
+					return void 0;
+				}, [entryLocale, localeRev]);
+				const Comp = entry.component;
+				if (typeof Comp !== "function") return null;
+				return react.createElement(Comp, {
+					...standardProps,
+					...(entryT === void 0 ? {} : { t: entryT }),
+					...injected,
+					...ownerProps
+				});
+			}
+			function ModelOptionsOutlet({ parentProps, locked, dismiss, reportFailure }) {
+				const slotVersion = react.useSyncExternalStore(
+					react.useCallback((fn) => typeof ctx.slots?.subscribe === "function" ? ctx.slots.subscribe(OPTIONS_SLOT, fn) : NOOP_UNSUB(), []),
+					() => typeof ctx.slots?.getVersion === "function" ? ctx.slots.getVersion(OPTIONS_SLOT) : 0
+				);
+				const localeRev = react.useSyncExternalStore(
+					react.useCallback((fn) => typeof ctx.locale?.subscribe === "function" ? ctx.locale.subscribe(fn) : NOOP_UNSUB(), []),
+					() => ctx.locale?.getSnapshot?.()?.revision ?? 0
+				);
+				const ownerProps = { locked, dismiss, reportFailure };
+				if (typeof parentProps.renderSlot === "function") {
+					return react.createElement("div", { className: "ue-options" }, parentProps.renderSlot(OPTIONS_SLOT, ownerProps));
+				}
+				const entries = react.useMemo(() => {
+					void slotVersion;
+					const raw = ctx.slots?.entriesOfSlot?.(OPTIONS_SLOT) ?? [];
+					return [...raw].sort((a, b) => ((a.options?.order ?? a.order ?? 0) - (b.options?.order ?? b.order ?? 0)));
+				}, [slotVersion]);
+				const standardProps = react.useMemo(() => {
+					const out = {};
+					for (const [k, v] of Object.entries(parentProps)) {
+						if (!STRIPPED_OWNER_KEYS.has(k)) out[k] = v;
+					}
+					return out;
+				}, [parentProps]);
+				if (entries.length === 0) return null;
+				return react.createElement("div", { className: "ue-options" }, entries.map((entry, idx) => {
+					const key = keyOfOptionEntry(entry, idx);
+					const node = react.createElement(OptionEntryItem, {
+						key: OptionErrorBoundary === null ? key : void 0,
+						entry,
+						sessionId: parentProps.sessionId,
+						standardProps,
+						localeRev,
+						ownerProps
+					});
+					return OptionErrorBoundary !== null
+						? react.createElement(OptionErrorBoundary, { key }, node)
+						: node;
+				}));
+			}
 			const fastControls = new Map();
 			ctx.effect(() => () => { for (const control of fastControls.values()) control.dispose(); fastControls.clear(); });
 			function fastControlFor(sessionId) {
@@ -354,17 +511,6 @@ window.__ModuleLoader__.load({
 				}));
 				return fastControls.get(sessionId);
 			}
-			/**
-			* The first-party model directory service. It carries the same host catalog
-			* and the same session selection projection the official `/model` selector
-			* renders, so this seat always shows what `/model` shows. DSH 0.1.5 replaced
-			* the older `connection.api.sessions` RPC face with this service.
-			*
-			* `select` answers with an outcome envelope — `{ ok: true }` or
-			* `{ ok: false, error: { code, message } }` — and only rejects for a
-			* transport-level throw, so a refused selection has to be unwrapped rather
-			* than caught.
-			*/
 			const directories = ctx.modelDirectories;
 			/** Unknown sessions make `directoryFor` throw; that must not break the seat. */
 			const directoryOf = (sessionId) => {
@@ -386,15 +532,32 @@ window.__ModuleLoader__.load({
 				const { locked, sessionId, t } = props;
 				const running = props.useSession(snapshot => snapshot.running);
 				const fastLocked = locked || running;
-				const renderModelLabel = (group, model) => react.createElement(ModelVersionBadge, {
-					provider: { id: group.id, name: providerLabel(group) }, model
-				});
 				/**
 				* Read one dictionary key through the framework-injected `t` seat; the
 				* Chinese table backs a host that shipped no locale service.
 				*/
 				const tr = (key) => typeof t === "function" ? t(key) : DICTS.zh[key] ?? key;
+				/** 提供商显示名：仅做展示映射（与设置页及官方 0.2.2 账号渠道一致），不改 groups 数据与选择回调。 */
+				const providerLabel = (g) => {
+					if (g.id === "deepseek-account") return tr("provider.account");
+					const key = (String(g.id) + " " + String(g.name)).toLowerCase();
+					if (key.indexOf("account") >= 0) return tr("provider.account");
+					if (key.indexOf("workbuddy") >= 0 || key.indexOf("work-buddy") >= 0 || key.indexOf("work buddy") >= 0) return "WorkBuddy";
+					if (key.indexOf("deepseek") >= 0) return "DeepSeek";
+					return g.name;
+				};
+				const resolveText = (text) => typeof ctx.locale?.resolveText === "function"
+					? ctx.locale.resolveText(text)
+					: (typeof text === "string" ? text : text?.zh ?? text?.en ?? "");
+				const renderModelLabel = (group, model, placement = "option") => react.createElement(ModelVersionBadge, {
+					providerId: group.id,
+					provider: { id: group.id, name: providerLabel(group) },
+					model,
+					placement,
+					resolveText
+				});
 				const [menu, setMenu] = react.useState(null);
+				const [kb, setKb] = react.useState(false);
 				const fastControl = react.useMemo(() => fastControlFor(sessionId), [sessionId]);
 				const fast = react.useSyncExternalStore(fastControl.subscribe, fastControl.getSnapshot);
 				react.useEffect(() => { void fastControl.refresh(); }, [fastControl]);
@@ -438,9 +601,8 @@ window.__ModuleLoader__.load({
 				const busy = busyKind !== null;
 				const [error, setError] = react.useState(null);
 				const [hoverIdx, setHoverIdx] = react.useState(null);
-								const rootRef = react.useRef(null);
+				const rootRef = react.useRef(null);
 				const effortTriggerRef = react.useRef(null);
-				const effortValueRef = react.useRef(null);
 				const trackRef = react.useRef(null);
 				const [moving, setMoving] = react.useState(false);
 				const dragIdxRef = react.useRef(null);
@@ -475,11 +637,12 @@ window.__ModuleLoader__.load({
 				const openedByKeyboardRef = react.useRef(false);
 				const pressTimerRef = react.useRef(null);
 				const [showLabels, setShowLabels] = react.useState(false);
+				const canPortal = createPortal !== null && typeof document !== "undefined" && Boolean(document.body);
 				/**
-				 * 面板定位（V6）：
-				 * 1) 垂直：抬到输入框之上，留 8px；
-				 * 2) 水平：右缘对齐输入框容器右缘（不是座位），左右各留 ≥8px；
-				 * 3) 矮窗口：先压缩（ue-compact），仍放不下再内部滚动。
+				 * 面板定位（V8 · Portal 防裁剪）：
+				 * 1) Portal 模式下基于视口 fixed 坐标写 --ue-drop-bottom / --ue-drop-right，脱离 .scrollBody 裁剪；
+				 * 2) 无 document.body 的最小测试桩下回退内联相对偏移；
+				 * 3) 监听 resize 与捕获阶段 scroll，矮窗口先压缩再允许内部滚动。
 				 */
 				react.useLayoutEffect(() => {
 					const root = rootRef.current;
@@ -490,45 +653,56 @@ window.__ModuleLoader__.load({
 						root.style.removeProperty("--ue-drop-right");
 						return;
 					}
-					const apply = () => {
-						const r = root.getBoundingClientRect();
-						let node = root.parentElement;
-						let composer = null;
-						for (let i = 0; i < 6 && node !== null; i++, node = node.parentElement) {
-							const b = node.getBoundingClientRect();
-							if (b.height >= 70) {
-								composer = b;
-								break;
+					const applyPos = () => {
+						const rootEl = rootRef.current;
+						const panelEl = panelRef.current;
+						if (rootEl === null || panelEl === null) return;
+						const r = rootEl.getBoundingClientRect();
+						const vw = window.innerWidth || 1024;
+						const vh = window.innerHeight || 768;
+						const panelW = panelEl.getBoundingClientRect().width || 266;
+						if (canPortal) {
+							const dropBottom = Math.max(8, Math.round(vh - r.top + 8));
+							const dropRight = Math.max(12, Math.round(Math.min(Math.max(vw - r.right, 12), Math.max(12, vw - panelW - 12))));
+							panelEl.style.setProperty("--ue-drop-bottom", dropBottom + "px");
+							panelEl.style.setProperty("--ue-drop-right", dropRight + "px");
+						} else {
+							let node = rootEl.parentElement;
+							let composer = null;
+							for (let i = 0; i < 6 && node !== null; i++, node = node.parentElement) {
+								const b = node.getBoundingClientRect();
+								if (b.height >= 70) {
+									composer = b;
+									break;
+								}
 							}
+							rootEl.style.setProperty("--ue-drop-lift", "8px");
+							const targetRight = (composer ? composer.right : r.right) - 8;
+							const right = Math.min(Math.max(targetRight, 8 + panelW), vw - 8);
+							rootEl.style.setProperty("--ue-drop-right", (r.right - right) + "px");
 						}
-						const vw = window.innerWidth;
-						/** V7：面板贴在触发器上方 8px（可覆盖输入框文本区），不再整体抬到输入框之上。 */
-						root.style.setProperty("--ue-drop-lift", "8px");
-						if (panel === null) return;
-						const pw = panel.getBoundingClientRect().width;
-						/** 右缘对齐发送按钮右缘（composer 外框内约 8px 内缩）。 */
-						const targetRight = (composer ? composer.right : r.right) - 8;
-						const right = Math.min(Math.max(targetRight, 8 + pw), vw - 8);
-						root.style.setProperty("--ue-drop-right", (r.right - right) + "px");
 						const avail = Math.max(120, r.top - 16);
-						/** 先量原始高度，放不下才压缩间距，仍放不下才滚动。 */
-						panel.classList.remove("ue-compact");
-						panel.style.maxHeight = "none";
-						panel.style.overflowY = "";
-						const natural = panel.scrollHeight;
+						panelEl.classList.remove("ue-compact");
+						panelEl.style.maxHeight = "none";
+						panelEl.style.overflowY = "";
+						const natural = panelEl.scrollHeight;
 						let needed = natural;
 						if (natural > avail) {
-							panel.classList.add("ue-compact");
-							needed = panel.scrollHeight;
+							panelEl.classList.add("ue-compact");
+							needed = panelEl.scrollHeight;
 						}
-						panel.style.maxHeight = Math.min(needed, avail) + "px";
-						/** 夹紧后一律允许滚动：无溢出时浏览器不会显示滚动条，有溢出也不会被裁掉。 */
-						panel.style.overflowY = "auto";
+						if (natural > 0) panelEl.style.maxHeight = Math.min(needed, avail) + "px";
+						else panelEl.style.removeProperty("max-height");
+						panelEl.style.overflowY = "auto";
 					};
-					apply();
-					window.addEventListener("resize", apply);
-					return () => window.removeEventListener("resize", apply);
-				}, [menu, panelView]);
+					applyPos();
+					window.addEventListener("resize", applyPos);
+					window.addEventListener("scroll", applyPos, true);
+					return () => {
+						window.removeEventListener("resize", applyPos);
+						window.removeEventListener("scroll", applyPos, true);
+					};
+				}, [menu, panelView, canPortal]);
 
 				/** 视图切换（滑杆↔列表）时给面板高度做 FLIP 过渡，避免硬切。 */
 				const heightRef = react.useRef(null);
@@ -538,7 +712,7 @@ window.__ModuleLoader__.load({
 					const next = panel.scrollHeight;
 					const prev = heightRef.current;
 					heightRef.current = next;
-					if (prev === null || prev === next) return;
+					if (prev === null || prev === next || next === 0) return;
 					if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 					panel.style.height = prev + "px";
 					panel.style.transition = "height .28s cubic-bezier(.19,1,.22,1)";
@@ -556,8 +730,6 @@ window.__ModuleLoader__.load({
 					const prev = prevMenuRef.current;
 					prevMenuRef.current = menu;
 					if (menu === "effort" && panelView === "effort") {
-						const root = rootRef.current;
-						if (root !== null) root.classList.toggle("ue-kb", openedByKeyboardRef.current);
 						if (prev !== "effort") {
 							if (trackRef.current !== null) trackRef.current.focus({ preventScroll: true });
 						} else if (modelBtnRef.current !== null) {
@@ -570,10 +742,11 @@ window.__ModuleLoader__.load({
 				}, [menu, panelView]);
 				/** This session's shared directory — the official selector's own data source. */
 				const directory = react.useMemo(() => directoryOf(sessionId), [sessionId]);
-				const state = react.useSyncExternalStore(react.useCallback((listener) => directory === null ? () => {} : directory.store.subscribe(listener), [directory]), react.useCallback(() => directory === null ? NO_DIRECTORY_STATE : directory.store.getSnapshot(), [directory]));
-				/** Composer trigger row owns this width; the slider handle spans half of it. */
+				const state = react.useSyncExternalStore(
+					react.useCallback((listener) => directory === null ? () => {} : directory.store.subscribe(listener), [directory]),
+					react.useCallback(() => directory === null ? NO_DIRECTORY_STATE : directory.store.getSnapshot(), [directory])
+				);
 				const HANDLE_W = 26;
-				const TRACK_H = 30;
 				const load = () => {
 					if (directory !== null) directory.load().catch(() => {});
 				};
@@ -583,22 +756,30 @@ window.__ModuleLoader__.load({
 				react.useEffect(() => {
 					if (menu !== null) load();
 				}, [menu]);
+				const groups = react.useMemo(() => orderModelProviders(state.groups), [state.groups]);
+				const failures = Array.isArray(state.failures) ? state.failures : [];
+				const current = state.current;
+				const curGroup = current === null ? void 0 : groups.find((g) => g.id === current.provider);
+				const curModel = current === null ? void 0 : findModel(groups, current.provider, current.model);
+				const hasSelectedModel = current !== null && curModel !== void 0;
 				react.useEffect(() => {
 					if (menu === null) return;
 					const handler = (ev) => {
-						if (rootRef.current === null || rootRef.current.contains(ev.target)) return;
+						const target = ev.target;
+						if (rootRef.current !== null && rootRef.current.contains(target)) return;
+						if (panelRef.current !== null && panelRef.current.contains(target)) return;
+						if (target !== null && typeof target === "object" && typeof target.closest === "function" && target.closest('[role="tooltip"]') !== null) return;
 						/** 阻止浏览器把焦点移到被点元素，交给关闭逻辑回收给触发按钮。 */
 						ev.preventDefault();
 						requestClose();
 					};
-					/** V2: Escape 先在面板内退出模型列表，再关闭整个面板。 */
+					/** V2: Escape 先在面板内退出模型列表（若有已选模型），再关闭整个面板。 */
 					const onKey = (ev) => {
-            if (ev.key !== "Escape" || menu !== "effort" || closingRef.current) return;
-            ev.preventDefault();
-            ev.stopPropagation();
-						if (menu === "effort" && panelView === "model") {
+						if (ev.key !== "Escape" || menu !== "effort" || closingRef.current) return;
+						ev.preventDefault();
+						ev.stopPropagation();
+						if (menu === "effort" && panelView === "model" && hasSelectedModel) {
 							setPanelView("effort");
-							ev.stopPropagation();
 							return;
 						}
 						requestClose();
@@ -610,7 +791,7 @@ window.__ModuleLoader__.load({
 						document.removeEventListener("mousedown", handler);
 						window.removeEventListener("keydown", onKey, true);
 					};
-				}, [menu, panelView]);
+				}, [menu, panelView, hasSelectedModel]);
 				react.useEffect(() => {
 					if (menu !== "effort") {
 						stopDrag();
@@ -638,19 +819,13 @@ window.__ModuleLoader__.load({
 				react.useEffect(() => {
 					setHoverIdx(null);
 				}, [state.current === null ? null : state.current.reasoningEffort]);
-				const apply = (sel, keepOpen) => {
+				const applySelection = (sel, keepOpen) => {
 					if (directory === null) return;
 					pendingRef.current = sel;
 					if (busyRef.current) return;
 					busyRef.current = true;
 					setBusy(keepOpen ? "effort" : "model");
 					setError(null);
-					/**
-					* The call itself can throw instead of answering — `select` refuses a
-					* session that may not use Agent-bound model RPCs before it goes async —
-					* and a refused selection RESOLVES with the Remote failure inside the
-					* envelope instead of rejecting. Both paths land on the seat's own error.
-					*/
 					let pending;
 					try {
 						pending = directory.select({
@@ -680,7 +855,7 @@ window.__ModuleLoader__.load({
 						const next = pendingRef.current;
 						if (next !== null && next !== sel) {
 							pendingRef.current = null;
-							apply(next, true);
+							applySelection(next, true);
 						}
 					}, (e) => {
 						busyRef.current = false;
@@ -690,8 +865,6 @@ window.__ModuleLoader__.load({
 						pendingRef.current = null;
 					});
 				};
-				const groups = state.groups;
-				const current = state.current;
 				/** Selection failures are local; catalog failures live on the shared store. */
 				const shownError = error !== null ? error : state.error;
 				const loaded = state.status !== "idle";
@@ -744,17 +917,13 @@ window.__ModuleLoader__.load({
 						if (container !== null) container.scrollTop = Math.max(0, row.offsetTop - container.clientHeight / 2 + row.offsetHeight / 2);
 					}
 				};
-				const curGroup = current === null ? void 0 : groups.find((g) => g.id === current.provider);
-				const curModel = current === null ? void 0 : findModel(groups, current.provider, current.model);
 				const modelLabel = curModel !== void 0 ? curModel.name : current !== null && current.model !== "" ? current.model : tr("trigger.fallbackModel");
 				const reasoning = curModel !== void 0 ? curModel.reasoning : void 0;
 				const effectiveEffort = current !== null && current.reasoningEffort !== void 0 ? current.reasoningEffort : reasoning !== void 0 && reasoning.defaultEffort !== void 0 ? reasoning.defaultEffort : void 0;
 
 				const defaultEffort = reasoning !== void 0 ? reasoning.defaultEffort : void 0;
-				/** 重置目标 = 当前模型的 defaultEffort；两者归一化后相等即视为“已在默认档”。 */
 				const normEffort = (v) => (v === void 0 || v === null ? "" : String(v).toLowerCase());
 				const atDefaultEffort = normEffort(effectiveEffort) === normEffort(defaultEffort);
-				/** 当前选中的是“默认”档（仅当模型未声明 defaultEffort 时才会出现该档）——用于标题取正文色。 */
 				const choices = reasoning === void 0 ? [] : [...reasoning.defaultEffort === void 0 ? [{
 					key: "default",
 					effort: void 0,
@@ -768,8 +937,6 @@ window.__ModuleLoader__.load({
 				const activeIdx = Math.max(0, choices.findIndex((c) => c.key === activeKey));
 				const posIdx = hoverIdx !== null ? hoverIdx : activeIdx;
 				const safePosIdx = choices.length > 0 ? Math.max(0, Math.min(choices.length - 1, posIdx)) : 0;
-				/** 面板内常驻档位名：与滑动/键盘位置同源。 */
-				const levelLabel = choices.length > 0 ? choices[safePosIdx].label : tr("effort.default");
 
 				const tickLeft = (i) => "calc(14px + (100% - 28px) * " + (choices.length > 1 ? i / (choices.length - 1) : 0) + ")";
 				/** 14 个流动光点：纵向随机 ±8px，时长/延迟随机（只算一次）。 */
@@ -777,26 +944,13 @@ window.__ModuleLoader__.load({
 					const dy = (Math.random() * 16 - 8).toFixed(1);
 					return { top: "calc(50% + " + dy + "px)", dur: (2.4 + Math.random() * 2.6).toFixed(2) + "s", delay: (-Math.random() * 4.5).toFixed(2) + "s" };
 				}), []);
-				const atMaxPos = choices.length > 1 && safePosIdx === choices.length - 1;
 				const displayIdx = settledIdx === null ? activeIdx : settledIdx;
 				const safeDisplayIdx = choices.length > 0 ? Math.max(0, Math.min(choices.length - 1, displayIdx)) : 0;
 				const displayChoice = choices.length > 0 ? choices[safeDisplayIdx] : null;
 				const displayLabel = displayChoice !== null ? displayChoice.label : tr("effort.default");
-				const hasEffort = reasoning !== void 0 && choices.length > 0;
 				/** V2: 端点状态跟随交互位置（hover/drag），而不是等待提交回写后的显示位置。 */
 				const inMax = choices.length > 1 && safePosIdx === choices.length - 1;
-				/** 触发器色调：最高档紫、默认档灰、其余蓝。 */
 				const levelTone = inMax ? "ue-lv-max" : (atDefaultEffort ? "ue-lv-def" : "ue-lv-norm");
-				/** 面板标题语调色：最高档紫、其余一律蓝（Codex 原型）。 */
-
-				/** 提供商显示名：仅做展示映射（与设置页一致），不改 groups 数据与选择回调。 */
-				const providerLabel = (g) => {
-					const key = (String(g.id) + " " + String(g.name)).toLowerCase();
-					if (key.indexOf("account") >= 0) return "DeepSeek 账号";
-					if (key.indexOf("workbuddy") >= 0 || key.indexOf("work-buddy") >= 0 || key.indexOf("work buddy") >= 0) return "WorkBuddy";
-					if (key.indexOf("deepseek") >= 0) return "DeepSeek";
-					return g.name;
-				};
 				const isDefaultChoice = choices.length > 0 && choices[safePosIdx].key === "default";
 				const titleTone = inMax ? "ue-lv-max" : (isDefaultChoice ? "ue-lv-text" : "ue-lv-norm");
 				/** 端点动画：仅在“首次进入终点”时触发一次，离开后复位可重播。 */
@@ -812,7 +966,7 @@ window.__ModuleLoader__.load({
 					const id = setTimeout(() => setBurst(false), 680);
 					return () => clearTimeout(id);
 				}, [inMax]);
-								const posPct = choices.length > 1 ? posIdx / (choices.length - 1) * 100 : 0;
+				const posPct = choices.length > 1 ? posIdx / (choices.length - 1) * 100 : 0;
 				/** 提交值 → CSS 变量；拖拽期间让位给 dragFrac，避免回跳。 */
 				react.useLayoutEffect(() => {
 					if (moving) return;
@@ -829,7 +983,7 @@ window.__ModuleLoader__.load({
 				const onPickModel = (m, g) => {
 					setSettledIdx(null);
 					const remembered = effortMemory.get(g.id + "\0" + m.id);
-					apply({
+					applySelection({
 						provider: g.id,
 						model: m.id,
 						...remembered === void 0 ? {} : { reasoningEffort: remembered }
@@ -837,7 +991,7 @@ window.__ModuleLoader__.load({
 				};
 				const onPickEffort = (effort) => {
 					if (current === null) return;
-					apply({
+					applySelection({
 						provider: current.provider,
 						model: current.model,
 						...effort === void 0 ? {} : { reasoningEffort: effort }
@@ -852,7 +1006,7 @@ window.__ModuleLoader__.load({
 				};
 				/** 滑杆键盘控制：方向键逐档、Home/End 到两端。 */
 				const onTrackKeyDown = (ev) => {
-					if (rootRef.current !== null) rootRef.current.classList.add("ue-kb");
+					if (!kb) setKb(true);
 					if (choices.length < 2) return;
 					let next = null;
 					if (ev.key === "ArrowRight" || ev.key === "ArrowUp") next = Math.min(choices.length - 1, safePosIdx + 1);
@@ -871,10 +1025,6 @@ window.__ModuleLoader__.load({
 					return Math.max(0, Math.min(1, (ev.clientX - rect.left - HANDLE_W / 2) / usable));
 				};
 				const idxFromFrac = (frac) => Math.max(0, Math.min(choices.length - 1, Math.round(frac * (choices.length - 1))));
-				/**
-				 * 档位磁吸：档位点前后各 w 的区间内把指针位移压缩到 k 倍，
-				 * 区间外略快以保证总行程仍是 0→1；档位点自身映射到原位，不累积误差。
-				 */
 				const DETENT_W = 0.03;
 				const DETENT_K = 0.5;
 				const mapDrag = (frac) => {
@@ -939,14 +1089,7 @@ window.__ModuleLoader__.load({
 				}
 				/**
 				* 停止拖拽并清理监听。
-				*
-				* 必须用函数声明而不是 const 箭头函数：组件在子代理会话
-				* （subagentAddress 非空）或模型目录未就绪时会提前 return null，
-				* 此时第 394 行的 useEffect 依然会在挂载后执行并调用本函数。
-				* const 绑定在提前 return 的渲染里从未初始化，会抛
-				* "Cannot access 'stopDrag' before initialization"，
-				* 导致 conversation.input.model 槽位条目崩溃、回退原生选择器。
-				* 函数声明在作用域入口即完成初始化，不受提前 return 影响。
+				* 必须用函数声明以避免子代理或目录未就绪提前 return 时的 TDZ 错误。
 				*/
 				function stopDrag() {
 					const el = dragElRef.current;
@@ -1017,50 +1160,14 @@ window.__ModuleLoader__.load({
 					el.addEventListener("pointercancel", onWinCancel);
 					el.addEventListener("lostpointercapture", onWinCancel);
 					window.addEventListener("blur", onWinCancel);
-				};				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? curGroup.name + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
-				return react.createElement("div", {
-					ref: rootRef,
-					className: "sk5-root" + (menu !== null ? " ue-open" : ""),
-					onKeyDown: (ev) => {
-						if (ev.key !== "Tab") return;
-						const rootEl = ev.currentTarget;
-						requestAnimationFrame(() => {
-							if (rootEl.contains(document.activeElement)) return;
-							skipFocusReturnRef.current = true;
-							requestClose(false);
-						});
-					}
-				}, react.createElement("button", {
-					ref: effortTriggerRef,
-					type: "button",
-					className: "ue-trigger",
-					disabled: locked || busy || current === null,
-					title: triggerTitle,
-					"aria-haspopup": "dialog",
-					"aria-expanded": menu === "effort",
-					onClick: (ev) => {
-						openedByKeyboardRef.current = ev.detail === 0;
-						if (closeTimerRef.current !== null) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
-						closingRef.current = false;
-						setClosing(false);
-						if (menu === "effort") { requestClose(); return; }
-						setMenu("effort");
-					}
-				}, react.createElement("span", { className: "ue-triggerModel" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel)), react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel), react.createElement("svg", {
-					className: "ue-triggerChev",
-					viewBox: "0 0 16 16",
-					"aria-hidden": "true"
-				}, react.createElement("path", { d: "M4 6l4 4 4-4" }))), react.createElement("span", {
-					className: "ue-sr",
-					role: "status",
-					"aria-live": "polite"
-				}, tr("sr.level").replace("{label}", displayLabel).replace("{i}", String(safePosIdx + 1)).replace("{n}", String(Math.max(choices.length, 1)))), react.createElement("span", {
-					className: "ue-sr",
-					id: hintIdRef.current
-				}, tr("hint.slider")), (menu === "effort" || closing) ? react.createElement("div", {
+				};
+				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? providerLabel(curGroup) + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
+				const headTitle = curModel === void 0 ? tr("trigger.selectModel") : displayLabel;
+				const dropNode = (menu === "effort" || closing) ? react.createElement("div", {
 					ref: panelRef,
 					id: panelIdRef.current,
 					"data-state": closing ? "closing" : "open",
+					"data-window-drag-exclude": "",
 					className: "sk5-drop sk5-effort ue-panel" + (closing ? " ue-closing" : ""),
 					role: "dialog",
 					"aria-label": tr("panel.aria")
@@ -1073,33 +1180,51 @@ window.__ModuleLoader__.load({
 					"aria-busy": fast.phase === "loading" || fast.phase === "saving" || fast.phase === "unknown",
 					"aria-disabled": fastLocked || fast.phase === "loading" || fast.phase === "saving" || fast.phase === "unknown" || (fast.phase === "ready" && (!fast.writable || !fast.idle)),
 					onClick: () => { if (fast.phase === "unavailable") void fastControl.refresh(); else void fastControl.toggle(fastLocked); }
-				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, tr("label.faster")), react.createElement("span", null, tr("label.smarter"))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + titleTone }, displayLabel), react.createElement("button", {
+				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, tr("label.faster")), react.createElement("span", null, tr("label.smarter"))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + (curModel === void 0 ? "ue-lv-text" : titleTone) }, headTitle), react.createElement("button", {
 					type: "button",
 					ref: modelBtnRef,
 					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : "") + (showLabels ? " ue-modelHidden" : ""),
 					"aria-controls": panelIdRef.current,
-					disabled: locked || busy,
+					disabled: Boolean(locked || busy),
 					title: triggerTitle,
 					"aria-haspopup": "listbox",
 					"aria-expanded": panelView === "model",
-					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
-				}, react.createElement("span", { className: "ue-modelName" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel)), react.createElement("svg", { className: "ue-modelChev", viewBox: "0 0 16 16", "aria-hidden": "true" }, react.createElement("path", { d: "M4 6l4 4 4-4" })))), react.createElement("button", {
+					onClick: () => {
+						if (!hasSelectedModel) {
+							setPanelView("model");
+							return;
+						}
+						setPanelView((v) => v === "model" ? "effort" : "model");
+					}
+				}, react.createElement("span", { className: "ue-modelName" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel, "menu")), react.createElement("svg", { className: "ue-modelChev", viewBox: "0 0 16 16", "aria-hidden": "true" }, react.createElement("path", { d: "M4 6l4 4 4-4" })))), react.createElement("button", {
 					type: "button",
 					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetHidden" : ""),
 					"aria-hidden": atDefaultEffort ? "true" : void 0,
 					tabIndex: atDefaultEffort ? -1 : 0,
 					title: tr("reset.title"),
 					"aria-label": tr("reset.aria"),
-					disabled: locked || busy || current === null || reasoning === void 0,
+					disabled: Boolean(locked || busy || current === null || reasoning === void 0),
 					onClick: onReset
 				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M2.8 6.2A5.6 5.6 0 1 1 2.6 9.4" }), react.createElement("path", { d: "M2.4 2.4v4h4" })))), react.createElement("div", {
 					className: "ue-fastStatus" + (["on", "off"].includes(fast.reason) && !fastLocked ? " ue-sr" : ""), role: "status", "aria-live": "polite"
-				}, tr("fast." + (fastLocked ? "running" : fast.reason)), ["unavailable", "protocol"].includes(fast.reason) ? react.createElement("button", { type: "button", onClick: () => void fastControl.refresh() }, tr("fast.retry")) : null), panelView === "model" ? react.createElement("div", {
+				}, tr("fast." + (fastLocked ? "running" : fast.reason)), ["unavailable", "protocol"].includes(fast.reason) ? react.createElement("button", { type: "button", onClick: () => void fastControl.refresh() }, tr("fast.retry")) : null), ...(panelView === "model" ? [react.createElement("div", {
 					ref: modelsRef,
 					className: "ue-models",
 					role: "listbox",
 					"aria-label": tr("trigger.selectModel")
-				}, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g, gi) => react.createElement("div", { key: g.id, className: "ue-group", role: "group", "aria-labelledby": "ue-g-" + gi }, react.createElement("div", { className: "ue-groupName", id: "ue-g-" + gi }, providerLabel(g)), g.models.map((m) => {
+				}, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, react.createElement("span", null, shownError), error === null && state.error !== null ? react.createElement("button", { type: "button", className: "ue-failureRetry", onClick: () => load() }, tr("action.retry")) : null) : null, failures.map((failure) => {
+					const fname = failure.id === "deepseek-account" ? tr("provider.account") : (failure.name || failure.id);
+					const warnText = tr("warning.groupLoad").replace("{name}", fname).replace("{message}", String(failure.message ?? ""));
+					return react.createElement("div", {
+						key: "fail:" + failure.id,
+						className: "ue-failure",
+						role: "status"
+					}, react.createElement("span", { className: "ue-failureText" }, warnText), react.createElement("button", {
+						type: "button",
+						className: "ue-failureRetry",
+						onClick: () => load()
+					}, tr("action.retry")));
+				}), loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g, gi) => react.createElement("div", { key: g.id, className: "ue-group", role: "group", "aria-labelledby": "ue-g-" + gi }, react.createElement("div", { className: "ue-groupName", id: "ue-g-" + gi }, providerLabel(g)), g.models.map((m) => {
 					const isCur = current !== null && current.provider === g.id && current.model === m.id;
 					return react.createElement("button", {
 						key: m.id,
@@ -1109,14 +1234,14 @@ window.__ModuleLoader__.load({
 						ref: (el) => { rowRefs.current[flatIndexById.get(g.id + "\u0000" + m.id)] = el; },
 						tabIndex: (flatIndexById.get(g.id + "\u0000" + m.id) === focusIdx) ? 0 : -1,
 						onKeyDown: (ev) => onRowKeyDown(ev, flatIndexById.get(g.id + "\u0000" + m.id)),
-						className: "ue-row" + (isCur ? " ue-rowActive" : ""),
+						className: "ue-row" + (isCur ? " ue-rowActive" : "") + (m.description !== void 0 ? " ue-rowHasDesc" : ""),
 						disabled: busy,
 						onClick: () => {
 							onPickModel(m, g);
 							setPanelView("effort");
 						}
-					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, renderModelLabel(g, m)), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
-				}))) : null) : react.createElement("div", { className: "ue-sliderArea" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("div", { className: "ue-sliderRow" }, react.createElement("div", {
+					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, renderModelLabel(g, m, "option")), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
+				}))) : null)] : [react.createElement("div", { className: "ue-sliderArea" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("div", { className: "ue-sliderRow" }, react.createElement("div", {
 					ref: trackRef,
 					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (moving ? " ue-moving" : "") + (burst ? " ue-burst" : "") + (showLabels ? " ue-labelsOn" : ""),
 					role: "slider",
@@ -1133,7 +1258,62 @@ window.__ModuleLoader__.load({
 					key: c.key,
 					className: "ue-tick" + (i <= safePosIdx ? " ue-tickOn" : ""),
 					style: { left: tickLeft(i) }
-				})), react.createElement("div", { className: "ue-handle" })))), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null) : null);
+				})), react.createElement("div", { className: "ue-handle" })))), react.createElement(ModelOptionsOutlet, {
+					parentProps: props,
+					locked: Boolean(locked || busy),
+					dismiss: () => requestClose(true),
+					reportFailure: (message) => setError(String(message))
+				})]), panelView !== "model" && shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null) : null;
+				const mountedDrop = dropNode === null
+					? null
+					: (canPortal
+						? createPortal(react.createElement("div", {
+							className: "sk5-root sk5-portal" + (kb ? " ue-kb" : "")
+						}, dropNode), document.body)
+						: dropNode);
+				return react.createElement("div", {
+					ref: rootRef,
+					className: "sk5-root" + (menu !== null ? " ue-open" : "") + (kb ? " ue-kb" : ""),
+					onKeyDown: (ev) => {
+						if (ev.key !== "Tab" || menu === null) return;
+						requestAnimationFrame(() => {
+							const a = typeof document !== "undefined" ? document.activeElement : null;
+							if ((rootRef.current !== null && rootRef.current.contains(a)) || (panelRef.current !== null && panelRef.current.contains(a))) return;
+							skipFocusReturnRef.current = true;
+							requestClose(false);
+						});
+					}
+				}, react.createElement("button", {
+					ref: effortTriggerRef,
+					type: "button",
+					className: "ue-trigger",
+					disabled: Boolean(locked || busy),
+					title: triggerTitle,
+					"aria-haspopup": "dialog",
+					"aria-expanded": menu === "effort",
+					onClick: (ev) => {
+						const byKb = ev.detail === 0;
+						openedByKeyboardRef.current = byKb;
+						setKb(byKb);
+						if (closeTimerRef.current !== null) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+						closingRef.current = false;
+						setClosing(false);
+						if (menu === "effort") { requestClose(); return; }
+						setPanelView(hasSelectedModel ? "effort" : "model");
+						setMenu("effort");
+					}
+				}, react.createElement("span", { className: "ue-triggerIcon", "aria-hidden": "true" }, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("rect", { x: "2.2", y: "2.5", width: "11.6", height: "4.4", rx: "1.2" }), react.createElement("rect", { x: "2.2", y: "9.1", width: "11.6", height: "4.4", rx: "1.2" }))), react.createElement("span", { className: "ue-triggerModel" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel, "trigger")), hasSelectedModel ? react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel) : null, react.createElement("svg", {
+					className: "ue-triggerChev",
+					viewBox: "0 0 16 16",
+					"aria-hidden": "true"
+				}, react.createElement("path", { d: "M4 6l4 4 4-4" }))), react.createElement("span", {
+					className: "ue-sr",
+					role: "status",
+					"aria-live": "polite"
+				}, tr("sr.level").replace("{label}", displayLabel).replace("{i}", String(safePosIdx + 1)).replace("{n}", String(Math.max(choices.length, 1)))), react.createElement("span", {
+					className: "ue-sr",
+					id: hintIdRef.current
+				}, tr("hint.slider")), mountedDrop);
 			}));
 		}
 		//#endregion

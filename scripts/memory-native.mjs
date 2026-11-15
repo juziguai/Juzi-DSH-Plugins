@@ -15,14 +15,14 @@ symlinkSync(path.join(dshRoot, 'node_modules/@deepseek-ai'), path.join(base, 'no
 const { execute } = await import(pathToFileURL(path.join(coreRoot, 'src/memory/index.js')));
 const native = path.join(dshRoot, 'node_modules/@deepseek-ai');
 const load=name=>import(pathToFileURL(path.join(native,name,'lib/index.js')));
-const [{Context},{default:SystemPrompt},{default:ToolRuntime},sessionApi,llm]=await Promise.all(['cordis','dsh-system-prompt','dsh-tools','dsh-session','dsh-llm'].map(load));
+const [{Context},{default:SystemPrompt},{default:ToolRuntime},executor,sessionApi,llm]=await Promise.all(['cordis','dsh-system-prompt','dsh-tools','dsh-tool-executor-native','dsh-session','dsh-llm'].map(load));
 const {MemoryHost}=await import(pathToFileURL(path.join(staged,'lib/index.js')));
 const root=path.join(base,'native-memory'),ctx=new Context(),fibers=[];
 const {MemoryConnections}=await import(pathToFileURL(path.join(staged,'lib/mcp.js')));
 const install=async(plugin,config)=>{const f=ctx.plugin(plugin,config);fibers.push(f);await f;};
 let host;const out={};
 try {
- await install(SystemPrompt);await install(ToolRuntime,{mode:'native'});await install(sessionApi.SessionStore);
+ await install(SystemPrompt);await install(ToolRuntime);await install(executor);await install(sessionApi.SessionStore);
  mkdirSync(root,{recursive:true});
  ctx.on('session/flush',s=>writeFileSync(path.join(root,s.id+'.json'),JSON.stringify(s.snapshotEvents()),{flush:true}));
  const config={coreEntry:path.join(coreRoot,'src/interfaces/cli/index.js'),memoryRoot:root,coreConfig:path.join(base,'core-config.json'),timeoutMs:1500,initialSettings:{bindings:[{root:path.join(base,'workspace/Atlas'),project_id:'isolated-atlas'}]}};

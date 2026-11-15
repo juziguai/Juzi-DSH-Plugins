@@ -1,12 +1,26 @@
 # 更新日志
 
-## Unreleased
+## [Unreleased]
 
-- 记忆插件声明宿主 peerDependencies（home-paths/llm/session/mcp-client/system-prompt/tools），修复目录 link 安装启用时 ERR_MODULE_NOT_FOUND。
-- 记忆插件修复回合改绑串用、自然过期快照与提炼未完成状态；新绑定下一回合生效，按时间边界刷新，支持同键续做并保留拒绝原因。修复失败启动后的会话服务释放。
-- 新增独立 `@juzi/dsh-memory` 0.1.0 源码包，使用正式主导航/设置/会话右侧槽及官方MCP接入LocalMemory 2.0.0/schema7。
-- 独立默认关闭的采集/召回、可信Host项目绑定、带证据回执与预览纠正/遗忘；待审核仅查看并指向本地CLI，无页面批准能力。
-- 仅在独立DSH_HOME/profile及数据目录验证；未修改已安装profile或调用付费模型。
+### 新增
+
+- 新增独立 `@juzi/dsh-memory` 0.2.0：面向 DSH `0.2.2-rc.1` 至 `0.2.2-rc.3`，通过官方 MCP 与独立原生执行器接入 LocalMemory 2.0.0 / schema7，提供主导航记忆管理、按项目隔离的默认关闭采集/召回开关、带证据回执与纠正/遗忘操作（候选仅本地 CLI 审核）。
+- 搜索与抓取 1.2.0：支持 `freshness` 时效筛选、域名黑白名单过滤，以及主通道不可用时降级至本机可信 `wb-proxy`（支持进程环境变量或注册表 `WB_PROXY_SETTINGS_PATH`）搜索兜底，默认工具调用超时预算提升至 120 秒。
+
+### 变更
+
+- 全量活跃插件兼容上界对齐 DSH `0.2.2-rc.3`（`<0.2.3-0` 预发布范围）：
+  - Ultra 0.3.2：下拉面板通过 Portal 挂载至 `document.body` 避免对话滚动区裁剪，承载 `conversation.input.model.options` 子槽位（如智能体团队协作开关），优先渲染 `0.2.2` 官方目录 `model.badge` 并回退内置快照表，支持未选模型恢复、`deepseek-account` 分组排序、目录失败重试与紧凑断点样式。
+  - 文本引用与批注 0.1.3：兼容 `0.2.2` 原生 `QuoteNode` 草稿偏移与发送中 `sending` 阶段保护，避让 `[data-text-interaction-surface]` 原生选区工具条，补充无边框窗口拖拽排除标记。
+  - 变更 0.1.5：监听 `fs/delete-intent` 捕获删除工具写前快照，兼容 `0.2.2` 子代理归属链路并将非 Git 写入汇总至主会话当前轮次，子代理会话隐藏顶栏按钮并提示归属说明。
+  - 解锁模式 0.2.0：同步 DSH `0.2.2-rc.3` 官方标准预设全部 23 项声明（含 `tool-office`、`interrupt: false`、`modelSelection`/`modelDiscovery`）。
+
+### 修复
+
+- 记忆 0.2.0：`clearSnapshots` 改用空内容 `developer/message` 替换过期活动快照，避免向模型适配器投递空 `user` 消息；声明完整宿主 `peerDependencies` 解决目录安装缺模块问题，修复回合改绑串用、自然过期刷新与失败启动资源释放，完善不可见记忆与审核回执提示。
+- 变更 0.1.5：保留 Windows 盘符字面量冒号（`D:`），修复点击打开外部文件时的资源 URI 编码问题。
+- 文本引用与批注 0.1.3：过滤代码块默认 `"Code"`/`"代码"` 横幅文案，避免误标为代码语言。
+- 电脑控制 1.1.4：放宽 `@deepseek-ai/dsh-mcp-client` 兼容上界至 `<0.2.3-0`，修复无前台窗口（句柄为 `0`）时焦点文本读取未返回 `target_changed` 的边界问题。
 
 
 ## [0.1.37] - 2026-11-03

@@ -49,10 +49,42 @@ export function apply(ctx, value) {
     await state.pending;
     await Promise.all([...state.turns.values()].map(record => record.dispose()));
   };
+  const isSubagentHeader = header => Boolean(header && (header.origin === 'subagent' || header.delegationDepth > 0));
+  const parentStateOf = session => {
+    for (let header = session?.header, seen = new Set(); isSubagentHeader(header) && header.parentSession && !seen.has(header.parentSession);) {
+      seen.add(header.parentSession);
+      const state = sessions.get(header.parentSession);
+      if (state) return state;
+      header = ctx.get?.('agents')?.get?.(header.parentSession)?.session?.header;
+    }
+  };
+  const stateOf = agent => {
+    for (let cur = agent, seen = new Set(); cur && !seen.has(cur); cur = cur.ownerAgent) {
+      seen.add(cur);
+      const state = sessions.get(cur.session?.id);
+      if (state) return state;
+    }
+    if (agent) {
+      try {
+        const root = ctx.get?.('subagents')?.rootOf?.(agent);
+        const state = sessions.get(root?.session?.id);
+        if (state) return state;
+      } catch (error) {
+        if (error?.code !== 'UNAUTHORIZED') warn(error);
+      }
+    }
+    return parentStateOf(agent?.session);
+  };
   ctx.on('session/event', (session, event) => {
     if (event.type === 'turn/start') start(session, event.data.turn);
     const state = sessions.get(session.id);
-    if (!state) return;
+    if (!state) {
+      if (event.type === 'tool/result') {
+        const parent = parentStateOf(session);
+        if (parent) enqueue(parent, () => { if (!parent.released && parent.current?.status === 'running') parent.current.markDirty(); });
+      }
+      return;
+    }
     if (event.type === 'tool/result') enqueue(state, () => state.turns.get(event.data.turn)?.markDirty());
     if (event.type === 'turn/end') enqueue(state, () => state.turns.get(event.data.turn)?.finish());
     if (event.type === 'workspace/changes') enqueue(state, () => {
@@ -61,8 +93,8 @@ export function apply(ctx, value) {
     });
   });
   ctx.on('tools/pre-execute', async (exec, next) => {
-    const state = sessions.get(exec.agent?.session.id);
-    if (state) { await state.pending; if (state.current) actors.set(exec, state.current); }
+    const state = stateOf(exec.agent);
+    if (state) { await state.pending; if (!state.released && state.current?.status === 'running') actors.set(exec, state.current); }
     return next();
   });
   const capture = async (target, actor, next) => {
@@ -73,6 +105,7 @@ export function apply(ctx, value) {
   };
   ctx.on('fs/write-intent', capture, { prepend: true });
   ctx.on('fs/edit-intent', capture, { prepend: true });
+  ctx.on('fs/delete-intent', capture, { prepend: true });
   ctx.on('session/disposed', session => {
     const state = sessions.get(session.id);
     if (state) enqueue(state, async () => {

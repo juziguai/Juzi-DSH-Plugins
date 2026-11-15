@@ -1,4 +1,4 @@
-// Styles preserved from the accepted Ultra 0.1.2 UI.
+// Styles preserved from the accepted Ultra 0.1.2 UI, extended for DSH 0.2.2+ Portal / Teamwork / Badge / Compact Composer contracts.
 export const ULTRA_CSS = `
 /* ── Ultra 面板 V7 · Codex 原型对齐 ─────────────────────────────
    尺寸基准：面板 266×~100、padding 4、头部 min-height 56、滑杆行 32。
@@ -6,26 +6,40 @@ export const ULTRA_CSS = `
    ───────────────────────────────────────────────────────────── */
 .sk5-root .sk5-drop{font-family:inherit;}
 .sk5-root{--ue-blue:#3a83f7;--ue-brand:#3a83f7;--ue-purple:#924ff7;--ue-hover:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);--ue-border:var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));--ue-tertiary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 38%,transparent);--ue-secondary:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);--ue-track:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 10%,transparent);--ue-motion:cubic-bezier(.23,1,.32,1);}
-/* 触发器：模型名 + 档位名 + ▾ 合并成一个按钮 */
+/* 触发器：模型名 + 档位名 + ▾ 合并成一个按钮，兼容 0.2.2 输入框紧凑断点 CSS 变量 */
 .sk5-root .ue-trigger{display:inline-flex;align-items:center;gap:4px;max-width:260px;padding:2px 6px;border:0;border-radius:8px;background:transparent;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#0f172a);cursor:pointer;transition:background .14s ease;}
 .sk5-root .ue-trigger:hover{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);}
 .sk5-root.ue-open .ue-trigger{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 8%,transparent);}
 .sk5-root .ue-trigger[disabled]{opacity:.5;cursor:default;}
-.sk5-root .ue-triggerModel{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.sk5-root .ue-triggerLevel{flex:none;font-weight:500;}
+.sk5-root .ue-triggerIcon{display:var(--dsh-composer-model-icon-display,none);align-items:center;justify-content:center;flex:none;width:16px;height:16px;opacity:.72;}
+.sk5-root .ue-triggerIcon svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;}
+.sk5-root .ue-triggerModel{display:var(--dsh-composer-model-text-display,inline);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.sk5-root .ue-triggerLevel{display:var(--dsh-composer-model-text-display,inline);flex:none;font-weight:500;}
+.sk5-root .sk5-tModel,.sk5-root .sk5-tLevel,.sk5-root .sk5-sep{display:var(--dsh-composer-model-text-display,inline);}
 .sk5-root .ue-triggerChev{width:12px;height:12px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;opacity:.45;transition:transform .18s var(--ue-motion);}
 .sk5-root.ue-open .ue-triggerChev{transform:rotate(180deg);}
+/* 模型角标与 0.2.2 语义色调 */
+.sk5-root .ue-model-label{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-width:0;white-space:nowrap;vertical-align:baseline;}
+.sk5-root .ue-model-labelTrigger{gap:3px;}
+.sk5-root .ue-model-labelName{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.sk5-root .ue-ver-badge{flex:none;display:inline-block;padding:0 6px;border-radius:999px;font-size:11px;line-height:16px;font-weight:500;letter-spacing:.02em;background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 9%,transparent);color:var(--ue-secondary);}
+.sk5-root .ue-ver-badge[data-tone="neutral"]{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 9%,transparent);color:var(--ue-secondary);}
+.sk5-root .ue-ver-badge[data-tone="info"]{background:rgba(59,130,246,.12);color:#3b82f6;}
+.sk5-root .ue-ver-badge[data-tone="success"]{background:light-dark(rgba(16,185,129,.14),rgba(52,211,153,.16));color:light-dark(#059669,#34d399);}
+.sk5-root .ue-ver-badge[data-tone="warning"]{background:light-dark(rgba(245,158,11,.15),rgba(251,191,36,.18));color:light-dark(#b45309,#fbbf24);}
 /* 档位配色 */
 .sk5-root .ue-lv-max{color:var(--ue-purple);}
 .sk5-root .ue-lv-norm{color:var(--ue-blue);}
 .sk5-root .ue-lv-def{color:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 55%,transparent);}
 .sk5-root .ue-lv-text{color:var(--dsw-alias-label-primary,#0f172a);}
 .sk5-root .ue-resetHidden{visibility:hidden;pointer-events:none;}
-/* 面板 */
+/* 面板与 body Portal 防裁剪容器 */
 .sk5-root .sk5-drop{bottom:calc(100% + 8px);right:var(--ue-drop-right,0px);}
+.sk5-portal{position:fixed;inset:0;pointer-events:none;z-index:1200;}
+.sk5-root.sk5-portal .sk5-drop,.sk5-portal .sk5-drop{pointer-events:auto;position:fixed;bottom:var(--ue-drop-bottom,56px);right:var(--ue-drop-right,12px);top:auto;left:auto;max-height:min(420px,calc(100dvh - 72px));}
 .sk5-root .ue-panel[data-state="closing"]{opacity:0;transform:translateY(4px) scale(.98);pointer-events:none;transition:opacity .15s ease,transform .15s ease;transform-origin:bottom right;}
-.sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 12px 32px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 16%,transparent),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);
-body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.4);}overflow:hidden;}
+.sk5-root .sk5-drop.ue-panel{width:min(266px,calc(100vw - 24px));padding:4px;border-radius:14px;border:1px solid var(--dsw-alias-border-l2,color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent));background:var(--dsw-alias-bg-layer-1,#fff);box-shadow:0 12px 32px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 16%,transparent),0 2px 8px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 6%,transparent);overflow:hidden;}
+html[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel,body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgba(0,0,0,.55),0 2px 10px rgba(0,0,0,.4);}
 /* 头部 */
 .sk5-root .ue-head{position:relative;display:flex;align-items:center;justify-content:center;min-height:46px;padding:2px 36px 4px;}
 .sk5-root .ue-center{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0;max-width:100%;}
@@ -51,8 +65,10 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-fastStatus button:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:2px;}
 .sk5-root .ue-reset{right:2px;}
 .sk5-root .ue-resetFlash{background:rgba(146,79,247,.14);color:var(--ue-purple);}
-/* 滑杆区 */
+/* 滑杆区与 conversation.input.model.options 扩展区（如 Teamwork 开关） */
 .sk5-root .ue-sliderArea{position:relative;margin-inline:2px;padding:1px 6px 2px;}
+.sk5-root .ue-options{border-top:.5px solid var(--dsw-alias-border-l1,var(--ue-border));margin-top:6px;padding-top:4px;}
+.sk5-root .ue-options:empty{display:none;}
 .sk5-root .ue-sliderRow{position:relative;height:32px;display:flex;align-items:center;}
 .sk5-root .ue-track{corner-shape:round;position:relative;width:100%;height:24px;border-radius:12px;background:var(--ue-track);box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 12%,transparent);cursor:pointer;touch-action:none;outline:none;overflow:visible;isolation:isolate;transition:background .2s ease;}
 .sk5-root .ue-fill{corner-shape:round;position:absolute;left:0;top:0;bottom:0;width:calc(28px + (100% - 28px) * var(--ue-pos,0));border-radius:12px;background:var(--ue-blue);transition:width .3s var(--ue-motion),opacity .2s ease;z-index:1;}
@@ -122,8 +138,12 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 .sk5-root .ue-sliderArea{opacity:0;translate:0 10px;animation:ue-enter .2s var(--ue-motion) 56ms both;}
 @keyframes ue-enter{to{opacity:1;translate:0 0}}
 @keyframes ue-list-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-/* 模型列表 */
+/* 模型列表与目录分提供商告警 */
 .sk5-root .ue-models{margin:2px -2px 0;padding:4px 2px 4px;max-height:min(280px,45vh);overflow-y:auto;overscroll-behavior:contain;animation:ue-list-in .18s cubic-bezier(.23,1,.32,1) both;}
+.sk5-root .ue-failure{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin:2px 2px 6px;padding:6px 8px;border-radius:8px;background:var(--dsw-alias-bg-module-platform,color-mix(in srgb,#f59e0b 12%,transparent));color:var(--dsw-alias-state-warn-label,light-dark(#b45309,#fbbf24));font-size:11px;line-height:16px;}
+.sk5-root .ue-failureText{min-width:0;overflow-wrap:anywhere;}
+.sk5-root .ue-failureRetry{flex:none;border:0;background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer;padding:0 2px;text-decoration:underline;}
+.sk5-root .ue-failureRetry:focus-visible{outline:2px solid var(--ue-brand,#3a83f7);outline-offset:1px;border-radius:4px;}
 .sk5-root .ue-models::-webkit-scrollbar,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar{width:6px;height:6px;}
 .sk5-root .ue-models::-webkit-scrollbar-track,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-track{background:transparent;}
 .sk5-root .ue-models::-webkit-scrollbar-thumb,.sk5-root .sk5-drop.ue-panel::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--dsw-alias-label-primary,#0f172a) 20%,transparent);border-radius:999px;}
@@ -158,4 +178,4 @@ body[data-ds-dark-theme] .sk5-root .sk5-drop.ue-panel{box-shadow:0 16px 40px rgb
 }
 `;
 
-export const CSS = ".sk5-root{position:relative;display:inline-flex;}.sk5-drop{font-family:inherit;position:absolute;bottom:calc(100% + 6px);right:0;border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 32px rgb(0 0 0 / .35);z-index:1200;color:var(--dsw-alias-label-primary);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}.sk5-status{padding:14px;font-size:12.5px;opacity:.65;text-align:center;}.sk5-err{padding:8px 4px 0;font-size:11.5px;color:var(--dsw-alias-state-error-primary);text-align:left;}.sk5-effort{width:225px;max-width:calc(100vw - 32px);box-sizing:border-box;padding:10px 12px 12px;}.sk5-track{position:relative;height:23px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 15%,transparent);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;}";
+export const CSS = ".sk5-root{position:relative;display:inline-flex;}.sk5-drop{font-family:inherit;position:absolute;bottom:calc(100% + 6px);right:0;border-radius:14px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 32px rgb(0 0 0 / .35);z-index:1200;color:var(--dsw-alias-label-primary);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}.sk5-status{padding:14px;font-size:12.5px;opacity:.65;text-align:center;}.sk5-err{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;padding:8px 4px 0;font-size:11.5px;color:var(--dsw-alias-state-error-primary);text-align:left;}.sk5-effort{width:225px;max-width:calc(100vw - 32px);box-sizing:border-box;padding:10px 12px 12px;}.sk5-track{position:relative;height:23px;border-radius:9px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 15%,transparent);cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;}";

@@ -6,7 +6,7 @@ import {pathToFileURL} from 'node:url';
 import {readFileSync} from 'node:fs';
 import {createQuote,quoteLabel,serializeMessage,plainDraft,referenceSpan,countChars,normalizeComment,commentKey,placeFloating,createHoverClock,INTRO,MAX_QUOTES,DRAFT_TTL,QUOTE_SOURCE} from '../plugins/dsh-quote-annotate/lib/quote-core.js';
 import {createQuoteStore,mergeDocuments,decodeDocument} from '../plugins/dsh-quote-annotate/lib/quote-store.js';
-import {extractSelection,editorBridge} from '../plugins/dsh-quote-annotate/lib/dom-anchors.js';
+import {DOM_ANCHORS,extractSelection,editorBridge} from '../plugins/dsh-quote-annotate/lib/dom-anchors.js';
 import {parseSentQuotes} from '../plugins/dsh-quote-annotate/lib/quote-display.js';
 const q=(text,metadata={},comment='')=>createQuote(text,{id:'q1',source:'assistant',...metadata},comment,1);
 test('quote format: golden single quote, empty requirements, and zero quotes',()=>{
@@ -107,7 +107,7 @@ test('floating bubble avoids unselected continuation/next lines, including a shi
 });
 test('sent quote display parses the canonical prefix without confusing the INTRO closing tag',()=>{
  const items=[q('<script>&lt;😀',{},'很好\n</quote>&'),q('  x = 1\n\tprint(x)',{id:'q2',kind:'code',lang:'python'})],wire=serializeMessage(items,'本轮要求原样\n 保留 '),parsed=parseSentQuotes(wire);
- assert.equal(parsed.quotes.length,2);assert.equal(parsed.quotes[0].text,items[0].text);assert.equal(parsed.quotes[0].comment,items[0].comment);assert.equal(parsed.quotes[1].kind,'code');assert(parsed.quotes[1].text.includes('```python\n  x = 1\n\tprint(x)\n```'));assert.equal(wire.slice(parsed.end),'本轮要求原样\n 保留 ');
+ assert.equal(parsed.quotes.length,2);assert.equal(parsed.quotes[0].text,items[0].text);assert.equal(parsed.quotes[0].comment,items[0].comment);assert.equal(parsed.quotes[1].kind,'code');assert(parsed.quotes[1].text.includes('```python\n  x = 1\n\tprint(x)\n```'));assert(wire.slice(parsed.end),'本轮要求原样\n 保留 ');
  const long=parseSentQuotes(serializeMessage([q('中'.repeat(4501))]));assert.equal(long.quotes[0].truncated,true);assert(long.quotes[0].text.endsWith('[已截断：原文共 4501 字，仅保留前 4000 字]'));
 });
 test('malformed or foreign quote messages remain raw instead of being partially hidden',()=>{
@@ -125,12 +125,126 @@ test('reference removal uses official detect coordinates and includes other chip
  const state={occurrences:[{source:'reference',ref:'file',offset:2,length:12},{source:QUOTE_SOURCE,ref:'jq:a',offset:16,length:38},{source:QUOTE_SOURCE,ref:'jq:b',offset:54,length:38}]};
  assert.deepEqual(referenceSpan(state,QUOTE_SOURCE,'jq:a'),{start:5,end:6});assert.deepEqual(referenceSpan(state,QUOTE_SOURCE,'jq:b'),{start:6,end:7});assert.equal(referenceSpan(state,QUOTE_SOURCE,'missing'),null);
 });
+function mockDomTree(){
+ const matchToken=(el,tok)=>{
+  if(!tok)return true;
+  if(tok.startsWith('.'))return el.classList.includes(tok.slice(1));
+  if(tok.startsWith('[')){const [,k,v]=/^\[([^=\]]+)(?:="([^"]*)")?\]$/.exec(tok);return v===undefined?Object.hasOwn(el.attrs,k):el.attrs[k]===v;}
+  return el.tagName.toLowerCase()===tok.toLowerCase();
+ };
+ const matchCompound=(el,comp)=>{
+  const parts=[];let rest=comp.trim();
+  const tag=/^[a-zA-Z0-9]+/.exec(rest);if(tag){parts.push(tag[0]);rest=rest.slice(tag[0].length);}
+  for(const m of rest.matchAll(/\.[^.[\s]+|\[[^\]]+\]/g))parts.push(m[0]);
+  return parts.length>0&&parts.every(p=>matchToken(el,p));
+ };
+ const matchSingle=(el,sel)=>{
+  const chain=sel.trim().split(/\s+/);
+  let cur=el;if(!matchCompound(cur,chain.at(-1)))return false;
+  for(let i=chain.length-2;i>=0;i--){cur=cur.parentElement;while(cur&&!matchCompound(cur,chain[i]))cur=cur.parentElement;if(!cur)return false;}
+  return true;
+ };
+ const matches=(el,selector)=>el?.nodeType===1&&selector.split(',').some(s=>matchSingle(el,s));
+ const doc={defaultView:{innerWidth:1024,innerHeight:768},querySelectorAll:sel=>all(doc.root,sel),createTreeWalker(root,what,filter){
+  const list=[];const walk=n=>{if(n!==root){const bit=n.nodeType===1?1:4;if(what&bit){const res=filter?filter.acceptNode(n):1;if(res===2)return;if(res===1)list.push(n);}}if(n.children)for(const c of n.children)walk(c);};
+  walk(root);let idx=-1;return {nextNode:()=>list[++idx]??null};
+ }};
+ const all=(root,sel)=>{const out=[];const walk=n=>{if(n.nodeType===1&&matches(n,sel))out.push(n);for(const c of n.children??[])walk(c);};walk(root);return out;};
+ const el=(tag,attrs={},...kids)=>{
+  const classes=(attrs.class??'').split(/\s+/).filter(Boolean);
+  const dataset={};for(const [k,v] of Object.entries(attrs))if(k.startsWith('data-'))dataset[k.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase())]=v;
+  const node={nodeType:1,tagName:tag.toUpperCase(),attrs,classList:classes,dataset,children:[],parentElement:null,ownerDocument:doc,
+   get textContent(){return this.children.map(c=>c.textContent).join('');},
+   matches:s=>matches(node,s),
+   closest(s){let cur=node;while(cur){if(matches(cur,s))return cur;cur=cur.parentElement;}return null;},
+   contains(other){let cur=other;while(cur){if(cur===node)return true;cur=cur.parentElement;}return false;},
+   querySelector:s=>all(node,s)[0]??null,
+   querySelectorAll:s=>all(node,s),
+   get firstElementChild(){return node.children.find(c=>c.nodeType===1)??null;},
+   getBoundingClientRect:()=>({left:0,top:0,right:600,bottom:500,width:600,height:500})
+  };
+  for(const k of kids){const child=typeof k==='string'?{nodeType:3,textContent:k,parentElement:node,ownerDocument:doc}:k;child.parentElement=node;node.children.push(child);}
+  return node;
+ };
+ const selectNode=target=>{
+  const textNodes=[];const collect=n=>{if(n.nodeType===3)textNodes.push(n);for(const c of n.children??[])collect(c);};collect(target);
+  const first=textNodes[0]??target,last=textNodes.at(-1)??target;
+  const makeRange=(sNode,sOff,eNode,eOff)=>({
+   commonAncestorContainer:target,startContainer:sNode,startOffset:sOff,endContainer:eNode,endOffset:eOff,
+   intersectsNode:n=>target.contains(n)||n.contains?.(target)||n===target,
+   getClientRects:()=>[{left:20,top:100,right:180,bottom:120,width:160,height:20}],
+   selectNodeContents(n){this.startContainer=n;this.startOffset=0;this.endContainer=n;this.endOffset=n.textContent.length;},
+   setStart(n,o){this.startContainer=n;this.startOffset=o;},
+   setEnd(n,o){this.endContainer=n;this.endOffset=o;},
+   toString(){return this.startContainer.nodeType===3?this.startContainer.textContent.slice(this.startOffset,this.endOffset):target.textContent;},
+   cloneRange(){return makeRange(this.startContainer,this.startOffset,this.endContainer,this.endOffset);}
+  });
+  return {isCollapsed:false,rangeCount:1,getRangeAt:()=>makeRange(first,0,last,last.textContent?.length??0)};
+ };
+ return {doc,el,selectNode};
+}
+test('0.2.2 DOM anchors attribute [data-tool], exclude tool buttons, and reject localized code fallback labels',()=>{
+ assert(DOM_ANCHORS.tool.includes('[data-tool]')&&DOM_ANCHORS.tool.includes('[data-sample]'));
+ assert(DOM_ANCHORS.codeWrap.includes('.md-code-block'));
+ assert(DOM_ANCHORS.menu.includes('[data-menu-material]')&&DOM_ANCHORS.menu.includes('[role="dialog"]'));
+ assert.equal(DOM_ANCHORS.nativeQuoteSurface,'[data-text-interaction-surface]');
+ const {doc,el,selectNode}=mockDomTree();
+ const toolBody=el('div',{'data-tool':'bash'},el('p',{},'tool stdout'),el('button',{},'Copy'));
+ const codeClass=el('code',{class:'language-TypeScript'},'const a = 1;');
+ const wrapFallbackEn=el('div',{class:'md-code-block','data-code-wrap':''},el('div',{'data-code-block-banner':''},el('div',{class:'heading'},el('span',{class:'language'},'Code'))),el('pre',{},el('code',{},'plain en')));
+ const wrapFallbackZh=el('div',{class:'md-code-block','data-code-wrap':''},el('div',{'data-code-block-banner':''},el('div',{class:'heading'},el('span',{class:'language'},'代码'))),el('pre',{},el('code',{},'plain zh')));
+ const wrapRustTitle=el('div',{class:'md-code-block'},el('div',{'data-code-block-banner':''},el('div',{class:'heading'},el('span',{class:'language'},'rust'),el('span',{},'src/lib.rs'))),el('pre',{},el('code',{},'fn main() {}')));
+ const wrapClassWins=el('div',{class:'md-code-block','data-code-wrap':''},el('div',{'data-code-block-banner':''},el('div',{class:'heading'},el('span',{class:'language'},'Code'))),el('pre',{},codeClass));
+ doc.root=el('main',{'data-conversation-content':'','data-conversation-session':'A'},
+  el('div',{'data-chat-flow':''},
+   el('div',{'data-chat-node-key':'r1','data-chat-flow-kind':'assistant-step','data-chat-turn':'2'},toolBody,wrapFallbackEn,wrapFallbackZh,wrapRustTitle,wrapClassWins,el('span',{'data-jq-message':'msg_2','data-jq':'',hidden:''}))),
+  el('div',{'data-composer-seat':''}));
+ const toolHit=extractSelection(selectNode(toolBody),'A');
+ assert.equal(toolHit.text,'tool stdout');
+ assert.equal(toolHit.metadata.source,'tool');
+ const enHit=extractSelection(selectNode(wrapFallbackEn.querySelector('code')),'A');
+ assert.equal(enHit.metadata.kind,'code');assert.equal(enHit.metadata.lang,'');
+ const zhHit=extractSelection(selectNode(wrapFallbackZh.querySelector('code')),'A');
+ assert.equal(zhHit.metadata.kind,'code');assert.equal(zhHit.metadata.lang,'');
+ const rustHit=extractSelection(selectNode(wrapRustTitle.querySelector('code')),'A');
+ assert.equal(rustHit.metadata.kind,'code');assert.equal(rustHit.metadata.lang,'rust');
+ const classHit=extractSelection(selectNode(codeClass),'A');
+ assert.equal(classHit.metadata.kind,'code');assert.equal(classHit.metadata.lang,'TypeScript');
+});
+test('editorBridge.spanOf and hasQuotes handle preceding QuoteNode, CommandChipNode, linebreaks, and block gaps',()=>{
+ const viewOf=editor=>({querySelector:()=>({querySelector:()=>({__lexicalEditor:editor})})});
+ const quoteNode={getType:()=> 'quote',getTextContent:()=> '> quoted line 1\n> quoted line 2'};
+ const foreignChip={getType:()=> 'reference-chip',getSource:()=> 'file',getReference:()=> 'a.ts',getTextContent:()=> '@a.ts'};
+ const chip1={getType:()=> 'reference-chip',__source:QUOTE_SOURCE,__ref:'jq:q1',getTextContent:()=> '⟦q1⟧'};
+ const chip2={getType:()=> 'reference-chip',getSource:()=> QUOTE_SOURCE,getReference:()=> 'jq:q2',getTextContent:()=> '⟦q2⟧'};
+ const p1={getChildren:()=>[quoteNode,{getType:()=> 'text',getTextContent:()=> ' '},foreignChip,chip1,{getType:()=> 'linebreak'},{getType:()=> 'composer-text-ref',getTextContent:()=> '@src/x.js'}]};
+ const p2={getChildren:()=>[chip2,{getType:()=> 'text',getTextContent:()=> 'tail'}]};
+ const root={getChildren:()=>[p1,p2],getFirstChild:()=>p1};
+ const map=new Map([['root',root],['q',quoteNode],['c1',chip1],['c2',chip2]]);
+ let readCalls=0;
+ const bridge=editorBridge(viewOf({getEditorState:()=>({_nodeMap:map,read:fn=>{readCalls++;return fn();}}),update:fn=>fn()}),QUOTE_SOURCE);
+ assert.equal(bridge.hasQuotes(),true);
+ assert.deepEqual(bridge.spanOf('jq:q1'),{start:3,end:4});
+ assert.deepEqual(bridge.spanOf('jq:q2'),{start:15,end:16});
+ assert.equal(bridge.spanOf('jq:missing'),null);
+ assert(readCalls>=4);
+ const cmdChip={getType:()=> 'command-chip',getTextContent:()=> '/compact'};
+ const cmdRoot={getChildren:()=>[{getChildren:()=>[cmdChip,{getType:()=> 'text',getTextContent:()=> ' '},chip1]}]};
+ const cmdBridge=editorBridge(viewOf({getEditorState:()=>({_nodeMap:new Map([['root',cmdRoot],['c1',chip1]])}),update:fn=>fn()}),QUOTE_SOURCE);
+ assert.equal(cmdBridge.hasQuotes(),false);
+ assert.deepEqual(cmdBridge.spanOf('jq:q1'),{start:2,end:3});
+ const brokenBridge=editorBridge(viewOf({getEditorState:()=>({_nodeMap:new Map(),read(){throw Error('read failed');}}),update:fn=>fn()}),QUOTE_SOURCE);
+ assert.equal(brokenBridge.hasQuotes(),false);
+ assert.equal(brokenBridge.spanOf('jq:q1'),null);
+});
 const anchor=process.env.DSH_ULTRA_UI_RUNTIME_ANCHOR;
 test('actual DOM selection extraction excludes controls, preserves code, and isolates session', {skip:!anchor},()=>{
  const req=createRequire(pathToFileURL(resolve(anchor))),{JSDOM}=req('jsdom');
- const dom=new JSDOM('<main data-conversation-content data-conversation-session="A"><div data-chat-flow><div data-chat-node-key="assistant-a"><pre><code class="language-python">  x = 1\n\tprint(x)</code></pre><button>复制</button><span role="status" aria-live="polite">已完成</span><span hidden>不可见</span><span data-jq-message="msgA" data-jq hidden></span></div><div data-chat-node-key="user-b"><p>下一条</p></div></div></main>');
- const d=dom.window.document,code=d.querySelector('code'),range=d.createRange();range.selectNodeContents(code);range.getClientRects=()=>[{left:10,top:100,right:100,bottom:140,width:90,height:40}];d.querySelector('[data-chat-flow]').getBoundingClientRect=()=>({left:0,top:0,right:400,bottom:400});
+ const dom=new JSDOM('<main data-conversation-content data-conversation-session="A"><div data-chat-flow><div data-chat-node-key="assistant-a"><div class="md-code-block" data-code-wrap><div data-code-block-banner><div class="heading"><span class="language">Code</span></div></div><pre><code id="plain">plain()</code></pre></div><pre><code id="py" class="language-python">  x = 1\n\tprint(x)</code></pre><div id="tool" data-tool="bash"><p>tool line</p><button>复制</button></div><span role="status" aria-live="polite">已完成</span><span hidden>不可见</span><span data-jq-message="msgA" data-jq hidden></span></div><div data-chat-node-key="user-b"><p>下一条</p></div></div></main>');
+ const d=dom.window.document,code=d.getElementById('py'),range=d.createRange();range.selectNodeContents(code);range.getClientRects=()=>[{left:10,top:100,right:100,bottom:140,width:90,height:40}];d.querySelector('[data-chat-flow]').getBoundingClientRect=()=>({left:0,top:0,right:400,bottom:400});
  const selection={rangeCount:1,isCollapsed:false,getRangeAt:()=>range};const result=extractSelection(selection,'A');assert.equal(result.text,'  x = 1\n\tprint(x)');assert.equal(result.metadata.kind,'code');assert.equal(result.metadata.lang,'python');assert.equal(extractSelection(selection,'B'),null);
+ range.selectNodeContents(d.getElementById('plain'));const plainCode=extractSelection(selection,'A');assert.equal(plainCode.metadata.kind,'code');assert.equal(plainCode.metadata.lang,'');
+ range.selectNodeContents(d.getElementById('tool'));const toolRes=extractSelection(selection,'A');assert.equal(toolRes.metadata.source,'tool');assert.equal(toolRes.text,'tool line');
  range.selectNodeContents(d.querySelector('[data-chat-flow]'));const mixed=extractSelection(selection,'A');assert.equal(mixed.metadata.source,'mixed');assert(!mixed.text.includes('复制'));assert(!mixed.text.includes('已完成'));assert(!mixed.text.includes('不可见'));assert(mixed.text.includes('下一条'));dom.window.close();
 });
 test('missing editor anchor fails closed before any mutation',()=>assert.throws(()=>editorBridge({querySelector:()=>null},QUOTE_SOURCE),/unavailable/));

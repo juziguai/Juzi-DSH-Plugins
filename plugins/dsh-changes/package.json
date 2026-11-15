@@ -1,6 +1,6 @@
 {
   "name": "@juzi/dsh-changes",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "description": "在 DSH 右侧实时查看每轮文件变更与差异，记录仅保留至本次运行结束。",
@@ -11,7 +11,7 @@
     "./package.json": "./package.json"
   },
   "engines": {
-    "dsh": ">=0.2.1-rc.3"
+    "dsh": ">=0.2.1-rc.3 <0.2.3-0"
   },
   "dsh": {
     "bundle": {

@@ -217,7 +217,10 @@ test('Host cleanup retains its acquired session service after the injected conte
   f.session.append('user/message',{...f.message('owned-memory'),source:{kind:SOURCE}},{surfaceOp:'append'});
   Object.defineProperty(f.ctx,'sessions',{get(){throw Error('inactive_context');}});
   await f.host.dispose();assert.equal(f.pool.disposed,true);assert.equal(flushed,1);
-  assert(f.nodes.every(seq=>!f.session.eventAt(seq).data.content.length));
+  assert(f.nodes.every(seq => {
+    const ev = f.session.eventAt(seq);
+    return ev.type === 'developer/message' && ev.data.message.role === 'developer' && ev.data.message.content.length === 0;
+  }));
 }));
 
 test('status keeps the accepted injection in history after the active snapshot expires', () => fixture(async f => {

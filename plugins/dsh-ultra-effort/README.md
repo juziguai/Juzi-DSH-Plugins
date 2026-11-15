@@ -2,9 +2,18 @@
 
 给 DeepSeek Harness（DSH）输入框提供模型选择、推理强度滑块、紫色星点动效、模型版本角标，以及按会话开启的快速执行（实验）。
 
+## 0.3.2 兼容性说明（DSH 0.2.2-rc.3）
+
+Ultra 0.3.2 支持 DSH **`>=0.2.1-rc.3 <0.2.3-0`**，已完成 **0.2.2-rc.3** 对齐验证：
+
+- **Agent Teamwork 开关共存（`conversation.input.model.options`）**：不重复声明已由官方 `@deepseek-ai/dsh-client-ui-model-selection` 持有的子槽位，直接订阅并承载 `conversation.input.model.options` 条目（含 DSH 0.2.2 默认挂载的智能体团队协作开关及其 Portal 说明浮层），无条目或子代理会话自动折叠零占位。
+- **动态模型角标优先（`model.badge`）**：优先渲染服务端 `/models` 下发的 `model.badge`（多语言解析 + `neutral` / `info` / `success` / `warning` 语义色调），仅在目录未提供 `badge` 时回退内置 DeepSeek 快照日期表。
+- **`document.body` Portal 防裁剪与窗口拖拽保护**：弹层通过 `react-dom` `createPortal` 挂载至 `document.body` 并附带 `data-window-drag-exclude`，避免被 0.2.2 对话滚动区 `.scrollBody` 裁剪或与桌面端标题栏拖拽区冲突。
+- **未选模型恢复与提供商告警**：初始无可用选中模型（`current === null`）时仍可点开触发器并直达模型列表；按 `deepseek-account` → `deepseek-official` → 其他渠道排序分组，展示 `state.failures` 分提供商加载失败提示与重试入口，并响应输入框窄屏紧凑 CSS 变量。
+
 ## 快速执行（实验）
 
-Ultra 0.3.1 需要 DSH **0.2.1-rc.3 或更新版本**；离线集成验证基线为 0.2.1-rc.3，Web关键交互已在0.2.1-rc.5验证，后续宿主版本仍需复核接口。该功能默认关闭，打开强度面板后，左侧闪电可通过点击或键盘切换。后台确认保存后以暖色显示开启；右侧重置仍只重置推理强度。
+该功能默认关闭，打开强度面板后，左侧闪电可通过点击或键盘切换。后台确认保存后以暖色显示开启；右侧重置仍只重置推理强度。
 
 - 只保存当前主会话的选择，同一会话恢复后继续使用；新会话和分叉会话默认关闭。
 - 空闲时切换，下一轮生效。每轮开始冻结策略，运行中其他窗口修改设置也不会改变本轮。
@@ -26,15 +35,15 @@ Ultra 0.3.1 需要 DSH **0.2.1-rc.3 或更新版本**；离线集成验证基线
 
 ## 模型版本角标
 
-Ultra 0.2.2 内置模型版本角标，模型选择、强度滑块、动效和日期角标只需安装本插件。标签直接调用内部组件，不声明或依赖额外标签插槽。搜索与抓取仍为独立插件。
+Ultra 内置模型角标组件：在 DSH 0.2.2+ 上优先展示目录接口下发的 `model.badge`，在未下发 `badge` 的官方 DeepSeek 渠道模型上回退展示内置快照日期角标。标签直接调用内部组件，不声明额外标签插槽。搜索与抓取仍为独立插件。
 
 已有用户：升级 Ultra → 验证角标和动效 → 停用旧 Model Version Badge。旧包暂时仍启用也不会产生重复角标。新版未通过验收时，保留错误现场并重新安装此前已验收的 Ultra 与独立角标版本组合。
 
 ## 源码与构建
 
-- `src/client.template.js`：模型菜单、交互与生命周期。
-- `src/styles.mjs`：现有样式和动效。
-- `src/model-label.mjs`：纯展示角标组件。
+- `src/client.template.js`：模型菜单、交互、`conversation.input.model.options` 承载与生命周期。
+- `src/styles.mjs`：样式、Portal 定位、角标色调和动效。
+- `src/model-label.mjs`：服务端 `model.badge` 优先 + 静态快照兜底的纯展示角标组件。
 - `src/model-versions.json`：随包快照版本表。
 - `src/fast-control.mjs`：快速执行的设置回执与异常状态机，内联到客户端。
 - `lib/fast-mode.js`、`lib/fast-state.js`、`lib/fast-policy.js`：Host 能力、轮次快照与执行提示。
@@ -93,7 +102,7 @@ Fork 自 [`@domitor-syh/dsh-ui-skin-switcher@0.2.5`](https://github.com/domitor-
 
 本地路径安装（profile 已配好，一般不需要再执行）：
 
-Ultra 0.3.0 新增官方 `@deepseek-ai/schemastery@3.18.5` 运行依赖。市场 / `file:` 安装由包管理器解析；使用源码 `link:` 时，先在本插件目录运行 `npm install --ignore-scripts --package-lock=false`，再交给 DSH 安装。
+Ultra 依赖官方 `@deepseek-ai/schemastery@^3.18.5`（兼容 DSH 0.2.2-rc.3 的 `3.19.0`）。市场 / `file:` 安装由包管理器解析；使用源码 `link:` 时，先在本插件目录运行 `npm install --ignore-scripts --package-lock=false`，再交给 DSH 安装。
 
 ```powershell
 dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\dsh-ultra-effort"
@@ -111,7 +120,7 @@ dsh plugin --profile web add "D:\Tools\AI\Juzi-Skill\Juzi-DSH-Plugins\plugins\ds
 ## 生效条件
 
 - Web：重启 `dsh web` 并刷新页面。
-- 桌面端：优先使用客户端原生插件管理器安装并确认加载状态；已在 DSH 0.2.1-rc.3 验证原生热替换，无须重启。若当前宿主提示需要重启，请先等待正在运行的会话结束，再由用户决定重启。
+- 桌面端：优先使用客户端原生插件管理器安装并确认加载状态；已在 DSH 0.2.1-rc.3+ 验证原生热替换，无须重启。若当前宿主提示需要重启，请先等待正在运行的会话结束，再由用户决定重启。
 
 ## 已知限制
 

@@ -29,6 +29,17 @@ window.__ModuleLoader__.load({
 		//#endregion
 		let react = require("react");
 		react = __toESM(react, 1);
+		let reactDom = null;
+		try {
+			reactDom = require("react-dom");
+		} catch {
+			reactDom = null;
+		}
+		const createPortal = reactDom !== null && typeof reactDom.createPortal === "function"
+			? reactDom.createPortal.bind(reactDom)
+			: (reactDom !== null && reactDom.default && typeof reactDom.default.createPortal === "function"
+				? reactDom.default.createPortal.bind(reactDom.default)
+				: null);
 		const ModelVersionBadge = (__MODEL_LABEL_FACTORY__)(react, __MODEL_VERSIONS__);
 		const createFastControl = __FAST_CONTROL_FACTORY__;
 		//#region src/client/index.ts
@@ -38,21 +49,10 @@ window.__ModuleLoader__.load({
 		* session's provider-grouped directory through `session.models` and submits
 		* through `session.selectModel` (the same session-scoped RPC the first-party
 		* selector uses), so a switch made here takes effect on the current session and
-		* is what `/model` shows next. Above the model list it renders a two-level
-		* (Off/Max) reasoning-effort slider for models that declare `reasoningEfforts`,
-		* remembering each model's last effort.
-		*/
-		/**
-		* Required Browser Services, exported as the Client Loader's declaration site.
-		*
-		* The Client Loader creates this package's entry from the module table and the
-		* fiber's dependencies come from THIS export — `dsh.client.inject` in
-		* package.json only orders bundle arrival. Without the export the fiber injects
-		* nothing, every `ctx.<service>` below stays undefined, and the shell reports
-		* the package as "is waiting for activation".
-		*
-		* Same six names the first-party `@deepseek-ai/dsh-client-ui-model-selection`
-		* declares; `modelDirectories` is the Service that plugin provides.
+		* is what `/model` shows next. Above the model list it renders a continuous
+		* reasoning-effort slider for models that declare `reasoningEfforts`,
+		* remembering each model's last effort, and hosts `conversation.input.model.options`
+		* contributions (such as DSH 0.2.2+ Agent Teamwork).
 		*/
 		const inject = [
 			"locale",
@@ -63,11 +63,12 @@ window.__ModuleLoader__.load({
 			"slots"
 		];
 		/** Dictionary namespace owned by this plugin. */
-		/** Ultra skin: purple gradient track, sparkles, Ultra title. Visual only. */
-				const ULTRA_CSS = __ULTRA_CSS__;		const NS = "ui-skin-switcher";
+		const ULTRA_CSS = __ULTRA_CSS__;
+		const NS = "ui-skin-switcher";
 		/** Plugin-owned copy: `zh` is the key-set source of truth, `en` mirrors it. */
 		const DICTS = {
 			zh: {
+				"provider.account": "DeepSeek 账号",
 				"trigger.fallbackModel": "模型",
 				"trigger.selectModel": "选择模型",
 				"effort.title": "思考强度",
@@ -82,6 +83,8 @@ window.__ModuleLoader__.load({
 				"hint.slider": "使用左右方向键调整强度",
 				"status.loading": "加载中…",
 				"status.noModels": "暂无可用模型",
+				"warning.groupLoad": "{name} 加载失败：{message}",
+				"action.retry": "重试",
 				"fast.name": "快速执行（实验）",
 				"fast.on": "快速执行已开启；下一轮生效，保持当前模型和推理强度",
 				"fast.off": "快速执行已关闭；点击开启，下一轮生效",
@@ -97,6 +100,7 @@ window.__ModuleLoader__.load({
 				"fast.retry": "重新检查"
 			},
 			en: {
+				"provider.account": "DeepSeek Account",
 				"trigger.fallbackModel": "Model",
 				"trigger.selectModel": "Select model",
 				"effort.title": "Reasoning effort",
@@ -111,6 +115,8 @@ window.__ModuleLoader__.load({
 				"hint.slider": "Use the left and right arrow keys to adjust",
 				"status.loading": "Loading…",
 				"status.noModels": "No models available",
+				"warning.groupLoad": "{name} failed to load: {message}",
+				"action.retry": "Retry",
 				"fast.name": "Quick execution (experimental)",
 				"fast.on": "Quick execution on; applies next turn, keeping your model and reasoning effort",
 				"fast.off": "Quick execution off; enable for the next turn",
@@ -147,6 +153,15 @@ window.__ModuleLoader__.load({
 			if (g === void 0) return void 0;
 			return g.models.find((m) => m.id === model);
 		}
+		/** Order providers matching official DSH 0.2.2+: deepseek-account -> deepseek-official -> others. */
+		function providerRank(id) {
+			if (id === "deepseek-account") return 0;
+			if (id === "deepseek-official") return 1;
+			return 2;
+		}
+		function orderModelProviders(list) {
+			return Array.isArray(list) ? [...list].sort((a, b) => providerRank(a.id) - providerRank(b.id)) : [];
+		}
 		/** Effort slider / matrix / model list styles, injected once for this plugin. */
 		const CSS = __CSS__;
 		/** Per-model (provider\u0000model) effort memory, shared across the whole page. */
@@ -154,21 +169,76 @@ window.__ModuleLoader__.load({
 		/**
 		* Snapshot handed to `useSyncExternalStore` when a session resolved no
 		* directory. Module-level on purpose: `useSyncExternalStore` compares snapshots
-		* by identity, so a literal rebuilt on every render would report a change on
-		* every render and re-render forever.
+		* by identity.
 		*/
 		const NO_DIRECTORY_STATE = {
 			current: null,
 			groups: [],
+			failures: [],
 			status: "idle",
 			error: null
 		};
-		/** Two-level mask curve: right side opaque, left transparent, transition over 5%→75%. */
-		function fadeAt(fx) {
-			if (fx <= .05) return 0;
-			if (fx >= .75) return 1;
-			const t = (fx - .05) / .7;
-			return t * t * (3 - 2 * t);
+		const OPTIONS_SLOT = "conversation.input.model.options";
+		const NOOP_UNSUB = () => () => {};
+		const STRIPPED_OWNER_KEYS = /* @__PURE__ */ new Set([
+			"locked",
+			"t",
+			"directory",
+			"available",
+			"load",
+			"select",
+			"resolveText",
+			"renderSlot",
+			"renderSlotChain"
+		]);
+		const OptionErrorBoundary = typeof react.Component === "function"
+			? class OptionErrorBoundary extends react.Component {
+				constructor(p) {
+					super(p);
+					this.state = { failed: false };
+				}
+				static getDerivedStateFromError() {
+					return { failed: true };
+				}
+				componentDidCatch(err) {
+					if (typeof console !== "undefined" && typeof console.error === "function") {
+						console.error("[ultra-effort] model option crashed:", err);
+					}
+				}
+				render() {
+					return this.state.failed ? null : this.props.children;
+				}
+			}
+			: null;
+		function bindInjectedFace(raw) {
+			if (!raw || typeof raw !== "object") return {};
+			const { hooks, ...rest } = raw;
+			if (!hooks || typeof hooks !== "object") return rest;
+			const bound = { ...rest };
+			for (const [name, source] of Object.entries(hooks)) {
+				if (!name || !source || typeof source.subscribe !== "function" || typeof source.getSnapshot !== "function") continue;
+				const propName = "use" + name[0].toUpperCase() + name.slice(1);
+				const sub = (cb) => source.subscribe(cb);
+				bound[propName] = function useInjectedSource(selector = (v) => v) {
+					return react.useSyncExternalStore(sub, () => selector(source.getSnapshot()));
+				};
+			}
+			return bound;
+		}
+		let fallbackEntrySeq = 0;
+		const fallbackEntryKeys = /* @__PURE__ */ new WeakMap();
+		function keyOfOptionEntry(entry, idx) {
+			const id = entry?.options?.id ?? entry?.id;
+			if (typeof id === "string" && id.length > 0) return "id:" + id;
+			if (entry !== null && typeof entry === "object") {
+				let k = fallbackEntryKeys.get(entry);
+				if (k === void 0) {
+					k = ++fallbackEntrySeq;
+					fallbackEntryKeys.set(entry, k);
+				}
+				return "ref:" + k;
+			}
+			return "idx:" + idx;
 		}
 		/**
 		* Client plugin body: inject the stylesheet once, then register the composer
@@ -177,6 +247,71 @@ window.__ModuleLoader__.load({
 		* @param ctx - client root context carrying connection and slots.
 		*/
 		function apply(ctx) {
+			function OptionEntryItem({ entry, sessionId, standardProps, localeRev, ownerProps }) {
+				const injected = react.useMemo(() => {
+					const fn = entry.inject ?? entry.options?.inject;
+					const raw = typeof fn === "function" ? fn(sessionId) : (fn ?? {});
+					return bindInjectedFace(raw);
+				}, [entry, sessionId]);
+				const entryLocale = entry.locale ?? entry.options?.locale;
+				const entryT = react.useMemo(() => {
+					void localeRev;
+					if (entryLocale !== void 0 && typeof ctx.locale?.bind === "function") {
+						const bound = ctx.locale.bind(entryLocale);
+						return (k, params) => bound(k, params);
+					}
+					return void 0;
+				}, [entryLocale, localeRev]);
+				const Comp = entry.component;
+				if (typeof Comp !== "function") return null;
+				return react.createElement(Comp, {
+					...standardProps,
+					...(entryT === void 0 ? {} : { t: entryT }),
+					...injected,
+					...ownerProps
+				});
+			}
+			function ModelOptionsOutlet({ parentProps, locked, dismiss, reportFailure }) {
+				const slotVersion = react.useSyncExternalStore(
+					react.useCallback((fn) => typeof ctx.slots?.subscribe === "function" ? ctx.slots.subscribe(OPTIONS_SLOT, fn) : NOOP_UNSUB(), []),
+					() => typeof ctx.slots?.getVersion === "function" ? ctx.slots.getVersion(OPTIONS_SLOT) : 0
+				);
+				const localeRev = react.useSyncExternalStore(
+					react.useCallback((fn) => typeof ctx.locale?.subscribe === "function" ? ctx.locale.subscribe(fn) : NOOP_UNSUB(), []),
+					() => ctx.locale?.getSnapshot?.()?.revision ?? 0
+				);
+				const ownerProps = { locked, dismiss, reportFailure };
+				if (typeof parentProps.renderSlot === "function") {
+					return react.createElement("div", { className: "ue-options" }, parentProps.renderSlot(OPTIONS_SLOT, ownerProps));
+				}
+				const entries = react.useMemo(() => {
+					void slotVersion;
+					const raw = ctx.slots?.entriesOfSlot?.(OPTIONS_SLOT) ?? [];
+					return [...raw].sort((a, b) => ((a.options?.order ?? a.order ?? 0) - (b.options?.order ?? b.order ?? 0)));
+				}, [slotVersion]);
+				const standardProps = react.useMemo(() => {
+					const out = {};
+					for (const [k, v] of Object.entries(parentProps)) {
+						if (!STRIPPED_OWNER_KEYS.has(k)) out[k] = v;
+					}
+					return out;
+				}, [parentProps]);
+				if (entries.length === 0) return null;
+				return react.createElement("div", { className: "ue-options" }, entries.map((entry, idx) => {
+					const key = keyOfOptionEntry(entry, idx);
+					const node = react.createElement(OptionEntryItem, {
+						key: OptionErrorBoundary === null ? key : void 0,
+						entry,
+						sessionId: parentProps.sessionId,
+						standardProps,
+						localeRev,
+						ownerProps
+					});
+					return OptionErrorBoundary !== null
+						? react.createElement(OptionErrorBoundary, { key }, node)
+						: node;
+				}));
+			}
 			const fastControls = new Map();
 			ctx.effect(() => () => { for (const control of fastControls.values()) control.dispose(); fastControls.clear(); });
 			function fastControlFor(sessionId) {
@@ -190,17 +325,6 @@ window.__ModuleLoader__.load({
 				}));
 				return fastControls.get(sessionId);
 			}
-			/**
-			* The first-party model directory service. It carries the same host catalog
-			* and the same session selection projection the official `/model` selector
-			* renders, so this seat always shows what `/model` shows. DSH 0.1.5 replaced
-			* the older `connection.api.sessions` RPC face with this service.
-			*
-			* `select` answers with an outcome envelope — `{ ok: true }` or
-			* `{ ok: false, error: { code, message } }` — and only rejects for a
-			* transport-level throw, so a refused selection has to be unwrapped rather
-			* than caught.
-			*/
 			const directories = ctx.modelDirectories;
 			/** Unknown sessions make `directoryFor` throw; that must not break the seat. */
 			const directoryOf = (sessionId) => {
@@ -222,15 +346,32 @@ window.__ModuleLoader__.load({
 				const { locked, sessionId, t } = props;
 				const running = props.useSession(snapshot => snapshot.running);
 				const fastLocked = locked || running;
-				const renderModelLabel = (group, model) => react.createElement(ModelVersionBadge, {
-					provider: { id: group.id, name: providerLabel(group) }, model
-				});
 				/**
 				* Read one dictionary key through the framework-injected `t` seat; the
 				* Chinese table backs a host that shipped no locale service.
 				*/
 				const tr = (key) => typeof t === "function" ? t(key) : DICTS.zh[key] ?? key;
+				/** 提供商显示名：仅做展示映射（与设置页及官方 0.2.2 账号渠道一致），不改 groups 数据与选择回调。 */
+				const providerLabel = (g) => {
+					if (g.id === "deepseek-account") return tr("provider.account");
+					const key = (String(g.id) + " " + String(g.name)).toLowerCase();
+					if (key.indexOf("account") >= 0) return tr("provider.account");
+					if (key.indexOf("workbuddy") >= 0 || key.indexOf("work-buddy") >= 0 || key.indexOf("work buddy") >= 0) return "WorkBuddy";
+					if (key.indexOf("deepseek") >= 0) return "DeepSeek";
+					return g.name;
+				};
+				const resolveText = (text) => typeof ctx.locale?.resolveText === "function"
+					? ctx.locale.resolveText(text)
+					: (typeof text === "string" ? text : text?.zh ?? text?.en ?? "");
+				const renderModelLabel = (group, model, placement = "option") => react.createElement(ModelVersionBadge, {
+					providerId: group.id,
+					provider: { id: group.id, name: providerLabel(group) },
+					model,
+					placement,
+					resolveText
+				});
 				const [menu, setMenu] = react.useState(null);
+				const [kb, setKb] = react.useState(false);
 				const fastControl = react.useMemo(() => fastControlFor(sessionId), [sessionId]);
 				const fast = react.useSyncExternalStore(fastControl.subscribe, fastControl.getSnapshot);
 				react.useEffect(() => { void fastControl.refresh(); }, [fastControl]);
@@ -274,9 +415,8 @@ window.__ModuleLoader__.load({
 				const busy = busyKind !== null;
 				const [error, setError] = react.useState(null);
 				const [hoverIdx, setHoverIdx] = react.useState(null);
-								const rootRef = react.useRef(null);
+				const rootRef = react.useRef(null);
 				const effortTriggerRef = react.useRef(null);
-				const effortValueRef = react.useRef(null);
 				const trackRef = react.useRef(null);
 				const [moving, setMoving] = react.useState(false);
 				const dragIdxRef = react.useRef(null);
@@ -311,11 +451,12 @@ window.__ModuleLoader__.load({
 				const openedByKeyboardRef = react.useRef(false);
 				const pressTimerRef = react.useRef(null);
 				const [showLabels, setShowLabels] = react.useState(false);
+				const canPortal = createPortal !== null && typeof document !== "undefined" && Boolean(document.body);
 				/**
-				 * 面板定位（V6）：
-				 * 1) 垂直：抬到输入框之上，留 8px；
-				 * 2) 水平：右缘对齐输入框容器右缘（不是座位），左右各留 ≥8px；
-				 * 3) 矮窗口：先压缩（ue-compact），仍放不下再内部滚动。
+				 * 面板定位（V8 · Portal 防裁剪）：
+				 * 1) Portal 模式下基于视口 fixed 坐标写 --ue-drop-bottom / --ue-drop-right，脱离 .scrollBody 裁剪；
+				 * 2) 无 document.body 的最小测试桩下回退内联相对偏移；
+				 * 3) 监听 resize 与捕获阶段 scroll，矮窗口先压缩再允许内部滚动。
 				 */
 				react.useLayoutEffect(() => {
 					const root = rootRef.current;
@@ -326,45 +467,56 @@ window.__ModuleLoader__.load({
 						root.style.removeProperty("--ue-drop-right");
 						return;
 					}
-					const apply = () => {
-						const r = root.getBoundingClientRect();
-						let node = root.parentElement;
-						let composer = null;
-						for (let i = 0; i < 6 && node !== null; i++, node = node.parentElement) {
-							const b = node.getBoundingClientRect();
-							if (b.height >= 70) {
-								composer = b;
-								break;
+					const applyPos = () => {
+						const rootEl = rootRef.current;
+						const panelEl = panelRef.current;
+						if (rootEl === null || panelEl === null) return;
+						const r = rootEl.getBoundingClientRect();
+						const vw = window.innerWidth || 1024;
+						const vh = window.innerHeight || 768;
+						const panelW = panelEl.getBoundingClientRect().width || 266;
+						if (canPortal) {
+							const dropBottom = Math.max(8, Math.round(vh - r.top + 8));
+							const dropRight = Math.max(12, Math.round(Math.min(Math.max(vw - r.right, 12), Math.max(12, vw - panelW - 12))));
+							panelEl.style.setProperty("--ue-drop-bottom", dropBottom + "px");
+							panelEl.style.setProperty("--ue-drop-right", dropRight + "px");
+						} else {
+							let node = rootEl.parentElement;
+							let composer = null;
+							for (let i = 0; i < 6 && node !== null; i++, node = node.parentElement) {
+								const b = node.getBoundingClientRect();
+								if (b.height >= 70) {
+									composer = b;
+									break;
+								}
 							}
+							rootEl.style.setProperty("--ue-drop-lift", "8px");
+							const targetRight = (composer ? composer.right : r.right) - 8;
+							const right = Math.min(Math.max(targetRight, 8 + panelW), vw - 8);
+							rootEl.style.setProperty("--ue-drop-right", (r.right - right) + "px");
 						}
-						const vw = window.innerWidth;
-						/** V7：面板贴在触发器上方 8px（可覆盖输入框文本区），不再整体抬到输入框之上。 */
-						root.style.setProperty("--ue-drop-lift", "8px");
-						if (panel === null) return;
-						const pw = panel.getBoundingClientRect().width;
-						/** 右缘对齐发送按钮右缘（composer 外框内约 8px 内缩）。 */
-						const targetRight = (composer ? composer.right : r.right) - 8;
-						const right = Math.min(Math.max(targetRight, 8 + pw), vw - 8);
-						root.style.setProperty("--ue-drop-right", (r.right - right) + "px");
 						const avail = Math.max(120, r.top - 16);
-						/** 先量原始高度，放不下才压缩间距，仍放不下才滚动。 */
-						panel.classList.remove("ue-compact");
-						panel.style.maxHeight = "none";
-						panel.style.overflowY = "";
-						const natural = panel.scrollHeight;
+						panelEl.classList.remove("ue-compact");
+						panelEl.style.maxHeight = "none";
+						panelEl.style.overflowY = "";
+						const natural = panelEl.scrollHeight;
 						let needed = natural;
 						if (natural > avail) {
-							panel.classList.add("ue-compact");
-							needed = panel.scrollHeight;
+							panelEl.classList.add("ue-compact");
+							needed = panelEl.scrollHeight;
 						}
-						panel.style.maxHeight = Math.min(needed, avail) + "px";
-						/** 夹紧后一律允许滚动：无溢出时浏览器不会显示滚动条，有溢出也不会被裁掉。 */
-						panel.style.overflowY = "auto";
+						if (natural > 0) panelEl.style.maxHeight = Math.min(needed, avail) + "px";
+						else panelEl.style.removeProperty("max-height");
+						panelEl.style.overflowY = "auto";
 					};
-					apply();
-					window.addEventListener("resize", apply);
-					return () => window.removeEventListener("resize", apply);
-				}, [menu, panelView]);
+					applyPos();
+					window.addEventListener("resize", applyPos);
+					window.addEventListener("scroll", applyPos, true);
+					return () => {
+						window.removeEventListener("resize", applyPos);
+						window.removeEventListener("scroll", applyPos, true);
+					};
+				}, [menu, panelView, canPortal]);
 
 				/** 视图切换（滑杆↔列表）时给面板高度做 FLIP 过渡，避免硬切。 */
 				const heightRef = react.useRef(null);
@@ -374,7 +526,7 @@ window.__ModuleLoader__.load({
 					const next = panel.scrollHeight;
 					const prev = heightRef.current;
 					heightRef.current = next;
-					if (prev === null || prev === next) return;
+					if (prev === null || prev === next || next === 0) return;
 					if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 					panel.style.height = prev + "px";
 					panel.style.transition = "height .28s cubic-bezier(.19,1,.22,1)";
@@ -392,8 +544,6 @@ window.__ModuleLoader__.load({
 					const prev = prevMenuRef.current;
 					prevMenuRef.current = menu;
 					if (menu === "effort" && panelView === "effort") {
-						const root = rootRef.current;
-						if (root !== null) root.classList.toggle("ue-kb", openedByKeyboardRef.current);
 						if (prev !== "effort") {
 							if (trackRef.current !== null) trackRef.current.focus({ preventScroll: true });
 						} else if (modelBtnRef.current !== null) {
@@ -406,10 +556,11 @@ window.__ModuleLoader__.load({
 				}, [menu, panelView]);
 				/** This session's shared directory — the official selector's own data source. */
 				const directory = react.useMemo(() => directoryOf(sessionId), [sessionId]);
-				const state = react.useSyncExternalStore(react.useCallback((listener) => directory === null ? () => {} : directory.store.subscribe(listener), [directory]), react.useCallback(() => directory === null ? NO_DIRECTORY_STATE : directory.store.getSnapshot(), [directory]));
-				/** Composer trigger row owns this width; the slider handle spans half of it. */
+				const state = react.useSyncExternalStore(
+					react.useCallback((listener) => directory === null ? () => {} : directory.store.subscribe(listener), [directory]),
+					react.useCallback(() => directory === null ? NO_DIRECTORY_STATE : directory.store.getSnapshot(), [directory])
+				);
 				const HANDLE_W = 26;
-				const TRACK_H = 30;
 				const load = () => {
 					if (directory !== null) directory.load().catch(() => {});
 				};
@@ -419,22 +570,30 @@ window.__ModuleLoader__.load({
 				react.useEffect(() => {
 					if (menu !== null) load();
 				}, [menu]);
+				const groups = react.useMemo(() => orderModelProviders(state.groups), [state.groups]);
+				const failures = Array.isArray(state.failures) ? state.failures : [];
+				const current = state.current;
+				const curGroup = current === null ? void 0 : groups.find((g) => g.id === current.provider);
+				const curModel = current === null ? void 0 : findModel(groups, current.provider, current.model);
+				const hasSelectedModel = current !== null && curModel !== void 0;
 				react.useEffect(() => {
 					if (menu === null) return;
 					const handler = (ev) => {
-						if (rootRef.current === null || rootRef.current.contains(ev.target)) return;
+						const target = ev.target;
+						if (rootRef.current !== null && rootRef.current.contains(target)) return;
+						if (panelRef.current !== null && panelRef.current.contains(target)) return;
+						if (target !== null && typeof target === "object" && typeof target.closest === "function" && target.closest('[role="tooltip"]') !== null) return;
 						/** 阻止浏览器把焦点移到被点元素，交给关闭逻辑回收给触发按钮。 */
 						ev.preventDefault();
 						requestClose();
 					};
-					/** V2: Escape 先在面板内退出模型列表，再关闭整个面板。 */
+					/** V2: Escape 先在面板内退出模型列表（若有已选模型），再关闭整个面板。 */
 					const onKey = (ev) => {
-            if (ev.key !== "Escape" || menu !== "effort" || closingRef.current) return;
-            ev.preventDefault();
-            ev.stopPropagation();
-						if (menu === "effort" && panelView === "model") {
+						if (ev.key !== "Escape" || menu !== "effort" || closingRef.current) return;
+						ev.preventDefault();
+						ev.stopPropagation();
+						if (menu === "effort" && panelView === "model" && hasSelectedModel) {
 							setPanelView("effort");
-							ev.stopPropagation();
 							return;
 						}
 						requestClose();
@@ -446,7 +605,7 @@ window.__ModuleLoader__.load({
 						document.removeEventListener("mousedown", handler);
 						window.removeEventListener("keydown", onKey, true);
 					};
-				}, [menu, panelView]);
+				}, [menu, panelView, hasSelectedModel]);
 				react.useEffect(() => {
 					if (menu !== "effort") {
 						stopDrag();
@@ -474,19 +633,13 @@ window.__ModuleLoader__.load({
 				react.useEffect(() => {
 					setHoverIdx(null);
 				}, [state.current === null ? null : state.current.reasoningEffort]);
-				const apply = (sel, keepOpen) => {
+				const applySelection = (sel, keepOpen) => {
 					if (directory === null) return;
 					pendingRef.current = sel;
 					if (busyRef.current) return;
 					busyRef.current = true;
 					setBusy(keepOpen ? "effort" : "model");
 					setError(null);
-					/**
-					* The call itself can throw instead of answering — `select` refuses a
-					* session that may not use Agent-bound model RPCs before it goes async —
-					* and a refused selection RESOLVES with the Remote failure inside the
-					* envelope instead of rejecting. Both paths land on the seat's own error.
-					*/
 					let pending;
 					try {
 						pending = directory.select({
@@ -516,7 +669,7 @@ window.__ModuleLoader__.load({
 						const next = pendingRef.current;
 						if (next !== null && next !== sel) {
 							pendingRef.current = null;
-							apply(next, true);
+							applySelection(next, true);
 						}
 					}, (e) => {
 						busyRef.current = false;
@@ -526,8 +679,6 @@ window.__ModuleLoader__.load({
 						pendingRef.current = null;
 					});
 				};
-				const groups = state.groups;
-				const current = state.current;
 				/** Selection failures are local; catalog failures live on the shared store. */
 				const shownError = error !== null ? error : state.error;
 				const loaded = state.status !== "idle";
@@ -580,17 +731,13 @@ window.__ModuleLoader__.load({
 						if (container !== null) container.scrollTop = Math.max(0, row.offsetTop - container.clientHeight / 2 + row.offsetHeight / 2);
 					}
 				};
-				const curGroup = current === null ? void 0 : groups.find((g) => g.id === current.provider);
-				const curModel = current === null ? void 0 : findModel(groups, current.provider, current.model);
 				const modelLabel = curModel !== void 0 ? curModel.name : current !== null && current.model !== "" ? current.model : tr("trigger.fallbackModel");
 				const reasoning = curModel !== void 0 ? curModel.reasoning : void 0;
 				const effectiveEffort = current !== null && current.reasoningEffort !== void 0 ? current.reasoningEffort : reasoning !== void 0 && reasoning.defaultEffort !== void 0 ? reasoning.defaultEffort : void 0;
 
 				const defaultEffort = reasoning !== void 0 ? reasoning.defaultEffort : void 0;
-				/** 重置目标 = 当前模型的 defaultEffort；两者归一化后相等即视为“已在默认档”。 */
 				const normEffort = (v) => (v === void 0 || v === null ? "" : String(v).toLowerCase());
 				const atDefaultEffort = normEffort(effectiveEffort) === normEffort(defaultEffort);
-				/** 当前选中的是“默认”档（仅当模型未声明 defaultEffort 时才会出现该档）——用于标题取正文色。 */
 				const choices = reasoning === void 0 ? [] : [...reasoning.defaultEffort === void 0 ? [{
 					key: "default",
 					effort: void 0,
@@ -604,8 +751,6 @@ window.__ModuleLoader__.load({
 				const activeIdx = Math.max(0, choices.findIndex((c) => c.key === activeKey));
 				const posIdx = hoverIdx !== null ? hoverIdx : activeIdx;
 				const safePosIdx = choices.length > 0 ? Math.max(0, Math.min(choices.length - 1, posIdx)) : 0;
-				/** 面板内常驻档位名：与滑动/键盘位置同源。 */
-				const levelLabel = choices.length > 0 ? choices[safePosIdx].label : tr("effort.default");
 
 				const tickLeft = (i) => "calc(14px + (100% - 28px) * " + (choices.length > 1 ? i / (choices.length - 1) : 0) + ")";
 				/** 14 个流动光点：纵向随机 ±8px，时长/延迟随机（只算一次）。 */
@@ -613,26 +758,13 @@ window.__ModuleLoader__.load({
 					const dy = (Math.random() * 16 - 8).toFixed(1);
 					return { top: "calc(50% + " + dy + "px)", dur: (2.4 + Math.random() * 2.6).toFixed(2) + "s", delay: (-Math.random() * 4.5).toFixed(2) + "s" };
 				}), []);
-				const atMaxPos = choices.length > 1 && safePosIdx === choices.length - 1;
 				const displayIdx = settledIdx === null ? activeIdx : settledIdx;
 				const safeDisplayIdx = choices.length > 0 ? Math.max(0, Math.min(choices.length - 1, displayIdx)) : 0;
 				const displayChoice = choices.length > 0 ? choices[safeDisplayIdx] : null;
 				const displayLabel = displayChoice !== null ? displayChoice.label : tr("effort.default");
-				const hasEffort = reasoning !== void 0 && choices.length > 0;
 				/** V2: 端点状态跟随交互位置（hover/drag），而不是等待提交回写后的显示位置。 */
 				const inMax = choices.length > 1 && safePosIdx === choices.length - 1;
-				/** 触发器色调：最高档紫、默认档灰、其余蓝。 */
 				const levelTone = inMax ? "ue-lv-max" : (atDefaultEffort ? "ue-lv-def" : "ue-lv-norm");
-				/** 面板标题语调色：最高档紫、其余一律蓝（Codex 原型）。 */
-
-				/** 提供商显示名：仅做展示映射（与设置页一致），不改 groups 数据与选择回调。 */
-				const providerLabel = (g) => {
-					const key = (String(g.id) + " " + String(g.name)).toLowerCase();
-					if (key.indexOf("account") >= 0) return "DeepSeek 账号";
-					if (key.indexOf("workbuddy") >= 0 || key.indexOf("work-buddy") >= 0 || key.indexOf("work buddy") >= 0) return "WorkBuddy";
-					if (key.indexOf("deepseek") >= 0) return "DeepSeek";
-					return g.name;
-				};
 				const isDefaultChoice = choices.length > 0 && choices[safePosIdx].key === "default";
 				const titleTone = inMax ? "ue-lv-max" : (isDefaultChoice ? "ue-lv-text" : "ue-lv-norm");
 				/** 端点动画：仅在“首次进入终点”时触发一次，离开后复位可重播。 */
@@ -648,7 +780,7 @@ window.__ModuleLoader__.load({
 					const id = setTimeout(() => setBurst(false), 680);
 					return () => clearTimeout(id);
 				}, [inMax]);
-								const posPct = choices.length > 1 ? posIdx / (choices.length - 1) * 100 : 0;
+				const posPct = choices.length > 1 ? posIdx / (choices.length - 1) * 100 : 0;
 				/** 提交值 → CSS 变量；拖拽期间让位给 dragFrac，避免回跳。 */
 				react.useLayoutEffect(() => {
 					if (moving) return;
@@ -665,7 +797,7 @@ window.__ModuleLoader__.load({
 				const onPickModel = (m, g) => {
 					setSettledIdx(null);
 					const remembered = effortMemory.get(g.id + "\0" + m.id);
-					apply({
+					applySelection({
 						provider: g.id,
 						model: m.id,
 						...remembered === void 0 ? {} : { reasoningEffort: remembered }
@@ -673,7 +805,7 @@ window.__ModuleLoader__.load({
 				};
 				const onPickEffort = (effort) => {
 					if (current === null) return;
-					apply({
+					applySelection({
 						provider: current.provider,
 						model: current.model,
 						...effort === void 0 ? {} : { reasoningEffort: effort }
@@ -688,7 +820,7 @@ window.__ModuleLoader__.load({
 				};
 				/** 滑杆键盘控制：方向键逐档、Home/End 到两端。 */
 				const onTrackKeyDown = (ev) => {
-					if (rootRef.current !== null) rootRef.current.classList.add("ue-kb");
+					if (!kb) setKb(true);
 					if (choices.length < 2) return;
 					let next = null;
 					if (ev.key === "ArrowRight" || ev.key === "ArrowUp") next = Math.min(choices.length - 1, safePosIdx + 1);
@@ -707,10 +839,6 @@ window.__ModuleLoader__.load({
 					return Math.max(0, Math.min(1, (ev.clientX - rect.left - HANDLE_W / 2) / usable));
 				};
 				const idxFromFrac = (frac) => Math.max(0, Math.min(choices.length - 1, Math.round(frac * (choices.length - 1))));
-				/**
-				 * 档位磁吸：档位点前后各 w 的区间内把指针位移压缩到 k 倍，
-				 * 区间外略快以保证总行程仍是 0→1；档位点自身映射到原位，不累积误差。
-				 */
 				const DETENT_W = 0.03;
 				const DETENT_K = 0.5;
 				const mapDrag = (frac) => {
@@ -775,14 +903,7 @@ window.__ModuleLoader__.load({
 				}
 				/**
 				* 停止拖拽并清理监听。
-				*
-				* 必须用函数声明而不是 const 箭头函数：组件在子代理会话
-				* （subagentAddress 非空）或模型目录未就绪时会提前 return null，
-				* 此时第 394 行的 useEffect 依然会在挂载后执行并调用本函数。
-				* const 绑定在提前 return 的渲染里从未初始化，会抛
-				* "Cannot access 'stopDrag' before initialization"，
-				* 导致 conversation.input.model 槽位条目崩溃、回退原生选择器。
-				* 函数声明在作用域入口即完成初始化，不受提前 return 影响。
+				* 必须用函数声明以避免子代理或目录未就绪提前 return 时的 TDZ 错误。
 				*/
 				function stopDrag() {
 					const el = dragElRef.current;
@@ -853,50 +974,14 @@ window.__ModuleLoader__.load({
 					el.addEventListener("pointercancel", onWinCancel);
 					el.addEventListener("lostpointercapture", onWinCancel);
 					window.addEventListener("blur", onWinCancel);
-				};				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? curGroup.name + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
-				return react.createElement("div", {
-					ref: rootRef,
-					className: "sk5-root" + (menu !== null ? " ue-open" : ""),
-					onKeyDown: (ev) => {
-						if (ev.key !== "Tab") return;
-						const rootEl = ev.currentTarget;
-						requestAnimationFrame(() => {
-							if (rootEl.contains(document.activeElement)) return;
-							skipFocusReturnRef.current = true;
-							requestClose(false);
-						});
-					}
-				}, react.createElement("button", {
-					ref: effortTriggerRef,
-					type: "button",
-					className: "ue-trigger",
-					disabled: locked || busy || current === null,
-					title: triggerTitle,
-					"aria-haspopup": "dialog",
-					"aria-expanded": menu === "effort",
-					onClick: (ev) => {
-						openedByKeyboardRef.current = ev.detail === 0;
-						if (closeTimerRef.current !== null) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
-						closingRef.current = false;
-						setClosing(false);
-						if (menu === "effort") { requestClose(); return; }
-						setMenu("effort");
-					}
-				}, react.createElement("span", { className: "ue-triggerModel" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel)), react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel), react.createElement("svg", {
-					className: "ue-triggerChev",
-					viewBox: "0 0 16 16",
-					"aria-hidden": "true"
-				}, react.createElement("path", { d: "M4 6l4 4 4-4" }))), react.createElement("span", {
-					className: "ue-sr",
-					role: "status",
-					"aria-live": "polite"
-				}, tr("sr.level").replace("{label}", displayLabel).replace("{i}", String(safePosIdx + 1)).replace("{n}", String(Math.max(choices.length, 1)))), react.createElement("span", {
-					className: "ue-sr",
-					id: hintIdRef.current
-				}, tr("hint.slider")), (menu === "effort" || closing) ? react.createElement("div", {
+				};
+				const triggerTitle = curGroup !== void 0 && curModel !== void 0 ? providerLabel(curGroup) + " / " + curModel.name + (effectiveEffort !== void 0 ? " · " + displayLabel : "") : tr("trigger.selectModel");
+				const headTitle = curModel === void 0 ? tr("trigger.selectModel") : displayLabel;
+				const dropNode = (menu === "effort" || closing) ? react.createElement("div", {
 					ref: panelRef,
 					id: panelIdRef.current,
 					"data-state": closing ? "closing" : "open",
+					"data-window-drag-exclude": "",
 					className: "sk5-drop sk5-effort ue-panel" + (closing ? " ue-closing" : ""),
 					role: "dialog",
 					"aria-label": tr("panel.aria")
@@ -909,33 +994,51 @@ window.__ModuleLoader__.load({
 					"aria-busy": fast.phase === "loading" || fast.phase === "saving" || fast.phase === "unknown",
 					"aria-disabled": fastLocked || fast.phase === "loading" || fast.phase === "saving" || fast.phase === "unknown" || (fast.phase === "ready" && (!fast.writable || !fast.idle)),
 					onClick: () => { if (fast.phase === "unavailable") void fastControl.refresh(); else void fastControl.toggle(fastLocked); }
-				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, tr("label.faster")), react.createElement("span", null, tr("label.smarter"))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + titleTone }, displayLabel), react.createElement("button", {
+				}, react.createElement("svg", { viewBox: "0 0 24 24" }, react.createElement("path", { d: "M13 2 3 14h7l-1 8 10-12h-7l1-8z" }))), react.createElement("div", { className: "ue-labels" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("span", null, tr("label.faster")), react.createElement("span", null, tr("label.smarter"))), react.createElement("div", { className: "ue-center" }, react.createElement("div", { className: "ue-title " + (curModel === void 0 ? "ue-lv-text" : titleTone) }, headTitle), react.createElement("button", {
 					type: "button",
 					ref: modelBtnRef,
 					className: "ue-model" + (panelView === "model" ? " ue-modelOpen" : "") + (showLabels ? " ue-modelHidden" : ""),
 					"aria-controls": panelIdRef.current,
-					disabled: locked || busy,
+					disabled: Boolean(locked || busy),
 					title: triggerTitle,
 					"aria-haspopup": "listbox",
 					"aria-expanded": panelView === "model",
-					onClick: () => setPanelView((v) => v === "model" ? "effort" : "model")
-				}, react.createElement("span", { className: "ue-modelName" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel)), react.createElement("svg", { className: "ue-modelChev", viewBox: "0 0 16 16", "aria-hidden": "true" }, react.createElement("path", { d: "M4 6l4 4 4-4" })))), react.createElement("button", {
+					onClick: () => {
+						if (!hasSelectedModel) {
+							setPanelView("model");
+							return;
+						}
+						setPanelView((v) => v === "model" ? "effort" : "model");
+					}
+				}, react.createElement("span", { className: "ue-modelName" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel, "menu")), react.createElement("svg", { className: "ue-modelChev", viewBox: "0 0 16 16", "aria-hidden": "true" }, react.createElement("path", { d: "M4 6l4 4 4-4" })))), react.createElement("button", {
 					type: "button",
 					className: "ue-icon ue-reset" + (resetFlash ? " ue-resetFlash" : "") + (atDefaultEffort ? " ue-resetHidden" : ""),
 					"aria-hidden": atDefaultEffort ? "true" : void 0,
 					tabIndex: atDefaultEffort ? -1 : 0,
 					title: tr("reset.title"),
 					"aria-label": tr("reset.aria"),
-					disabled: locked || busy || current === null || reasoning === void 0,
+					disabled: Boolean(locked || busy || current === null || reasoning === void 0),
 					onClick: onReset
 				}, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("path", { d: "M2.8 6.2A5.6 5.6 0 1 1 2.6 9.4" }), react.createElement("path", { d: "M2.4 2.4v4h4" })))), react.createElement("div", {
 					className: "ue-fastStatus" + (["on", "off"].includes(fast.reason) && !fastLocked ? " ue-sr" : ""), role: "status", "aria-live": "polite"
-				}, tr("fast." + (fastLocked ? "running" : fast.reason)), ["unavailable", "protocol"].includes(fast.reason) ? react.createElement("button", { type: "button", onClick: () => void fastControl.refresh() }, tr("fast.retry")) : null), panelView === "model" ? react.createElement("div", {
+				}, tr("fast." + (fastLocked ? "running" : fast.reason)), ["unavailable", "protocol"].includes(fast.reason) ? react.createElement("button", { type: "button", onClick: () => void fastControl.refresh() }, tr("fast.retry")) : null), ...(panelView === "model" ? [react.createElement("div", {
 					ref: modelsRef,
 					className: "ue-models",
 					role: "listbox",
 					"aria-label": tr("trigger.selectModel")
-				}, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null, loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g, gi) => react.createElement("div", { key: g.id, className: "ue-group", role: "group", "aria-labelledby": "ue-g-" + gi }, react.createElement("div", { className: "ue-groupName", id: "ue-g-" + gi }, providerLabel(g)), g.models.map((m) => {
+				}, !loaded && shownError === null ? react.createElement("div", { className: "sk5-status" }, tr("status.loading")) : null, shownError !== null ? react.createElement("div", { className: "sk5-err" }, react.createElement("span", null, shownError), error === null && state.error !== null ? react.createElement("button", { type: "button", className: "ue-failureRetry", onClick: () => load() }, tr("action.retry")) : null) : null, failures.map((failure) => {
+					const fname = failure.id === "deepseek-account" ? tr("provider.account") : (failure.name || failure.id);
+					const warnText = tr("warning.groupLoad").replace("{name}", fname).replace("{message}", String(failure.message ?? ""));
+					return react.createElement("div", {
+						key: "fail:" + failure.id,
+						className: "ue-failure",
+						role: "status"
+					}, react.createElement("span", { className: "ue-failureText" }, warnText), react.createElement("button", {
+						type: "button",
+						className: "ue-failureRetry",
+						onClick: () => load()
+					}, tr("action.retry")));
+				}), loaded && groups.length === 0 ? react.createElement("div", { className: "sk5-status" }, tr("status.noModels")) : null, loaded ? groups.map((g, gi) => react.createElement("div", { key: g.id, className: "ue-group", role: "group", "aria-labelledby": "ue-g-" + gi }, react.createElement("div", { className: "ue-groupName", id: "ue-g-" + gi }, providerLabel(g)), g.models.map((m) => {
 					const isCur = current !== null && current.provider === g.id && current.model === m.id;
 					return react.createElement("button", {
 						key: m.id,
@@ -945,14 +1048,14 @@ window.__ModuleLoader__.load({
 						ref: (el) => { rowRefs.current[flatIndexById.get(g.id + "\u0000" + m.id)] = el; },
 						tabIndex: (flatIndexById.get(g.id + "\u0000" + m.id) === focusIdx) ? 0 : -1,
 						onKeyDown: (ev) => onRowKeyDown(ev, flatIndexById.get(g.id + "\u0000" + m.id)),
-						className: "ue-row" + (isCur ? " ue-rowActive" : ""),
+						className: "ue-row" + (isCur ? " ue-rowActive" : "") + (m.description !== void 0 ? " ue-rowHasDesc" : ""),
 						disabled: busy,
 						onClick: () => {
 							onPickModel(m, g);
 							setPanelView("effort");
 						}
-					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, renderModelLabel(g, m)), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
-				}))) : null) : react.createElement("div", { className: "ue-sliderArea" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("div", { className: "ue-sliderRow" }, react.createElement("div", {
+					}, react.createElement("span", { className: "ue-rowText" }, react.createElement("span", { className: "ue-rowName" }, renderModelLabel(g, m, "option")), m.description !== void 0 ? react.createElement("span", { className: "ue-rowDesc" }, m.description) : null), isCur ? react.createElement("span", { className: "ue-check" }, "✓") : null);
+				}))) : null)] : [react.createElement("div", { className: "ue-sliderArea" + (showLabels ? " ue-labelsOn" : "") }, react.createElement("div", { className: "ue-sliderRow" }, react.createElement("div", {
 					ref: trackRef,
 					className: "sk5-track ue-track" + (inMax ? " ue-trackMax" : "") + (moving ? " ue-moving" : "") + (burst ? " ue-burst" : "") + (showLabels ? " ue-labelsOn" : ""),
 					role: "slider",
@@ -969,7 +1072,62 @@ window.__ModuleLoader__.load({
 					key: c.key,
 					className: "ue-tick" + (i <= safePosIdx ? " ue-tickOn" : ""),
 					style: { left: tickLeft(i) }
-				})), react.createElement("div", { className: "ue-handle" })))), shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null) : null);
+				})), react.createElement("div", { className: "ue-handle" })))), react.createElement(ModelOptionsOutlet, {
+					parentProps: props,
+					locked: Boolean(locked || busy),
+					dismiss: () => requestClose(true),
+					reportFailure: (message) => setError(String(message))
+				})]), panelView !== "model" && shownError !== null ? react.createElement("div", { className: "sk5-err" }, shownError) : null) : null;
+				const mountedDrop = dropNode === null
+					? null
+					: (canPortal
+						? createPortal(react.createElement("div", {
+							className: "sk5-root sk5-portal" + (kb ? " ue-kb" : "")
+						}, dropNode), document.body)
+						: dropNode);
+				return react.createElement("div", {
+					ref: rootRef,
+					className: "sk5-root" + (menu !== null ? " ue-open" : "") + (kb ? " ue-kb" : ""),
+					onKeyDown: (ev) => {
+						if (ev.key !== "Tab" || menu === null) return;
+						requestAnimationFrame(() => {
+							const a = typeof document !== "undefined" ? document.activeElement : null;
+							if ((rootRef.current !== null && rootRef.current.contains(a)) || (panelRef.current !== null && panelRef.current.contains(a))) return;
+							skipFocusReturnRef.current = true;
+							requestClose(false);
+						});
+					}
+				}, react.createElement("button", {
+					ref: effortTriggerRef,
+					type: "button",
+					className: "ue-trigger",
+					disabled: Boolean(locked || busy),
+					title: triggerTitle,
+					"aria-haspopup": "dialog",
+					"aria-expanded": menu === "effort",
+					onClick: (ev) => {
+						const byKb = ev.detail === 0;
+						openedByKeyboardRef.current = byKb;
+						setKb(byKb);
+						if (closeTimerRef.current !== null) { clearTimeout(closeTimerRef.current); closeTimerRef.current = null; }
+						closingRef.current = false;
+						setClosing(false);
+						if (menu === "effort") { requestClose(); return; }
+						setPanelView(hasSelectedModel ? "effort" : "model");
+						setMenu("effort");
+					}
+				}, react.createElement("span", { className: "ue-triggerIcon", "aria-hidden": "true" }, react.createElement("svg", { viewBox: "0 0 16 16" }, react.createElement("rect", { x: "2.2", y: "2.5", width: "11.6", height: "4.4", rx: "1.2" }), react.createElement("rect", { x: "2.2", y: "9.1", width: "11.6", height: "4.4", rx: "1.2" }))), react.createElement("span", { className: "ue-triggerModel" }, curModel === void 0 ? modelLabel : renderModelLabel(curGroup, curModel, "trigger")), hasSelectedModel ? react.createElement("span", { className: "ue-triggerLevel " + levelTone }, displayLabel) : null, react.createElement("svg", {
+					className: "ue-triggerChev",
+					viewBox: "0 0 16 16",
+					"aria-hidden": "true"
+				}, react.createElement("path", { d: "M4 6l4 4 4-4" }))), react.createElement("span", {
+					className: "ue-sr",
+					role: "status",
+					"aria-live": "polite"
+				}, tr("sr.level").replace("{label}", displayLabel).replace("{i}", String(safePosIdx + 1)).replace("{n}", String(Math.max(choices.length, 1)))), react.createElement("span", {
+					className: "ue-sr",
+					id: hintIdRef.current
+				}, tr("hint.slider")), mountedDrop);
 			}));
 		}
 		//#endregion

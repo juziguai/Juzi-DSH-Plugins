@@ -13,7 +13,7 @@ export function createConfig(config = {}) {
     args: [fileURLToPath(new URL('../server.py', import.meta.url))],
     // A package directory used as cwd stays locked by Windows for the process lifetime.
     cwd: tmpdir(),
-    toolCallTimeoutMs: 90000,
+    toolCallTimeoutMs: 120000,
     failOnStartupError: true,
   };
 }

@@ -151,8 +151,17 @@ test('current installed frontend Store and SlotCore restore widths on a new actu
   Object.assign(globalThis, { window: dom.window, document: dom.window.document, MutationObserver: dom.window.MutationObserver });
   t.after(() => { dom.window.close(); Object.assign(globalThis, prior); });
   const shares = await import(pathToFileURL(resolve(process.env.DSH_LAYOUT_SHARES_MODULE)));
-  const source = readFileSync(process.env.DSH_LAYOUT_SOURCE_FILE, 'utf8'), start = source.indexOf('function createLayoutStore()'), end = source.indexOf('\n\t\t//#endregion', start);
-  assert(start >= 0 && end > start);
+  const source = readFileSync(process.env.DSH_LAYOUT_SOURCE_FILE, 'utf8'), start = source.indexOf('function createLayoutStore()');
+  assert(start >= 0);
+  let end = -1, depth = 0, quote = '';
+  for (let i = source.indexOf('{', start); i >= 0 && i < source.length; i++) {
+    const ch = source[i];
+    if (quote) { if (ch === '\\') i++; else if (ch === quote) quote = ''; continue; }
+    if (ch === '\'' || ch === '"' || ch === '`') { quote = ch; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) { end = i + 1; break; }
+  }
+  assert(end > start);
   const create = () => vm.runInNewContext(`(${source.slice(start, end)})().create()`, {
     window: { innerWidth: 1600 }, _deepseek_ai_dsh_client_store: shares.store,
     RIGHTBAR_DEFAULT_RATIO: .45, RIGHTBAR_MAX_RATIO: .7, clampWidth: (value, min, max) => Math.min(max, Math.max(min, Math.round(value))),

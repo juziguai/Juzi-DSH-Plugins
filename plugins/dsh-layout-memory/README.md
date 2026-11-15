@@ -6,7 +6,7 @@
 
 ## 兼容与实现
 
-最低 DSH 版本为 0.2.1-rc.3，本次验收基线为 Windows 桌面版 0.2.1-rc.3。通过公开 `slots.entries('root')` 取得当前根布局的共享 Store，订阅快照并调用原生 `setSidebar` / `setRightbar`；不修改 DSH 安装包，不替换根组件，不依赖 React 内部字段或 DOM 轮询。
+最低 DSH 版本为 0.2.1-rc.3，已在 Windows 桌面版 0.2.1-rc.3 与 0.2.2-rc.3 验收。通过公开 `slots.entries('root')` 取得当前根布局的共享 Store，订阅快照并调用原生 `setSidebar` / `setRightbar`；不修改 DSH 安装包，不替换根组件，不依赖 React 内部字段或 DOM 轮询。
 
 宽度字段仍属于当前宿主布局契约。根 Store 不再共享、字段/动作不兼容时停止接管并告警一次；需要对新的宿主版本重新验收。当前契约的左栏范围为264–420 CSS px，右栏最小300、最大为窗口宽度的70%（下限不足时取300），实际可见区域继续由DSH计算。
 

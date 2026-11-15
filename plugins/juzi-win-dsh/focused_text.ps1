@@ -40,7 +40,7 @@ function Read-FocusedText([long]$ExpectedHwnd, [int]$MaxChars) {
 $identity = $null
 $method = 'uia'
 try {
- if ([long][JuziFocusNative]::GetForegroundWindow() -ne $ExpectedHwnd) { throw 'target_changed' }
+ if ($ExpectedHwnd -le 0 -or [long][JuziFocusNative]::GetForegroundWindow() -ne $ExpectedHwnd) { throw 'target_changed' }
  $element = [System.Windows.Automation.AutomationElement]::FocusedElement
  if ($null -eq $element) { throw 'focused_text_unavailable' }
  if ($element.Current.IsPassword) { throw 'password_control' }
@@ -63,7 +63,7 @@ try {
    $editable = [JuziFocusNative]::Editable()
    $method = 'wm_gettext'
  }
- if ([long][JuziFocusNative]::GetForegroundWindow() -ne $ExpectedHwnd -or ([System.Windows.Automation.AutomationElement]::FocusedElement.GetRuntimeId() -join ',') -ne $identity) { throw 'target_changed' }
+ if ($ExpectedHwnd -le 0 -or [long][JuziFocusNative]::GetForegroundWindow() -ne $ExpectedHwnd -or ([System.Windows.Automation.AutomationElement]::FocusedElement.GetRuntimeId() -join ',') -ne $identity) { throw 'target_changed' }
  @{ok=$true; text=$value.Substring(0, [Math]::Min($value.Length,$MaxChars)); truncated=($value.Length -gt $MaxChars); focus_id=$identity; editable=$editable; control_type=$element.Current.ControlType.ProgrammaticName; read_method=$method} | ConvertTo-Json -Compress
 } catch {
  @{ok=$false; error=$(if ($_.Exception.Message -match 'password_control') {'password_control'} elseif ($_.Exception.Message -match 'target_changed') {'target_changed'} else {'focused_text_unavailable'}); focus_id=$identity; message=$_.Exception.Message} | ConvertTo-Json -Compress

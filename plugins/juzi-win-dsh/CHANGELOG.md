@@ -1,5 +1,16 @@
 # 更新日志
 
+## [1.1.4] - 2026-11-15
+
+### 变更
+
+- 适配 DSH `0.2.2-rc.3`：宿主 `@deepseek-ai/dsh-mcp-client` 兼容上界扩至 `<0.2.3-0`，MCP `serverInfo.version` 同步升至 `1.1.4`。
+
+### 修复
+
+- `focused_text.ps1`：在后台或无前台窗口会话（`GetForegroundWindow() == 0`）中对非正 `ExpectedHwnd` 显式判定为 `target_changed`，避免误落入 `focused_text_unavailable`。
+- `regression_test.py`：隔离模拟 `winapi.current_cursor`，避免本机锁屏或输入桌面不可达时拖拽回归用例受真实光标状态干扰。
+
 ## [1.1.3] - 2026-10-30
 
 ### 变更

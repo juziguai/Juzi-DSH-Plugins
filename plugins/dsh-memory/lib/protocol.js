@@ -1,4 +1,4 @@
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 export const SOURCE = 'juzi-memory';
@@ -81,12 +81,12 @@ export function captureBatches(session, turn, scope) {
   return batches;
 }
 // Replace only live plugin-owned surface nodes; the original event log remains intact.
-export function clearSnapshots(session, createMessage) {
+export function clearSnapshots(session) {
   let changed = false;
   for (const seq of [...session.surface.nodes]) {
     const event = session.eventAt(seq);
     if (event?.type !== 'user/message' || event.data.source?.kind !== SOURCE || !messageText(event.data)) continue;
-    session.append('user/message', createMessage({ content: [], source: { kind: SOURCE, form: 'snapshot', sections: [] } }), { surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq }, sourceEventSeqs: [seq] });
+    session.append('developer/message', { message: { id: randomUUID(), role: 'developer', content: [] } }, { surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq }, sourceEventSeqs: [seq] });
     changed = true;
   }
   return changed;

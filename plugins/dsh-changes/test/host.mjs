@@ -2,9 +2,10 @@ import { apply } from '../lib/index.js';
 import { nodeGit } from './helpers.mjs';
 
 /** DSH public seams backed by real Git, used by API and browser integration tests. */
-export function host(config = {}, runner = nodeGit) {
+export function host(config = {}, runner = nodeGit, services = {}) {
   const events = new Map(), routes = new Map(), disposers = [], warnings = [];
   const ctx = {
+    get: key => services[key],
     logger: { warn: message => warnings.push(message) }, fs: { processPath: target => target },
     on(event, listener) { const list = events.get(event) ?? []; list.push(listener); events.set(event, list); return () => list.splice(list.indexOf(listener), 1); },
     effect: fn => { const dispose = fn(); if (dispose) disposers.push(dispose); },

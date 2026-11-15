@@ -17,6 +17,7 @@ test('service entry is absolute and independent of the host working directory', 
     const offset = relative(dirname(config.args[0]), config.cwd);
     assert(offset.startsWith('..') || isAbsolute(offset), 'cwd must be outside the replaceable package');
     assert.equal(config.serverName, 'deepseek');
+    assert.equal(config.toolCallTimeoutMs, 120000);
     assert.equal(config.failOnStartupError, true);
   } finally { process.chdir(before); }
 });

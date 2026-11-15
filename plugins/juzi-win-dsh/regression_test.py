@@ -205,6 +205,7 @@ class RegressionTests(unittest.TestCase):
         events = []
         with mock.patch.object(winapi, "resolve_click_point", side_effect=[(0, 0), (100, 100)]), \
              mock.patch.object(winapi.user32, "SetCursorPos", return_value=True), \
+             mock.patch.object(winapi, "current_cursor", return_value={"x": 100, "y": 100}), \
              mock.patch.object(winapi, "window_at_point", side_effect=target_at), \
              mock.patch.object(winapi, "_mouse_event", side_effect=lambda *args, **kwargs: events.append(args)), \
              mock.patch.object(time, "sleep", side_effect=lambda seconds: sleeps.append(seconds)):
