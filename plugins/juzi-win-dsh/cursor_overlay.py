@@ -49,8 +49,8 @@ BI_RGB = 0
 WDA_EXCLUDEFROMCAPTURE = 0x00000011
 
 WM_DESTROY = 0x0002
-WM_TIMER = 0x0011
 WM_CLOSE = 0x0010
+WM_TIMER = 0x0113
 WM_APP_WAKE = 0x8001
 TIMER_ID = 1
 FRAME_INTERVAL_MS = 16
@@ -353,6 +353,32 @@ class CursorOverlay:
             w.HWND, w.HDC, ctypes.POINTER(POINT), ctypes.POINTER(SIZE),
             w.HDC, ctypes.POINTER(POINT), w.COLORREF, ctypes.POINTER(BLENDFUNCTION), w.DWORD,
         ]
+        u32.GetDC.restype = w.HDC
+        u32.GetDC.argtypes = [w.HWND]
+        u32.ReleaseDC.restype = ctypes.c_int
+        u32.ReleaseDC.argtypes = [w.HWND, w.HDC]
+        u32.SetTimer.restype = ctypes.c_size_t
+        u32.SetTimer.argtypes = [w.HWND, ctypes.c_size_t, w.UINT, ctypes.c_void_p]
+        u32.KillTimer.restype = w.BOOL
+        u32.KillTimer.argtypes = [w.HWND, ctypes.c_size_t]
+        u32.ShowWindow.restype = w.BOOL
+        u32.ShowWindow.argtypes = [w.HWND, ctypes.c_int]
+        u32.SetWindowPos.restype = w.BOOL
+        u32.SetWindowPos.argtypes = [w.HWND, w.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, w.UINT]
+        u32.DestroyWindow.restype = w.BOOL
+        u32.DestroyWindow.argtypes = [w.HWND]
+        u32.SetWindowDisplayAffinity.restype = w.BOOL
+        u32.SetWindowDisplayAffinity.argtypes = [w.HWND, w.DWORD]
+        u32.RegisterClassExW.restype = w.ATOM
+        u32.RegisterClassExW.argtypes = [ctypes.POINTER(WNDCLASSEXW)]
+        u32.GetMessageW.restype = w.BOOL
+        u32.GetMessageW.argtypes = [ctypes.POINTER(w.MSG), w.HWND, w.UINT, w.UINT]
+        u32.TranslateMessage.restype = w.BOOL
+        u32.TranslateMessage.argtypes = [ctypes.POINTER(w.MSG)]
+        u32.DispatchMessageW.restype = ctypes.c_ssize_t
+        u32.DispatchMessageW.argtypes = [ctypes.POINTER(w.MSG)]
+        k32.GetModuleHandleW.restype = w.HMODULE
+        k32.GetModuleHandleW.argtypes = [w.LPCWSTR]
         gdi32.CreateCompatibleDC.restype = w.HDC
         gdi32.CreateCompatibleDC.argtypes = [w.HDC]
         gdi32.CreateDIBSection.restype = w.HBITMAP

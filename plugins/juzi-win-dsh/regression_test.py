@@ -791,6 +791,10 @@ class CursorOverlayTests(unittest.TestCase):
     def test_render_frames_and_env_toggle(self):
         import os
         import cursor_overlay as co
+        # Guard against Win32 constant typos (0x0011 is WM_QUERYENDSESSION, not WM_TIMER!)
+        self.assertEqual(co.WM_TIMER, 0x0113)
+        self.assertEqual(co.WM_CLOSE, 0x0010)
+        self.assertEqual(co.WM_DESTROY, 0x0002)
         normal, ripples, pressed = co._render_frames()
         expected_bytes = co.CANVAS_SIZE * co.CANVAS_SIZE * 4
         self.assertEqual(len(normal), expected_bytes)

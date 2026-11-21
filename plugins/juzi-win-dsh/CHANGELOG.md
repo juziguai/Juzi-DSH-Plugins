@@ -21,6 +21,10 @@
 - `ocr.py` / `ocr_windows.ps1`：Windows OCR 升级为常驻 STA PowerShell Worker（`-Worker` 模式）并缓存 `WinRT` 引擎与 Tesseract 语言列表，显著降低重复找字与读屏的冷启动开销；保留 `-Path` 单次调用兼容模式。
 - `winapi.py` / `server.py`：PNG 截图改用快速压缩（`compress_level=1`）替代慢速 `optimize=True`，并保持原有元数据和返回结构兼容。
 
+### 修复
+
+- `cursor_overlay.py`：修正 `WM_TIMER` 常量误写（`0x0011` → `0x0113`，原值误撞 `WM_QUERYENDSESSION`）导致 `click` / `scroll` 结尾 200ms 点击水波纹定时器无法触发、AI 悬浮游标滞留屏幕不消失的问题，并补齐 64 位 Win32 窗口句柄调用的 `argtypes` 签名声明。
+
 ## [1.1.4] - 2026-11-15
 
 ### 变更
