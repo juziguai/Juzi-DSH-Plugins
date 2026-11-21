@@ -25,6 +25,7 @@ Python 服务独立运行，`cordis.patch.yml` 负责 bundle 注册。
 | `find_text` | `mcp__win__find_text` | OCR 找字（常驻 STA Worker）：返回 `confidence`、屏幕物理像素 `cx/cy` 与外接矩形，可直接传给 `click` |
 | `inspect_ui` | `mcp__win__inspect_ui` | 免截图读取 Windows UI Automation 控件树：返回控件名称、物理像素 `(cx,cy)` 及 `enabled`/`selected`/`checked`/`expanded` 状态 |
 | `read_screen_text` | `mcp__win__read_screen_text` | 免截图全窗 OCR 读屏：一次返回窗口/区域内全部文字与物理像素 `(cx,cy)` 纯文本清单 |
+| `chrome_cdp` | `mcp__win__chrome_cdp` | 免截图、免抢鼠标直连本地已登录 Chrome/Edge（`DevToolsActivePort` CDP）：穿透 Shadow DOM 读写网页控件与标签页 |
 | `get_focused_text` | `mcp__win__get_focused_text` | 只读当前焦点控件文本；不支持或密码控件明确失败，不改变焦点 |
 | `input_batch` | `mcp__win__input_batch` | 一次确认执行同一前台窗口的有序 `type_text`/`press_keys` 批次；失败即停 |
 | `action_batch` | `mcp__win__action_batch` | 一次调用按顺序执行 1~20 步桌面连招（支持聚焦/点击/悬停/滚动/等待/输入/按键/找字/UIA 控件树/读屏/截图），任一步失败即停 |
@@ -85,10 +86,12 @@ dsh plugin --profile <profile> add "link:D:/Tools/AI/Juzi-Skill/Juzi-DSH-Plugins
 写操作清单：`action_batch`（含写动作时）/ `input_batch` / `click` / `scroll` / `type_text` / `press_keys` / `hover` / `drag` /
 `manage_window` 的 `move`、`resize`、`set_bounds`、`minimize`、`maximize`、`restore`、
 `close`、`tile` / `clipboard` 的 `set`、`clear`、`restore` / `launch_app` /
+`chrome_cdp` 的 `open_url`、`activate_tab`、`close_tab`、`click`、`fill`、`press_key` /
 `system` 包含 `brightness`、`volume`、`mute`、`lock` 任一写参数时。
 
 只读、不走确认门：`focus_window`、`screenshot`、`list_windows`、`system`（无参数）、
-`manage_window` 的 `get_work_area`、`wait`、`clipboard.get`、`find_text`、`inspect_ui`、`read_screen_text`、`get_focused_text`。
+`manage_window` 的 `get_work_area`、`wait`、`clipboard.get`、`find_text`、`inspect_ui`、`read_screen_text`、`get_focused_text`、
+`chrome_cdp` 的 `list_tabs`、`inspect_page`、`read_text`。
 受保护窗口（UAC、Windows 安全中心、登录/锁屏、常见密码管理器）在任何模式下都会被拒绝；
 `drag` 途中落点进入受保护窗口也会立即抬键中止。
 
@@ -200,7 +203,7 @@ C:\Python314\python.exe plugins\juzi-win-dsh\smoke_test.py
 C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
 ```
 
-`smoke_test.py` 是安全冒烟：MCP 握手、20 工具清单（含 `get_focused_text`、`input_batch`、`action_batch`、`inspect_ui`、`read_screen_text`）、窗口枚举、截图、`get_work_area`、
+`smoke_test.py` 是安全冒烟：MCP 握手、21 工具清单（含 `get_focused_text`、`input_batch`、`action_batch`、`inspect_ui`、`read_screen_text`、`chrome_cdp`）、窗口枚举、截图、`get_work_area`、
 `clipboard.get`、`wait` 短超时、`find_text` 引擎探测、Notepad++ 置前和系统状态读取；
 不点击、不输入、不按键、不修改音量/亮度、不写剪贴板。预期最后一行 `SMOKE_OK`。
 `regression_test.py` 是纯标准库 unittest，覆盖 R2/R3/R4/R5/R6/R7/R8/R9/R10/R12/R13 的
@@ -230,6 +233,7 @@ C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
 | `ocr.py` | 常驻 OCR Worker、引擎编排、视觉行重建、文字命中与全窗文本块提取 |
 | `ocr_windows.ps1` | Windows.Media.Ocr WinRT 调用（支持 `-Worker` 常驻与 `-Path` 单次），输出词框 JSON |
 | `ui_tree.py` / `ui_tree.ps1` | 常驻 STA Windows UI Automation 控件树采集器（Per-Monitor V2 物理像素坐标） |
+| `cdp.py` | 纯标准库本地 Chrome/Edge CDP WebSocket 客户端（`DevToolsActivePort` 直连，穿透 Shadow DOM） |
 | `focused_text.py` / `focused_text.ps1` | 常驻 STA 焦点文本回读（UIA + WM_GETTEXT） |
 | `schema_validate.py` | 工具参数 JSON Schema 严格校验 |
 | `paste_text.py` / `paste_text.ps1` | 剪贴板粘贴、序列号事务与恢复 |

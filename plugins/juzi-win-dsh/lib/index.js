@@ -14,6 +14,7 @@ function isWriteInvocation(publicName, args) {
   const raw = publicName.slice(prefix.length);
   if (WRITE_TOOLS.has(raw)) return true;
   if (raw === 'manage_window') return typeof args.action === 'string' && args.action !== 'get_work_area';
+  if (raw === 'chrome_cdp') return typeof args.action === 'string' && !['list_tabs', 'inspect_page', 'read_text'].includes(args.action);
   if (raw === 'clipboard') return ['set', 'clear', 'restore'].includes(args.action);
   if (raw === 'system') {
     const hasWrite = key => args[key] !== undefined && args[key] !== null;

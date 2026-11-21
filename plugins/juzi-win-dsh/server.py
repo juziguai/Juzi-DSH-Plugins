@@ -33,6 +33,7 @@ import traceback
 from io import BytesIO
 from typing import Any
 
+import cdp
 import focused_text
 import clipboard_win
 import launcher
@@ -522,9 +523,11 @@ def input_batch(hwnd: int, actions: list, confirm_token: str | None = None) -> s
     return _dump({"ok": True, "results": results})
 
 
+_CDP_READ_ACTIONS = {"list_tabs", "inspect_page", "read_text"}
+_CDP_WRITE_ACTIONS = {"open_url", "activate_tab", "close_tab", "click", "fill", "press_key"}
 _ACTION_BATCH_READ_TOOLS = {"focus_window", "wait", "find_text", "screenshot", "inspect_ui", "read_screen_text"}
 _ACTION_BATCH_WRITE_TOOLS = {"click", "hover", "scroll", "type_text", "press_keys"}
-_ACTION_BATCH_ALLOWED = _ACTION_BATCH_READ_TOOLS | _ACTION_BATCH_WRITE_TOOLS
+_ACTION_BATCH_ALLOWED = _ACTION_BATCH_READ_TOOLS | _ACTION_BATCH_WRITE_TOOLS | {"chrome_cdp"}
 
 
 def action_batch(
@@ -547,7 +550,7 @@ def action_batch(
         errors = schema_validate.validate(TOOL_SCHEMAS[name], args)
         if errors:
             return _error("invalid_arguments", f"第 {index + 1} 个动作参数校验失败。", details=errors)
-        if name in _ACTION_BATCH_WRITE_TOOLS:
+        if name in _ACTION_BATCH_WRITE_TOOLS or (name == "chrome_cdp" and args.get("action") in _CDP_WRITE_ACTIONS):
             has_write = True
         prepared.append((name, dict(args)))
 
@@ -1787,6 +1790,129 @@ def read_screen_text(
     return _dump(payload)
 
 
+def chrome_cdp(
+    action: str,
+    target_id: str | None = None,
+    url_contains: str | None = None,
+    title_contains: str | None = None,
+    url: str | None = None,
+    new_tab: bool = True,
+    ref: int | None = None,
+    selector: str | None = None,
+    text: str | None = None,
+    index: int = 0,
+    value: str | None = None,
+    submit: bool = False,
+    key: str | None = None,
+    query: str | None = None,
+    interactive_only: bool = False,
+    include_text: bool = True,
+    include_elements: bool = False,
+    max_elements: int = 150,
+    max_chars: int = 8000,
+    wait_ms: int = 450,
+    after_inspect: bool = True,
+    browser: str = "auto",
+    port: int | None = None,
+    confirm_token: str | None = None,
+) -> str:
+    """免截图、免抢鼠标直连本地已登录 Chrome/Edge（通过 DevToolsActivePort CDP）。"""
+    all_actions = _CDP_READ_ACTIONS | _CDP_WRITE_ACTIONS
+    if not isinstance(action, str) or action.strip() not in all_actions:
+        return _error("invalid_action", f"action 必须是：{', '.join(sorted(all_actions))}。")
+    action = action.strip()
+    if browser not in ("auto", "chrome", "edge"):
+        return _error("invalid_browser", "browser 必须是 auto、chrome 或 edge。")
+    if ref is not None:
+        parsed_ref = _as_int(ref)
+        if parsed_ref is None or parsed_ref < 1:
+            return _error("invalid_ref", "ref 必须是正整数。")
+        ref = parsed_ref
+    idx = _as_int(index)
+    if idx is None or not 0 <= idx <= 100:
+        return _error("invalid_index", "index 必须是 0~100 的整数。")
+    limit = _as_int(max_elements)
+    if limit is None or not 1 <= limit <= 500:
+        return _error("invalid_max_elements", "max_elements 必须在 1~500 之间。")
+    chars_limit = _as_int(max_chars)
+    if chars_limit is None or not 100 <= chars_limit <= 100000:
+        return _error("invalid_max_chars", "max_chars 必须在 100~100000 之间。")
+    wait_val = _as_int(wait_ms)
+    if wait_val is None or not 0 <= wait_val <= 15000:
+        return _error("invalid_wait_ms", "wait_ms 必须在 0~15000 之间。")
+    if port is not None:
+        parsed_port = _as_int(port)
+        if parsed_port is None or not 1 <= parsed_port <= 65535:
+            return _error("invalid_port", "port 必须是 1~65535 的整数。")
+        port = parsed_port
+
+    if action == "open_url":
+        if not isinstance(url, str) or not url.strip():
+            return _error("invalid_url", "open_url 需要非空 url。")
+        reason = cdp.forbidden_page_reason(url, "")
+        if reason:
+            return _error("forbidden_page", reason)
+    elif action in ("click", "fill") and ref is None and not selector and not text:
+        return _error("invalid_target_locator", f"{action} 需要提供 ref、selector 或 text 至少一个定位条件。")
+    if action == "fill" and not isinstance(value, str):
+        return _error("invalid_value", "fill 需要提供字符串 value。")
+    if action == "press_key" and (not isinstance(key, str) or not key.strip()):
+        return _error("invalid_key", "press_key 需要非空 key。")
+
+    params = {
+        "action": action, "target_id": target_id, "url_contains": url_contains,
+        "title_contains": title_contains, "url": url, "new_tab": bool(new_tab),
+        "ref": ref, "selector": selector, "text": text, "index": idx,
+        "value": value[:200] if isinstance(value, str) else None,
+        "submit": bool(submit), "key": key, "browser": browser, "port": port,
+    }
+    LOG.write("chrome_cdp", "start", params)
+
+    if action in _CDP_WRITE_ACTIONS:
+        proc_name = "msedge.exe" if browser == "edge" else "chrome.exe"
+        gate_target = {"hwnd": 0, "process": proc_name, "title": title_contains or url or target_id or "Chrome CDP"}
+        blocked = _gate(f"chrome_cdp.{action}", params, gate_target, confirm_token)
+        if blocked:
+            LOG.write("chrome_cdp", "pending_confirmation", params, gate_target)
+            return blocked
+
+    try:
+        result = cdp.execute(
+            action,
+            target_id=target_id,
+            url_contains=url_contains,
+            title_contains=title_contains,
+            url=url,
+            new_tab=bool(new_tab),
+            ref=ref,
+            selector=selector,
+            text=text,
+            index=idx,
+            value=value,
+            submit=bool(submit),
+            key=key,
+            query=query,
+            interactive_only=bool(interactive_only),
+            include_text=bool(include_text),
+            include_elements=bool(include_elements),
+            max_elements=limit,
+            max_chars=chars_limit,
+            wait_ms=wait_val,
+            after_inspect=bool(after_inspect),
+            browser=browser,
+            port=port,
+        )
+    except cdp.CdpError as exc:
+        LOG.write("chrome_cdp", "error", params, error=f"{exc.code}: {exc}")
+        return _error(exc.code, str(exc), **exc.extra)
+    except Exception as exc:  # noqa: BLE001
+        LOG.write("chrome_cdp", "error", params, error=repr(exc))
+        return _error("cdp_failed", f"CDP 执行异常：{exc}")
+
+    LOG.write("chrome_cdp", "end", params, outcome=action)
+    return _dump(result)
+
+
 # ---------------------------------------------------------------- MCP 协议
 
 _WINDOW_SCHEMA = {
@@ -2037,12 +2163,46 @@ _READ_SCREEN_TEXT_SCHEMA = {
         "include_items": {"type": "boolean", "default": False, "description": "默认只返回精简 compact 清单以防输出落盘；设为 true 时附带完整 items 数组。"},
     },
 }
+_CHROME_CDP_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {
+            "type": "string",
+            "enum": ["list_tabs", "inspect_page", "read_text", "open_url", "activate_tab", "close_tab", "click", "fill", "press_key"],
+            "description": "CDP 动作：list_tabs/inspect_page/read_text 只读免确认；open_url/activate_tab/close_tab/click/fill/press_key 走确认门，且后台执行不抢物理鼠标。",
+        },
+        "target_id": {"type": ["string", "null"], "default": None, "description": "目标标签页 target_id（由 list_tabs 或 open_url 返回）。"},
+        "url_contains": {"type": ["string", "null"], "default": None, "description": "未传 target_id 时按 URL 子串匹配标签页。"},
+        "title_contains": {"type": ["string", "null"], "default": None, "description": "未传 target_id 时按标题子串匹配标签页。"},
+        "url": {"type": ["string", "null"], "default": None, "maxLength": 8192, "description": "open_url 必填的目标 URL。"},
+        "new_tab": {"type": "boolean", "default": True, "description": "open_url 是否新开标签页；false 则在匹配页签直接导航。"},
+        "ref": {"type": ["integer", "null"], "default": None, "minimum": 1, "description": "click/fill 首选：inspect_page 输出的 [ref] 编号。"},
+        "selector": {"type": ["string", "null"], "default": None, "maxLength": 1000, "description": "click/fill 可选 CSS 选择器（自动穿透 Shadow DOM）。"},
+        "text": {"type": ["string", "null"], "default": None, "maxLength": 500, "description": "click/fill 可选可见文本或 aria-label 匹配（自动穿透 Shadow DOM）。"},
+        "index": {"type": "integer", "default": 0, "minimum": 0, "maximum": 100, "description": "text 匹配到多项时取第几个（默认 0）。"},
+        "value": {"type": ["string", "null"], "default": None, "maxLength": 100000, "description": "fill 必填的输入文本。"},
+        "submit": {"type": "boolean", "default": False, "description": "fill 后是否自动发送 Enter。"},
+        "key": {"type": ["string", "null"], "default": None, "maxLength": 50, "description": "press_key 必填按键名，如 Enter、Escape、Tab、ArrowDown。"},
+        "query": {"type": ["string", "null"], "default": None, "maxLength": 200, "description": "inspect_page 可选关键字过滤。"},
+        "interactive_only": {"type": "boolean", "default": False},
+        "include_text": {"type": "boolean", "default": True},
+        "include_elements": {"type": "boolean", "default": False},
+        "max_elements": {"type": "integer", "default": 150, "minimum": 1, "maximum": 500},
+        "max_chars": {"type": "integer", "default": 8000, "minimum": 100, "maximum": 100000},
+        "wait_ms": {"type": "integer", "default": 450, "minimum": 0, "maximum": 15000, "description": "open_url/click 后等待渲染的毫秒数。"},
+        "after_inspect": {"type": "boolean", "default": True, "description": "open_url/click 后是否顺带返回最新 inspect_page 清单，省去额外一轮请求。"},
+        "browser": {"type": "string", "enum": ["auto", "chrome", "edge"], "default": "auto"},
+        "port": {"type": ["integer", "null"], "default": None, "minimum": 1, "maximum": 65535},
+        "confirm_token": {"type": ["string", "null"], "default": None},
+    },
+    "required": ["action"],
+}
 
 TOOLS = [
-    {"name": "action_batch", "description": "一次调用按顺序执行多步桌面连招（支持 focus_window/click/hover/scroll/wait/type_text/press_keys/find_text/inspect_ui/read_screen_text/screenshot），任一步失败即停；优先用 inspect_ui 或 read_screen_text 免截图拿界面信息，若包含 screenshot 会把最新图像一并返回。",
+    {"name": "action_batch", "description": "一次调用按顺序执行多步桌面连招（支持 focus_window/click/hover/scroll/wait/type_text/press_keys/find_text/inspect_ui/read_screen_text/chrome_cdp/screenshot），任一步失败即停；优先用 chrome_cdp（浏览器网页）或 inspect_ui（桌面应用）免截图操作。",
      "inputSchema": {"type": "object", "properties": {
        "actions": {"type": "array", "minItems": 1, "maxItems": 20,
-       "items": {"type": "object", "properties": {"tool": {"type": "string", "enum": ["focus_window", "click", "hover", "scroll", "wait", "type_text", "press_keys", "find_text", "inspect_ui", "read_screen_text", "screenshot"]}, "arguments": {"type": "object", "additionalProperties": True}}, "required": ["tool", "arguments"]}},
+       "items": {"type": "object", "properties": {"tool": {"type": "string", "enum": ["focus_window", "click", "hover", "scroll", "wait", "type_text", "press_keys", "find_text", "inspect_ui", "read_screen_text", "chrome_cdp", "screenshot"]}, "arguments": {"type": "object", "additionalProperties": True}}, "required": ["tool", "arguments"]}},
        "confirm_token": {"type": ["string", "null"], "default": None}}, "required": ["actions"]}},
     {"name": "input_batch", "description": "一次确认执行同一前台窗口的有序输入/按键批次；失败即停止。",
      "inputSchema": {"type": "object", "properties": {
@@ -2138,6 +2298,11 @@ TOOLS = [
         "description": "免截图整窗 OCR 读屏：一次返回窗口/区域内全部文字与屏幕物理像素中心点 (cx,cy) 纯文本清单，无需落盘或再次看图；适合 UIA 控件树为空的自绘界面。只读，不走确认门。",
         "inputSchema": _READ_SCREEN_TEXT_SCHEMA,
     },
+    {
+        "name": "chrome_cdp",
+        "description": "免截图、免抢鼠标直连本地已登录 Chrome/Edge（通过 DevToolsActivePort CDP WebSocket）：毫秒级列出标签页、穿透 Shadow DOM 读取网页真实控件与 [DISABLED]/[selected] 状态、后台直接点击/填表/打开链接。需要 Chrome 开启 chrome://inspect/#remote-debugging。",
+        "inputSchema": _CHROME_CDP_SCHEMA,
+    },
 ]
 
 TOOL_FUNCTIONS = {
@@ -2161,6 +2326,7 @@ TOOL_FUNCTIONS = {
     "find_text": find_text,
     "inspect_ui": inspect_ui,
     "read_screen_text": read_screen_text,
+    "chrome_cdp": chrome_cdp,
 }
 
 
@@ -2424,6 +2590,7 @@ def main() -> int:
         traceback.print_exc(file=sys.stderr)
         return 1
     finally:
+        cdp.close()
         ocr.close()
         ui_tree.close()
         focused_text.close()

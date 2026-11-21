@@ -601,5 +601,137 @@ class ScreenlessPerceptionTests(unittest.TestCase):
         self.assertIn('"Colab Pro"', res["compact"])
 
 
+class ChromeCdpTests(unittest.TestCase):
+    def test_websocket_rfc6455_and_cdp_manager_end_to_end(self):
+        import base64
+        import hashlib
+        import socket
+        import struct
+        import threading
+        import cdp as cdp_mod
+
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.bind(("127.0.0.1", 0))
+        srv.listen(1)
+        port = srv.getsockname()[1]
+
+        def ws_server():
+            conn, _ = srv.accept()
+            try:
+                buf = b""
+                while b"\r\n\r\n" not in buf:
+                    buf += conn.recv(4096)
+                headers = {}
+                for line in buf.decode("latin-1").split("\r\n")[1:]:
+                    if ":" in line:
+                        k, v = line.split(":", 1)
+                        headers[k.strip().lower()] = v.strip()
+                accept = base64.b64encode(
+                    hashlib.sha1((headers["sec-websocket-key"] + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()
+                ).decode()
+                conn.sendall(
+                    f"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n".encode()
+                )
+                # Send a PING frame first to verify client PONG handling
+                conn.sendall(bytes([0x89, 2]) + b"hi")
+
+                def send_ws_json(obj):
+                    data = json.dumps(obj).encode("utf-8")
+                    if len(data) < 126:
+                        hdr = bytes([0x81, len(data)])
+                    else:
+                        hdr = bytes([0x81, 126]) + struct.pack("!H", len(data))
+                    conn.sendall(hdr + data)
+
+                while True:
+                    head = conn.recv(2)
+                    if not head or (head[0] & 0x0F) == 0x8:
+                        break
+                    opcode = head[0] & 0x0F
+                    masked = bool(head[1] & 0x80)
+                    ln = head[1] & 0x7F
+                    if ln == 126:
+                        ln = struct.unpack("!H", conn.recv(2))[0]
+                    mask = conn.recv(4) if masked else b""
+                    raw = b""
+                    while len(raw) < ln:
+                        raw += conn.recv(ln - len(raw))
+                    if masked:
+                        raw = bytes(b ^ mask[i & 3] for i, b in enumerate(raw))
+                    if opcode == 0xA:  # PONG
+                        continue
+                    req = json.loads(raw.decode("utf-8"))
+                    rid, method = req["id"], req["method"]
+                    if method == "Target.getTargets":
+                        send_ws_json({"id": rid, "result": {"targetInfos": [
+                            {"targetId": "t1", "type": "page", "title": "Untitled - Colab", "url": "https://colab.research.google.com/", "attached": False},
+                        ]}})
+                    elif method == "Target.attachToTarget":
+                        send_ws_json({"id": rid, "result": {"sessionId": "s1"}})
+                    elif method == "Runtime.evaluate":
+                        expr = req["params"]["expression"]
+                        if "1" == expr:
+                            send_ws_json({"id": rid, "sessionId": "s1", "result": {"result": {"value": 1}}})
+                        elif "__juziCdpRefs" in expr and "walk" in expr:
+                            send_ws_json({"id": rid, "sessionId": "s1", "result": {"result": {"value": {
+                                "title": "Colab", "url": "https://colab.research.google.com/",
+                                "ready_state": "complete", "count": 2,
+                                "compact": '[1] radio "CPU" [selected]\n[2] radio "H100 GPU" [DISABLED]',
+                                "elements": [{"ref": 1}, {"ref": 2}],
+                            }}}})
+                        else:
+                            send_ws_json({"id": rid, "sessionId": "s1", "result": {"result": {"value": {
+                                "ok": True, "dispatched_via": "cdp_mouse", "tag": "button", "label": "连接", "cx": 100, "cy": 50,
+                            }}}})
+                    elif method == "Input.dispatchMouseEvent":
+                        send_ws_json({"id": rid, "sessionId": "s1", "result": {}})
+            finally:
+                conn.close()
+                srv.close()
+
+        t = threading.Thread(target=ws_server, daemon=True)
+        t.start()
+        mgr = cdp_mod.CdpManager()
+        ws_url = f"ws://127.0.0.1:{port}/devtools/browser/mock"
+        try:
+            tabs = mgr.execute("list_tabs", ws_url=ws_url)
+            self.assertEqual(tabs["count"], 1)
+            page = mgr.execute("inspect_page", ws_url=ws_url, target_id="t1")
+            self.assertIn("[DISABLED]", page["compact"])
+            self.assertNotIn("elements", page)
+            clicked = mgr.execute("click", ws_url=ws_url, target_id="t1", ref=1, wait_ms=0, after_inspect=True)
+            self.assertTrue(clicked["ok"])
+            self.assertIn("page", clicked)
+        finally:
+            mgr.close()
+            t.join(timeout=2)
+
+    def test_chrome_cdp_forbidden_pages_and_confirmation_gate(self):
+        import cdp as cdp_mod
+        # Password settings URL must be rejected immediately
+        blocked = json.loads(server.chrome_cdp(action="open_url", url="chrome://settings/passwords"))
+        self.assertFalse(blocked["ok"])
+        self.assertEqual(blocked["error_code"], "forbidden_page")
+
+        self.assertIsNotNone(cdp_mod.forbidden_page_reason("https://my.1password.com", "1Password - 登录"))
+
+        # Read action bypasses confirmation gate; write action requires confirmation when mode=always
+        gate = server.ConfirmationGate("always", [])
+        with mock.patch.object(server, "GATE", gate), \
+             mock.patch.object(cdp_mod, "execute", return_value={"ok": True, "count": 0, "tabs": []}) as mock_exec:
+            ro = json.loads(server.chrome_cdp(action="list_tabs"))
+            self.assertTrue(ro["ok"])
+            mock_exec.assert_called_once()
+
+        with mock.patch.object(server, "GATE", gate), \
+             mock.patch.object(cdp_mod, "execute", return_value={"ok": True, "action": "click"}) as mock_exec2:
+            pending = json.loads(server.chrome_cdp(action="click", ref=1))
+            self.assertEqual(pending["status"], "confirmation_required")
+            mock_exec2.assert_not_called()
+            done = json.loads(server.chrome_cdp(action="click", ref=1, confirm_token=pending["confirm_token"]))
+            self.assertTrue(done["ok"])
+            mock_exec2.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
