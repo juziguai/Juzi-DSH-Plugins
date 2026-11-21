@@ -37,7 +37,8 @@ EXPECTED_TOOLS = {
     "list_windows", "focus_window", "screenshot",
     "click", "scroll", "type_text", "press_keys", "system",
     "manage_window", "hover", "drag", "wait", "clipboard", "launch_app", "find_text",
-    "get_focused_text", "input_batch",
+    "get_focused_text", "input_batch", "action_batch",
+    "inspect_ui", "read_screen_text",
 }
 
 

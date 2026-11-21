@@ -859,14 +859,27 @@ def image_diff_ratio(previous: bytes, current: bytes, pixel_threshold: int = 8) 
     return changed / max(1, len(current))
 
 
-def capture(max_width: int = 1600, hwnd: int | None = None) -> tuple[bytes, dict[str, Any]]:
-    """截图并编码为 PNG；返回 (png_bytes, metadata)。
+def capture(
+    max_width: int = 1600,
+    hwnd: int | None = None,
+    image_format: str = "png",
+    quality: int = 82,
+) -> tuple[bytes, dict[str, Any]]:
+    """截图并编码为 PNG 或 JPEG；返回 (image_bytes, metadata)。
 
     整屏截图覆盖所有显示器，origin 为虚拟屏幕左上角；窗口截图只含客户区，
     origin 为客户区左上角。metadata 的 width/height 是缩放后的像素尺寸，
     original_width/original_height 是截图原始物理像素尺寸。
     """
     from PIL import ImageGrab
+
+    fmt = (image_format or "png").strip().lower()
+    if fmt == "jpg":
+        fmt = "jpeg"
+    if fmt not in ("png", "jpeg"):
+        raise ValueError("format 必须是 png 或 jpeg。")
+    if not isinstance(quality, int) or isinstance(quality, bool) or not 40 <= quality <= 95:
+        raise ValueError("quality 必须是 40~95 之间的整数。")
 
     if max_width and (max_width < 320 or max_width > 4096):
         raise ValueError("max_width 必须是 0（不缩放）或 320~4096 之间的整数。")
@@ -950,10 +963,17 @@ def capture(max_width: int = 1600, hwnd: int | None = None) -> tuple[bytes, dict
         image = image.resize((target_width, target_height), resample=3)  # LANCZOS
         scale = target_width / original_width
 
-    if image.mode not in ("RGB", "RGBA"):
-        image = image.convert("RGB")
     buffer = BytesIO()
-    image.save(buffer, format="PNG", optimize=True)
+    if fmt == "jpeg":
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        image.save(buffer, format="JPEG", quality=quality)
+        mime_type = "image/jpeg"
+    else:
+        if image.mode not in ("RGB", "RGBA"):
+            image = image.convert("RGB")
+        image.save(buffer, format="PNG", compress_level=1)
+        mime_type = "image/png"
     data = buffer.getvalue()
 
     metadata = {
@@ -966,6 +986,9 @@ def capture(max_width: int = 1600, hwnd: int | None = None) -> tuple[bytes, dict
         "original_width": int(original_width),
         "original_height": int(original_height),
         "scale": round(scale, 6),
+        "format": fmt,
+        "mime_type": mime_type,
+        "bytes": len(data),
         "png_bytes": len(data),
         "screen": screen_metrics(),
     }

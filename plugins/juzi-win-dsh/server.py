@@ -40,6 +40,7 @@ import ocr
 import schema_validate
 import security
 import system_control
+import ui_tree
 import winapi
 from confirm import ConfirmationGate
 from paste_text import paste_text
@@ -63,6 +64,7 @@ DPI_MODE = winapi.enable_dpi_awareness()
 LOG = RunLog()
 GATE = ConfirmationGate(CONFIRM_MODE, ALLOWLIST)
 _BATCH_ACTION = ContextVar("authorized_batch_action", default=None)
+_ACTION_BATCH_CONFIRMED = ContextVar("authorized_action_batch", default=False)
 
 INSTRUCTIONS = (
     "「电脑控制」面向 Windows 桌面。所有坐标都是物理像素；"
@@ -111,6 +113,8 @@ def _gate(
         return _error("forbidden_window", reason, window=target)
     authorized = _BATCH_ACTION.get()
     if authorized is not None and authorized == (action, params, target):
+        return None
+    if _ACTION_BATCH_CONFIRMED.get():
         return None
     if not GATE.needs_confirmation(target):
         return None
@@ -249,8 +253,16 @@ def focus_window(
     return _dump({"ok": True, "window": info})
 
 
-def screenshot(hwnd: int | None = None, max_width: int = 1600) -> list[dict[str, Any]]:
-    params = {"hwnd": hwnd, "max_width": max_width}
+def screenshot(
+    hwnd: int | None = None,
+    max_width: int = 1600,
+    format: str = "png",
+    quality: int = 82,
+) -> list[dict[str, Any]]:
+    fmt = (format or "png").strip().lower() if isinstance(format, str) else ""
+    if fmt == "jpg":
+        fmt = "jpeg"
+    params = {"hwnd": hwnd, "max_width": max_width, "format": fmt, "quality": quality}
     LOG.write("screenshot", "start", params)
     if hwnd is not None:
         parsed = _as_int(hwnd)
@@ -260,6 +272,11 @@ def screenshot(hwnd: int | None = None, max_width: int = 1600) -> list[dict[str,
     width = _as_int(max_width)
     if width is None:
         return [{"type": "text", "text": _error("invalid_max_width", "max_width 必须是整数。")}]
+    if fmt not in ("png", "jpeg"):
+        return [{"type": "text", "text": _error("invalid_format", "format 必须是 png 或 jpeg。")}]
+    quality_value = _as_int(quality)
+    if quality_value is None or not 40 <= quality_value <= 95:
+        return [{"type": "text", "text": _error("invalid_quality", "quality 必须是 40~95 之间的整数。")}]
 
     if hwnd is not None:
         info = winapi.window_info(hwnd)
@@ -295,7 +312,10 @@ def screenshot(hwnd: int | None = None, max_width: int = 1600) -> list[dict[str,
         ]
 
     try:
-        data, metadata = winapi.capture(max_width=width, hwnd=hwnd)
+        if fmt == "png" and quality_value == 82:
+            data, metadata = winapi.capture(max_width=width, hwnd=hwnd)
+        else:
+            data, metadata = winapi.capture(max_width=width, hwnd=hwnd, image_format=fmt, quality=quality_value)
     except Exception as exc:  # noqa: BLE001
         LOG.write("screenshot", "error", params, error=repr(exc))
         return [{"type": "text", "text": _error("screenshot_failed", f"截图失败：{exc}")}]
@@ -303,8 +323,9 @@ def screenshot(hwnd: int | None = None, max_width: int = 1600) -> list[dict[str,
     target = winapi.window_info(hwnd) if hwnd is not None else None
     LOG.write(
         "screenshot", "end", params, target,
-        outcome=f"{metadata['width']}x{metadata['height']}",
+        outcome=f"{metadata['width']}x{metadata['height']} {fmt}",
     )
+    mime_type = str(metadata.get("mime_type") or ("image/jpeg" if fmt == "jpeg" else "image/png"))
     text = _dump(
         {
             "ok": True,
@@ -314,8 +335,30 @@ def screenshot(hwnd: int | None = None, max_width: int = 1600) -> list[dict[str,
     )
     return [
         {"type": "text", "text": text},
-        {"type": "image", "data": base64.b64encode(data).decode("ascii"), "mimeType": "image/png"},
+        {"type": "image", "data": base64.b64encode(data).decode("ascii"), "mimeType": mime_type},
     ]
+
+
+def _attach_after_screenshot(
+    payload: dict[str, Any],
+    hwnd: int | None,
+    after_wait_ms: int,
+    screenshot_max_width: int,
+    screenshot_format: str,
+) -> list[dict[str, Any]]:
+    wait_ms = max(0, min(5000, int(after_wait_ms)))
+    if wait_ms > 0:
+        time.sleep(wait_ms / 1000.0)
+    shot = screenshot(hwnd=hwnd, max_width=screenshot_max_width, format=screenshot_format)
+    shot_meta = _payload_from_result(shot)
+    if shot_meta is not None:
+        payload["after_screenshot"] = shot_meta
+    blocks: list[dict[str, Any]] = [{"type": "text", "text": _dump(payload)}]
+    for item in shot:
+        if isinstance(item, dict) and item.get("type") == "image":
+            blocks.append(item)
+            break
+    return blocks
 
 
 def click(
@@ -325,7 +368,11 @@ def click(
     double: bool = False,
     hwnd: int | None = None,
     confirm_token: str | None = None,
-) -> str:
+    after_screenshot: bool = False,
+    after_wait_ms: int = 150,
+    screenshot_max_width: int = 1280,
+    screenshot_format: str = "jpeg",
+) -> str | list[dict[str, Any]]:
     params = {"x": x, "y": y, "button": button, "double": bool(double), "hwnd": hwnd}
     LOG.write("click", "start", params)
     x_value, y_value = _as_int(x), _as_int(y)
@@ -367,7 +414,10 @@ def click(
         LOG.write("click", "error", params, target, error=repr(exc))
         return _error("click_failed", f"点击失败：{exc}")
     LOG.write("click", "end", params, result.get("target"), outcome=f"{result['x']},{result['y']}")
-    return _dump({"ok": True, **result})
+    payload = {"ok": True, **result}
+    if after_screenshot:
+        return _attach_after_screenshot(payload, hwnd, after_wait_ms, screenshot_max_width, screenshot_format)
+    return _dump(payload)
 
 
 def scroll(
@@ -470,6 +520,84 @@ def input_batch(hwnd: int, actions: list, confirm_token: str | None = None) -> s
         if not result.get("ok") or result.get("status") == "dispatched_unverified":
             return _error("batch_stopped", "动作未成功，剩余动作未执行；勿自动重放已执行动作。", results=results)
     return _dump({"ok": True, "results": results})
+
+
+_ACTION_BATCH_READ_TOOLS = {"focus_window", "wait", "find_text", "screenshot", "inspect_ui", "read_screen_text"}
+_ACTION_BATCH_WRITE_TOOLS = {"click", "hover", "scroll", "type_text", "press_keys"}
+_ACTION_BATCH_ALLOWED = _ACTION_BATCH_READ_TOOLS | _ACTION_BATCH_WRITE_TOOLS
+
+
+def action_batch(
+    actions: list[dict[str, Any]],
+    confirm_token: str | None = None,
+) -> str | list[dict[str, Any]]:
+    """一次调用顺序执行多步桌面操作（支持 focus_window / click / hover / scroll / wait / type_text / press_keys / find_text / screenshot）；任一步失败即中止。"""
+    if not isinstance(actions, list) or not 1 <= len(actions) <= 20:
+        return _error("invalid_arguments", "action_batch 须包含 1~20 个动作。")
+    prepared: list[tuple[str, dict[str, Any]]] = []
+    has_write = False
+    for index, item in enumerate(actions):
+        if not isinstance(item, dict) or set(item) != {"tool", "arguments"}:
+            return _error("invalid_arguments", f"第 {index + 1} 个动作必须只包含 tool 和 arguments。")
+        name, args = item["tool"], item["arguments"]
+        if name not in _ACTION_BATCH_ALLOWED or not isinstance(args, dict):
+            return _error("invalid_arguments", f"第 {index + 1} 个动作不支持：{name}。")
+        if "confirm_token" in args:
+            return _error("invalid_arguments", "子动作不得单独传 confirm_token，请统一在批次顶层传参。")
+        errors = schema_validate.validate(TOOL_SCHEMAS[name], args)
+        if errors:
+            return _error("invalid_arguments", f"第 {index + 1} 个动作参数校验失败。", details=errors)
+        if name in _ACTION_BATCH_WRITE_TOOLS:
+            has_write = True
+        prepared.append((name, dict(args)))
+
+    confirmed_batch = False
+    if has_write and GATE.mode != "off":
+        fg = winapi.foreground_info()
+        if GATE.mode == "always" or confirm_token is not None:
+            blocked = _gate("action_batch", {"actions": actions}, fg, confirm_token)
+            if blocked:
+                LOG.write("action_batch", "pending_confirmation", {"count": len(actions)}, fg)
+                return blocked
+            confirmed_batch = True
+
+    results: list[dict[str, Any]] = []
+    last_image: dict[str, Any] | None = None
+    token = _ACTION_BATCH_CONFIRMED.set(confirmed_batch)
+    try:
+        for index, (name, args) in enumerate(prepared):
+            fn = TOOL_FUNCTIONS[name]
+            allowed_params = {p.name for p in inspect.signature(fn).parameters.values()}
+            kwargs = {k: v for k, v in args.items() if k in allowed_params}
+            raw = fn(**kwargs)
+            step_payload = _payload_from_result(raw)
+            if step_payload is None:
+                step_payload = {"ok": False, "error": "invalid_step_output", "message": str(raw)[:300]}
+            if isinstance(raw, list):
+                for block in raw:
+                    if isinstance(block, dict) and block.get("type") == "image":
+                        last_image = block
+            results.append({"step": index, "tool": name, **step_payload})
+            if not step_payload.get("ok") or step_payload.get("status") in ("dispatched_unverified", "confirmation_required"):
+                out: dict[str, Any] = {
+                    "ok": False,
+                    "error": "batch_stopped",
+                    "error_code": step_payload.get("error_code") or step_payload.get("error") or "batch_stopped",
+                    "message": f"第 {index + 1} 步 ({name}) 未成功，已中止后续动作。",
+                    "failed_step": index,
+                    "results": results,
+                }
+                if step_payload.get("status") == "confirmation_required":
+                    out["status"] = "confirmation_required"
+                    out["confirm_token"] = step_payload.get("confirm_token")
+                return _dump(out)
+    finally:
+        _ACTION_BATCH_CONFIRMED.reset(token)
+
+    summary = {"ok": True, "completed_steps": len(results), "results": results}
+    if last_image is not None:
+        return [{"type": "text", "text": _dump(summary)}, last_image]
+    return _dump(summary)
 
 
 def get_focused_text(hwnd: int | None = None, max_chars: int = 10000) -> str:
@@ -590,7 +718,15 @@ def type_text(
     return _dump(payload)
 
 
-def press_keys(keys: str, confirm_token: str | None = None, hwnd: int | None = None) -> str:
+def press_keys(
+    keys: str,
+    confirm_token: str | None = None,
+    hwnd: int | None = None,
+    after_screenshot: bool = False,
+    after_wait_ms: int = 150,
+    screenshot_max_width: int = 1280,
+    screenshot_format: str = "jpeg",
+) -> str | list[dict[str, Any]]:
     if not isinstance(keys, str) or not keys.strip():
         return _error("invalid_keys", "keys 必须是非空字符串。")
     params = {"keys": keys.strip(), "hwnd": hwnd}
@@ -627,7 +763,10 @@ def press_keys(keys: str, confirm_token: str | None = None, hwnd: int | None = N
         LOG.write("press_keys", "error", params, target, error=repr(exc))
         return _error("press_keys_failed", f"按键失败：{exc}")
     LOG.write("press_keys", "end", params, target, outcome=result["keys"])
-    return _dump({"ok": True, **result, "target": target})
+    payload = {"ok": True, **result, "target": target}
+    if after_screenshot:
+        return _attach_after_screenshot(payload, hwnd, after_wait_ms, screenshot_max_width, screenshot_format)
+    return _dump(payload)
 
 
 def system(
@@ -1378,7 +1517,7 @@ def find_text(
         return _error("screenshot_failed", f"OCR 截图失败：{exc}")
 
     buffer = BytesIO()
-    image.save(buffer, format="PNG")
+    image.save(buffer, format="PNG", compress_level=1)
     recognized = ocr.recognize(buffer.getvalue(), lang)
     if not recognized.get("ok"):
         LOG.write("find_text", "error", params, error=recognized.get("error"))
@@ -1456,6 +1595,198 @@ def find_text(
     )
 
 
+def inspect_ui(
+    hwnd: int | None = None,
+    query: str | None = None,
+    interactive_only: bool = False,
+    include_text: bool = True,
+    include_elements: bool = False,
+    max_elements: int = 150,
+    max_depth: int = 12,
+    timeout_ms: int = 2500,
+    region: dict[str, Any] | None = None,
+) -> str:
+    """用 Windows UI Automation 控件树免截图读取窗口内所有可见控件、状态（含 DISABLED/selected）与屏幕物理像素中心坐标。"""
+    if hwnd is not None:
+        parsed = _as_int(hwnd)
+        if parsed is None:
+            return _error("invalid_hwnd", "hwnd 必须是整数。")
+        hwnd = parsed
+    limit = _as_int(max_elements)
+    if limit is None or not 1 <= limit <= 500:
+        return _error("invalid_max_elements", "max_elements 必须在 1~500 之间。")
+    depth = _as_int(max_depth)
+    if depth is None or not 1 <= depth <= 30:
+        return _error("invalid_max_depth", "max_depth 必须在 1~30 之间。")
+    budget = _as_int(timeout_ms)
+    if budget is None or not 200 <= budget <= 8000:
+        return _error("invalid_timeout_ms", "timeout_ms 必须在 200~8000 之间。")
+    if query is not None and not isinstance(query, str):
+        return _error("invalid_query", "query 必须是字符串。")
+    parsed_region: dict[str, int] | None = None
+    if region is not None:
+        if not isinstance(region, dict):
+            return _error("invalid_region", "region 必须是 {x,y,width,height} 对象。")
+        raw_region = {key: _as_int(region.get(key)) for key in ("x", "y", "width", "height")}
+        if any(value is None for value in raw_region.values()):
+            return _error("invalid_region", "region 需要整数 x、y、width、height。")
+        parsed_region = {key: int(value) for key, value in raw_region.items() if value is not None}
+
+    params = {
+        "hwnd": hwnd, "query": query, "interactive_only": bool(interactive_only),
+        "include_text": bool(include_text), "max_elements": limit,
+        "max_depth": depth, "timeout_ms": budget, "region": parsed_region,
+    }
+    LOG.write("inspect_ui", "start", params)
+
+    target = winapi.window_info(hwnd) if hwnd is not None else winapi.foreground_info()
+    if target is None:
+        return _error("invalid_hwnd" if hwnd is not None else "no_foreground", "目标窗口不存在或当前无前台窗口。")
+    reason = security.forbidden_reason(target)
+    if reason:
+        LOG.write("inspect_ui", "blocked", params, target)
+        return _error("forbidden_window", reason, window=target)
+
+    try:
+        result = ui_tree.inspect(
+            hwnd=int(target["hwnd"]),
+            max_elements=limit,
+            max_depth=depth,
+            interactive_only=bool(interactive_only),
+            include_text=bool(include_text),
+            skip_offscreen=True,
+            query=query,
+            timeout_ms=budget,
+            region=parsed_region,
+        )
+    except Exception as exc:  # noqa: BLE001
+        LOG.write("inspect_ui", "error", params, target, error=repr(exc))
+        return _error("uia_failed", f"UI 控件树读取失败：{exc}")
+
+    if not result.get("ok"):
+        LOG.write("inspect_ui", "error", params, target, error=str(result.get("error")))
+        return _error(str(result.get("error") or "uia_failed"), str(result.get("message") or "UI 控件树读取失败。"))
+
+    result["window"] = target
+    if not include_elements:
+        result.pop("elements", None)
+    LOG.write(
+        "inspect_ui", "end", params, target,
+        outcome=f"{result.get('count', 0)} elements in {result.get('elapsed_ms', 0)}ms",
+    )
+    return _dump(result)
+
+
+def read_screen_text(
+    hwnd: int | None = None,
+    region: dict[str, Any] | None = None,
+    lang: str = "chi_sim+eng",
+    max_items: int = 150,
+    include_items: bool = False,
+) -> str:
+    """免截图整窗 OCR 读屏：一次返回窗口/区域内全部文字与屏幕物理像素中心点坐标，无需落盘看图。"""
+    if not isinstance(lang, str) or not lang.strip():
+        return _error("invalid_lang", "lang 必须是非空字符串。")
+    limit = _as_int(max_items)
+    if limit is None or not 1 <= limit <= 500:
+        return _error("invalid_max_items", "max_items 必须在 1~500 之间。")
+    if hwnd is not None:
+        parsed = _as_int(hwnd)
+        if parsed is None:
+            return _error("invalid_hwnd", "hwnd 必须是整数。")
+        hwnd = parsed
+    params = {"hwnd": hwnd, "region": region, "lang": lang, "max_items": limit}
+    LOG.write("read_screen_text", "start", params)
+
+    if hwnd is not None:
+        info = winapi.window_info(hwnd)
+        if info is None:
+            return _error("invalid_hwnd", "窗口句柄无效或窗口已关闭。")
+        reason = security.forbidden_reason(info)
+        if reason:
+            LOG.write("read_screen_text", "blocked", params, info)
+            return _error("forbidden_window", reason, window=info)
+
+    if region is not None and not isinstance(region, dict):
+        return _error("invalid_region", "region 必须是 {x,y,width,height} 对象。")
+    try:
+        if region is not None:
+            parsed_region = {key: _as_int(region.get(key)) for key in ("x", "y", "width", "height")}
+            if any(value is None for value in parsed_region.values()):
+                raise ValueError("region 需要整数 x、y、width、height。")
+            capture_rect = parsed_region
+        elif hwnd is not None:
+            capture_rect = winapi.client_metrics(hwnd)
+        else:
+            metrics = winapi.screen_metrics()
+            capture_rect = {
+                "x": metrics["x"], "y": metrics["y"],
+                "width": metrics["width"], "height": metrics["height"],
+            }
+        forbidden_hits = security.forbidden_windows(capture_rect)
+        if forbidden_hits:
+            LOG.write("read_screen_text", "blocked", params, None)
+            return _error(
+                "forbidden_window",
+                "读屏区域与受保护窗口相交，已拒绝；请先关闭或移动受保护窗口。",
+                windows=forbidden_hits,
+            )
+        if region is not None:
+            image, metadata = winapi.grab_image(region=parsed_region)
+        else:
+            image, metadata = winapi.grab_image(hwnd=hwnd)
+    except ValueError as exc:
+        return _error("invalid_region", str(exc))
+    except Exception as exc:  # noqa: BLE001
+        return _error("screenshot_failed", f"读屏截图失败：{exc}")
+
+    buffer = BytesIO()
+    image.save(buffer, format="PNG", compress_level=1)
+    recognized = ocr.recognize(buffer.getvalue(), lang)
+    if not recognized.get("ok"):
+        LOG.write("read_screen_text", "error", params, error=recognized.get("error"))
+        code = recognized.get("error") or "ocr_unavailable"
+        extra = {"install_hint": recognized.get("install_hint")} if code == "ocr_unavailable" else {}
+        return _error(code, recognized.get("message") or "OCR 引擎不可用。", **extra)
+
+    blocks = ocr.extract_text_blocks(recognized.get("lines") or [], max_items=limit)
+    origin = metadata["origin"]
+    scale = float(metadata.get("scale") or 1.0)
+    items: list[dict[str, Any]] = []
+    compact_lines: list[str] = []
+    for block in blocks:
+        rect = block["rect"]
+        cx = int(round(origin["x"] + block["cx"] / scale))
+        cy = int(round(origin["y"] + block["cy"] / scale))
+        screen_rect = {
+            "x": int(round(origin["x"] + rect["x"] / scale)),
+            "y": int(round(origin["y"] + rect["y"] / scale)),
+            "width": int(round(rect["width"] / scale)),
+            "height": int(round(rect["height"] / scale)),
+        }
+        items.append({"text": block["text"], "cx": cx, "cy": cy, "rect": screen_rect})
+        compact_lines.append(f"\"{block['text']}\" ({cx},{cy})")
+
+    LOG.write("read_screen_text", "end", params, outcome=f"{len(items)} blocks")
+    payload: dict[str, Any] = {
+        "ok": True,
+        "count": len(items),
+        "compact": "\n".join(compact_lines),
+        "engine": recognized.get("engine"),
+        "ocr_lang": recognized.get("lang"),
+        "coordinate_space": "screen-physical-pixels",
+        "image": {
+            "mode": metadata["mode"],
+            "hwnd": metadata.get("hwnd"),
+            "width": metadata["width"],
+            "height": metadata["height"],
+        },
+    }
+    if include_items:
+        payload["items"] = items
+    return _dump(payload)
+
+
 # ---------------------------------------------------------------- MCP 协议
 
 _WINDOW_SCHEMA = {
@@ -1477,6 +1808,8 @@ _SCREENSHOT_SCHEMA = {
     "properties": {
         "hwnd": {"type": ["integer", "null"], "default": None, "description": "窗口句柄；省略则截整屏。"},
         "max_width": {"type": "integer", "default": 1600, "minimum": 0, "maximum": 4096, "description": "缩放后最大宽度，0 表示不缩放。"},
+        "format": {"type": "string", "enum": ["png", "jpeg"], "default": "png", "description": "图像格式：png（无损）或 jpeg（更快、体积更小）。"},
+        "quality": {"type": "integer", "default": 82, "minimum": 40, "maximum": 95, "description": "jpeg 压缩质量（40~95），默认 82。"},
     },
 }
 _CLICK_SCHEMA = {
@@ -1488,6 +1821,10 @@ _CLICK_SCHEMA = {
         "double": {"type": "boolean", "default": False},
         "hwnd": {"type": ["integer", "null"], "default": None},
         "confirm_token": {"type": ["string", "null"], "default": None},
+        "after_screenshot": {"type": "boolean", "default": False, "description": "点击成功后等待 after_wait_ms 并附带返回最新截图，省去额外一轮请求。"},
+        "after_wait_ms": {"type": "integer", "default": 150, "minimum": 0, "maximum": 5000},
+        "screenshot_max_width": {"type": "integer", "default": 1280, "minimum": 0, "maximum": 4096},
+        "screenshot_format": {"type": "string", "enum": ["png", "jpeg"], "default": "jpeg"},
     },
     "required": ["x", "y"],
 }
@@ -1517,6 +1854,10 @@ _KEYS_SCHEMA = {
         "hwnd": {"type": ["integer", "null"], "default": None},
         "keys": {"type": "string", "description": "组合键，例如 ctrl+a、ctrl+c、alt+tab、win+d、f5。"},
         "confirm_token": {"type": ["string", "null"], "default": None},
+        "after_screenshot": {"type": "boolean", "default": False, "description": "按键成功后等待 after_wait_ms 并附带返回最新截图。"},
+        "after_wait_ms": {"type": "integer", "default": 150, "minimum": 0, "maximum": 5000},
+        "screenshot_max_width": {"type": "integer", "default": 1280, "minimum": 0, "maximum": 4096},
+        "screenshot_format": {"type": "string", "enum": ["png", "jpeg"], "default": "jpeg"},
     },
     "required": ["keys"],
 }
@@ -1654,8 +1995,55 @@ _FIND_TEXT_SCHEMA = {
     },
     "required": ["text"],
 }
+_INSPECT_UI_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "hwnd": {"type": ["integer", "null"], "default": None, "description": "目标窗口句柄；省略则检查当前前台窗口。"},
+        "query": {"type": ["string", "null"], "default": None, "maxLength": 200, "description": "可选关键字过滤（不区分大小写，匹配控件名称或值）。"},
+        "interactive_only": {"type": "boolean", "default": False, "description": "为 true 时仅返回按钮/菜单/输入框/单选框等可交互控件。"},
+        "include_text": {"type": "boolean", "default": True, "description": "是否包含普通文本节点（便于直接读数字和提示信息）。"},
+        "include_elements": {"type": "boolean", "default": False, "description": "默认只返回精简 compact 文本清单以防输出过大落盘；设为 true 时附带完整 elements JSON 数组。"},
+        "max_elements": {"type": "integer", "default": 150, "minimum": 1, "maximum": 500},
+        "max_depth": {"type": "integer", "default": 12, "minimum": 1, "maximum": 30},
+        "timeout_ms": {"type": "integer", "default": 2500, "minimum": 200, "maximum": 8000},
+        "region": {
+            "type": ["object", "null"],
+            "default": None,
+            "description": "可选屏幕物理像素过滤区域。",
+            "properties": {
+                "x": {"type": "integer"}, "y": {"type": "integer"},
+                "width": {"type": "integer"}, "height": {"type": "integer"},
+            },
+            "required": ["x", "y", "width", "height"],
+        },
+    },
+}
+_READ_SCREEN_TEXT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "hwnd": {"type": ["integer", "null"], "default": None, "description": "窗口句柄；省略则读整屏。"},
+        "region": {
+            "type": ["object", "null"],
+            "default": None,
+            "description": "屏幕物理像素区域；省略时用 hwnd 客户区或整屏。",
+            "properties": {
+                "x": {"type": "integer"}, "y": {"type": "integer"},
+                "width": {"type": "integer"}, "height": {"type": "integer"},
+            },
+            "required": ["x", "y", "width", "height"],
+        },
+        "lang": {"type": "string", "default": "chi_sim+eng"},
+        "max_items": {"type": "integer", "default": 150, "minimum": 1, "maximum": 500},
+        "include_items": {"type": "boolean", "default": False, "description": "默认只返回精简 compact 清单以防输出落盘；设为 true 时附带完整 items 数组。"},
+    },
+}
 
 TOOLS = [
+    {"name": "action_batch", "description": "一次调用按顺序执行多步桌面连招（支持 focus_window/click/hover/scroll/wait/type_text/press_keys/find_text/inspect_ui/read_screen_text/screenshot），任一步失败即停；优先用 inspect_ui 或 read_screen_text 免截图拿界面信息，若包含 screenshot 会把最新图像一并返回。",
+     "inputSchema": {"type": "object", "properties": {
+       "actions": {"type": "array", "minItems": 1, "maxItems": 20,
+       "items": {"type": "object", "properties": {"tool": {"type": "string", "enum": ["focus_window", "click", "hover", "scroll", "wait", "type_text", "press_keys", "find_text", "inspect_ui", "read_screen_text", "screenshot"]}, "arguments": {"type": "object", "additionalProperties": True}}, "required": ["tool", "arguments"]}},
+       "confirm_token": {"type": ["string", "null"], "default": None}}, "required": ["actions"]}},
     {"name": "input_batch", "description": "一次确认执行同一前台窗口的有序输入/按键批次；失败即停止。",
      "inputSchema": {"type": "object", "properties": {
        "hwnd": {"type": "integer"}, "actions": {"type": "array", "minItems": 1, "maxItems": 20,
@@ -1740,9 +2128,20 @@ TOOLS = [
         "description": "OCR 找字：在整屏、指定窗口客户区或 region 中查找文字，返回每条命中的 confidence、屏幕物理像素中心点 cx/cy 与外接矩形，可直接传给 click。Windows OCR 优先，Tesseract 回退；引擎不可用返回 ocr_unavailable。只读，不走确认门。",
         "inputSchema": _FIND_TEXT_SCHEMA,
     },
+    {
+        "name": "inspect_ui",
+        "description": "免截图读取 Windows UI Automation 控件树：直接返回目标窗口可见按钮、菜单、单选框、输入框、文本的精确名称、屏幕物理像素中心点 (cx,cy)、以及 enabled（是否置灰）/selected/checked/expanded 状态，速度远快于截图看图。只读，不走确认门。",
+        "inputSchema": _INSPECT_UI_SCHEMA,
+    },
+    {
+        "name": "read_screen_text",
+        "description": "免截图整窗 OCR 读屏：一次返回窗口/区域内全部文字与屏幕物理像素中心点 (cx,cy) 纯文本清单，无需落盘或再次看图；适合 UIA 控件树为空的自绘界面。只读，不走确认门。",
+        "inputSchema": _READ_SCREEN_TEXT_SCHEMA,
+    },
 ]
 
 TOOL_FUNCTIONS = {
+    "action_batch": action_batch,
     "list_windows": list_windows,
     "focus_window": focus_window,
     "screenshot": screenshot,
@@ -1760,6 +2159,8 @@ TOOL_FUNCTIONS = {
     "clipboard": clipboard,
     "launch_app": launch_app,
     "find_text": find_text,
+    "inspect_ui": inspect_ui,
+    "read_screen_text": read_screen_text,
 }
 
 
@@ -2023,6 +2424,8 @@ def main() -> int:
         traceback.print_exc(file=sys.stderr)
         return 1
     finally:
+        ocr.close()
+        ui_tree.close()
         focused_text.close()
         LOG.close()
 

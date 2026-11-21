@@ -1,5 +1,19 @@
 # 更新日志
 
+## [Unreleased]
+
+### 新增
+
+- `inspect_ui`：新增常驻 STA Windows UI Automation 控件树采集工具（`ui_tree.py` / `ui_tree.ps1`），支持 Per-Monitor V2 物理像素坐标、关键字/区域过滤，直接返回按钮/菜单/单选框/文本的精确中心点与 `enabled`/`selected`/`checked`/`expanded` 状态，免截图感知界面与置灰项（默认精简 `compact` 文本输出，可选 `include_elements=true`）。
+- `read_screen_text`：新增免截图全窗纯文本 OCR 读屏工具，复用常驻 OCR Worker 按阅读顺序返回窗口或区域内全部文字与物理像素坐标（默认精简 `compact` 清单，可选 `include_items=true`）。
+- `action_batch`：新增多步桌面连招工具（1~20 步，支持 `focus_window` / `click` / `hover` / `scroll` / `wait` / `type_text` / `press_keys` / `find_text` / `inspect_ui` / `read_screen_text` / `screenshot`），支持统一确认门禁、禁区窗口强校验与失败即停，并在 `lib/index.js` 纳入 `WRITE_TOOLS` 审批清单。
+- `screenshot` 新增 `format=jpeg` 与 `quality`（40~95）参数；`click` 与 `press_keys` 新增 `after_screenshot` / `after_wait_ms` / `screenshot_max_width` / `screenshot_format` 后置截图选项。
+
+### 变更
+
+- `ocr.py` / `ocr_windows.ps1`：Windows OCR 升级为常驻 STA PowerShell Worker（`-Worker` 模式）并缓存 `WinRT` 引擎与 Tesseract 语言列表，显著降低重复找字与读屏的冷启动开销；保留 `-Path` 单次调用兼容模式。
+- `winapi.py` / `server.py`：PNG 截图改用快速压缩（`compress_level=1`）替代慢速 `optimize=True`，并保持原有元数据和返回结构兼容。
+
 ## [1.1.4] - 2026-11-15
 
 ### 变更

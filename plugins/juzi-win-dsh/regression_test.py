@@ -384,5 +384,222 @@ class FocusWorkerTests(unittest.TestCase):
         self.assertEqual(read.call_count, 1)
 
 
+class OcrWorkerTests(unittest.TestCase):
+    def test_reuses_worker_and_closes_on_eof(self):
+        module = server.ocr
+        real_popen = subprocess.Popen
+        processes = []
+        program = (
+            "import sys,json\n"
+            "for line in sys.stdin:\n"
+            " r=json.loads(line);"
+            "print(json.dumps({'ok':True,'engine':'windows-ocr','lang':r['lang_tag'],'lines':[]}),flush=True)"
+        )
+        def spawn(_args, **kwargs):
+            proc = real_popen([sys.executable, "-u", "-c", program], **kwargs)
+            processes.append(proc)
+            return proc
+        worker = module.OcrWorker(timeout=10)
+        with mock.patch.object(module.subprocess, "Popen", side_effect=spawn):
+            try:
+                r1 = worker.recognize_path(Path("a.png"), "zh-Hans-CN")
+                r2 = worker.recognize_path(Path("b.png"), "en-US")
+                self.assertTrue(r1["ok"] and r2["ok"])
+                self.assertEqual(r2["lang"], "en-US")
+                self.assertEqual(len(processes), 1)
+            finally:
+                worker.close()
+        self.assertIsNotNone(processes[0].poll())
+
+    def test_worker_timeout_recovers_on_next_call(self):
+        module = server.ocr
+        real_popen = subprocess.Popen
+        processes = []
+        programs = [
+            "import sys,time\nfor line in sys.stdin: time.sleep(.4)",
+            "import sys,json\nfor line in sys.stdin: print(json.dumps({'ok':True,'engine':'windows-ocr','lang':'zh-Hans-CN','lines':[]}),flush=True)",
+        ]
+        def spawn(_args, **kwargs):
+            proc = real_popen([sys.executable, "-u", "-c", programs[len(processes)]], **kwargs)
+            processes.append(proc)
+            return proc
+        worker = module.OcrWorker(timeout=0.1)
+        with mock.patch.object(module.subprocess, "Popen", side_effect=spawn):
+            try:
+                with self.assertRaises(TimeoutError):
+                    worker.recognize_path(Path("a.png"), "zh-Hans-CN")
+                self.assertIsNone(worker.process)
+                self.assertIsNotNone(processes[0].poll())
+                worker.timeout = 10
+                r2 = worker.recognize_path(Path("b.png"), "zh-Hans-CN")
+                self.assertTrue(r2["ok"])
+            finally:
+                worker.close()
+        self.assertTrue(all(p.poll() is not None for p in processes))
+
+
+class PerformanceUpgradeTests(unittest.TestCase):
+    def test_screenshot_jpeg_format_and_validation(self):
+        with mock.patch.object(winapi, "screen_metrics", return_value={"x": 0, "y": 0, "width": 100, "height": 100}), \
+             mock.patch.object(security, "forbidden_windows", return_value=[]), \
+             mock.patch.object(winapi, "capture", return_value=(b"\xff\xd8\xff", {"width": 100, "height": 100, "mime_type": "image/jpeg", "format": "jpeg"})) as cap:
+            res = server.screenshot(max_width=960, format="jpeg", quality=80)
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[1]["mimeType"], "image/jpeg")
+        cap.assert_called_once_with(max_width=960, hwnd=None, image_format="jpeg", quality=80)
+        bad = server._call_tool("screenshot", {"format": "webp"})
+        self.assertTrue(bad["isError"])
+
+    def test_click_after_screenshot_attaches_image_block(self):
+        fake_shot = [
+            {"type": "text", "text": json.dumps({"ok": True, "width": 800, "height": 600, "format": "jpeg"})},
+            {"type": "image", "data": "AAAA", "mimeType": "image/jpeg"},
+        ]
+        with mock.patch.object(server, "GATE", server.ConfirmationGate("off", [])), \
+             mock.patch.object(winapi, "resolve_click_point", return_value=(10, 20)), \
+             mock.patch.object(winapi, "window_at_point", return_value=_window()), \
+             mock.patch.object(winapi, "click", return_value={"x": 10, "y": 20, "target": _window()}), \
+             mock.patch.object(server, "screenshot", return_value=fake_shot) as shot:
+            res = server.click(10, 20, after_screenshot=True, after_wait_ms=0, screenshot_max_width=960, screenshot_format="jpeg")
+        self.assertIsInstance(res, list)
+        self.assertEqual(len(res), 2)
+        self.assertEqual(res[1]["mimeType"], "image/jpeg")
+        payload = json.loads(res[0]["text"])
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["after_screenshot"]["width"], 800)
+        shot.assert_called_once_with(hwnd=None, max_width=960, format="jpeg")
+
+    def test_action_batch_confirmation_image_and_forbidden_guard(self):
+        actions = [
+            {"tool": "click", "arguments": {"x": 10, "y": 20}},
+            {"tool": "wait", "arguments": {"condition": "timeout", "timeout_ms": 0}},
+            {"tool": "screenshot", "arguments": {"max_width": 960, "format": "jpeg"}},
+        ]
+        fake_shot = [
+            {"type": "text", "text": json.dumps({"ok": True, "width": 960, "height": 640, "format": "jpeg"})},
+            {"type": "image", "data": "BBBB", "mimeType": "image/jpeg"},
+        ]
+        gate = server.ConfirmationGate("always", [])
+        with mock.patch.object(server, "GATE", gate), \
+             mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(winapi, "resolve_click_point", return_value=(10, 20)), \
+             mock.patch.object(winapi, "window_at_point", return_value=_window()), \
+             mock.patch.object(winapi, "click", return_value={"x": 10, "y": 20, "target": _window()}) as clk, \
+             mock.patch.dict(server.TOOL_FUNCTIONS, {"screenshot": mock.MagicMock(return_value=fake_shot)}):
+            pending = json.loads(server.action_batch(actions))
+            self.assertEqual(pending["status"], "confirmation_required")
+            clk.assert_not_called()
+            done = server.action_batch(actions, confirm_token=pending["confirm_token"])
+        self.assertIsInstance(done, list)
+        self.assertEqual(len(done), 2)
+        self.assertEqual(done[1]["mimeType"], "image/jpeg")
+        summary = json.loads(done[0]["text"])
+        self.assertTrue(summary["ok"])
+        self.assertEqual(summary["completed_steps"], 3)
+        self.assertFalse(server._ACTION_BATCH_CONFIRMED.get())
+
+        # Forbidden window must NEVER be bypassed inside action_batch even with confirm_mode=off
+        blocked_win = _window(hwnd=99, process="consent.exe", title="用户帐户控制")
+        with mock.patch.object(server, "GATE", server.ConfirmationGate("off", [])), \
+             mock.patch.object(winapi, "resolve_click_point", return_value=(10, 20)), \
+             mock.patch.object(winapi, "window_at_point", return_value=blocked_win), \
+             mock.patch.object(winapi, "click") as clk2:
+            res = json.loads(server.action_batch([{"tool": "click", "arguments": {"x": 10, "y": 20}}]))
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["error_code"], "forbidden_window")
+        clk2.assert_not_called()
+
+
+class ScreenlessPerceptionTests(unittest.TestCase):
+    def test_ui_tree_worker_reuses_single_process(self):
+        import ui_tree as module
+        real_popen = subprocess.Popen
+        processes = []
+        program = (
+            "import sys,json\n"
+            "for i,line in enumerate(sys.stdin,1):\n"
+            " req=json.loads(line)\n"
+            " print(json.dumps({'ok':True,'hwnd':req['hwnd'],'count':i,'compact':'Button \"OK\" (10,20)','elements':[]}),flush=True)\n"
+        )
+        def spawn(_args, **kwargs):
+            proc = real_popen([sys.executable, "-u", "-c", program], **kwargs)
+            processes.append(proc)
+            return proc
+        worker = module.UiTreeWorker(timeout=5)
+        with mock.patch.object(module.subprocess, "Popen", side_effect=spawn):
+            try:
+                r1 = worker.inspect(hwnd=100)
+                r2 = worker.inspect(hwnd=100)
+                self.assertEqual((r1["count"], r2["count"]), (1, 2))
+                self.assertEqual(len(processes), 1)
+                self.assertIsNone(processes[0].poll())
+            finally:
+                worker.close()
+        self.assertIsNotNone(processes[0].poll())
+
+    def test_inspect_ui_forbidden_guard_and_action_batch(self):
+        import ui_tree as module
+        blocked = _window(hwnd=99, process="consent.exe", title="用户帐户控制")
+        with mock.patch.object(winapi, "window_info", return_value=blocked), \
+             mock.patch.object(module, "inspect") as mock_inspect:
+            res = json.loads(server.inspect_ui(hwnd=99))
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["error_code"], "forbidden_window")
+        mock_inspect.assert_not_called()
+
+        fake_ui = {
+            "ok": True, "hwnd": 100, "count": 2, "visited_nodes": 12,
+            "truncated": False, "elapsed_ms": 45,
+            "coordinate_space": "screen-physical-pixels",
+            "compact": 'RadioButton "CPU" (100,200) [selected]\nRadioButton "H100 GPU" (200,200) [DISABLED]',
+            "elements": [
+                {"type": "RadioButton", "name": "CPU", "cx": 100, "cy": 200, "enabled": True, "selected": True},
+                {"type": "RadioButton", "name": "H100 GPU", "cx": 200, "cy": 200, "enabled": False},
+            ],
+        }
+        with mock.patch.object(winapi, "window_info", return_value=_window(hwnd=100)), \
+             mock.patch.object(module, "inspect", return_value=dict(fake_ui)):
+            batch_res = json.loads(server.action_batch([
+                {"tool": "wait", "arguments": {"condition": "timeout", "timeout_ms": 0}},
+                {"tool": "inspect_ui", "arguments": {"hwnd": 100, "query": "GPU"}},
+            ]))
+        self.assertTrue(batch_res["ok"])
+        self.assertEqual(batch_res["completed_steps"], 2)
+        self.assertIn("H100 GPU", batch_res["results"][1]["compact"])
+        self.assertIn("[DISABLED]", batch_res["results"][1]["compact"])
+
+    def test_read_screen_text_extracts_cjk_and_latin_blocks(self):
+        import ocr as ocr_mod
+        from PIL import Image
+        lines = [
+            {"text": "可 用 200 个", "words": [
+                {"text": "可", "x": 10, "y": 20, "w": 16, "h": 20},
+                {"text": "用", "x": 28, "y": 20, "w": 16, "h": 20},
+                {"text": "200", "x": 46, "y": 20, "w": 30, "h": 20},
+                {"text": "个", "x": 78, "y": 20, "w": 16, "h": 20},
+            ]},
+            {"text": "Colab Pro", "words": [
+                {"text": "Colab", "x": 10, "y": 60, "w": 50, "h": 20},
+                {"text": "Pro", "x": 66, "y": 60, "w": 30, "h": 20},
+            ]},
+        ]
+        blocks = ocr_mod.extract_text_blocks(lines, max_items=10)
+        self.assertEqual([b["text"] for b in blocks], ["可用200个", "Colab Pro"])
+
+        img = Image.new("RGB", (200, 100), color="white")
+        meta = {"mode": "window", "hwnd": 100, "width": 200, "height": 100, "origin": {"x": 50, "y": 40}, "scale": 1.0}
+        with mock.patch.object(winapi, "window_info", return_value=_window(hwnd=100)), \
+             mock.patch.object(winapi, "client_metrics", return_value={"x": 50, "y": 40, "width": 200, "height": 100}), \
+             mock.patch.object(security, "forbidden_windows", return_value=[]), \
+             mock.patch.object(winapi, "grab_image", return_value=(img, meta)), \
+             mock.patch.object(ocr_mod, "recognize", return_value={"ok": True, "engine": "windows-ocr", "lang": "zh-Hans-CN", "lines": lines}):
+            res = json.loads(server.read_screen_text(hwnd=100, include_items=True))
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["count"], 2)
+        self.assertEqual(res["items"][0]["text"], "可用200个")
+        self.assertEqual(res["items"][0]["cx"], 50 + 52)
+        self.assertIn('"Colab Pro"', res["compact"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

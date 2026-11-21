@@ -8,13 +8,16 @@
 
 from __future__ import annotations
 
+import atexit
 import csv
 import io
 import json
 import os
+import queue
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +33,7 @@ OCR_UNAVAILABLE_HINT = (
     "（设置 → 时间和语言 → 语言 → 中文(简体) → 可选功能 → 光学字符识别），"
     "或安装 Tesseract 5 并放置 chi_sim/eng 语言数据；详见 README。"
 )
+MAX_OCR_RESPONSE_BYTES = 16 * 1024 * 1024
 
 
 def _windows_lang_tag(lang: str) -> str:
@@ -41,38 +45,116 @@ def _windows_lang_tag(lang: str) -> str:
     return lang or "zh-Hans-CN"
 
 
-def _run_powershell(path: Path, lang_tag: str) -> dict[str, Any]:
-    command = [
-        str(POWERSHELL),
-        "-NoProfile",
-        "-STA",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        str(WINDOWS_OCR_SCRIPT),
-        "-Path",
-        str(path),
-        "-LangTag",
-        lang_tag,
-    ]
-    completed = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=60,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
-    stdout = (completed.stdout or "").strip().lstrip("\ufeff")
-    line = next((item for item in reversed(stdout.splitlines()) if item.strip().startswith("{")), "")
-    if not line:
-        raise RuntimeError(
-            f"ocr_windows.ps1 没有输出 JSON（exit={completed.returncode}）："
-            f"{(completed.stderr or '').strip()[:400]}"
+class OcrWorker:
+    """常驻 STA PowerShell WinRT OCR 子进程：首次启动加载程序集，后续复用避免 5~6 秒冷启动。"""
+
+    def __init__(self, timeout: float = 30.0) -> None:
+        self.timeout = timeout
+        self.lock = threading.Lock()
+        self.process: subprocess.Popen[str] | None = None
+        self.responses: queue.Queue[Any] | None = None
+
+    def _start(self) -> None:
+        process = subprocess.Popen(
+            [
+                str(POWERSHELL),
+                "-NoProfile",
+                "-STA",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                str(WINDOWS_OCR_SCRIPT),
+                "-Worker",
+            ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            cwd=tempfile.gettempdir(),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
-    return json.loads(line)
+        responses: queue.Queue[Any] = queue.Queue()
+        self.process, self.responses = process, responses
+
+        def receive() -> None:
+            assert process.stdout is not None
+            try:
+                while True:
+                    line = process.stdout.readline(MAX_OCR_RESPONSE_BYTES + 1)
+                    if not line:
+                        raise RuntimeError("Windows OCR worker exited")
+                    if len(line) > MAX_OCR_RESPONSE_BYTES:
+                        raise RuntimeError("Windows OCR response exceeds limit")
+                    stripped = line.lstrip("\ufeff").strip()
+                    if not stripped:
+                        continue
+                    responses.put(json.loads(stripped))
+            except Exception as exc:  # noqa: BLE001
+                responses.put(exc)
+            finally:
+                try:
+                    process.stdout.close()
+                except OSError:
+                    pass
+
+        threading.Thread(target=receive, name="juzi-ocr-worker", daemon=True).start()
+
+    def _close(self) -> None:
+        process, self.process = self.process, None
+        self.responses = None
+        if process is None:
+            return
+        try:
+            if process.stdin is not None:
+                process.stdin.close()
+        except (OSError, ValueError):
+            pass
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            try:
+                process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                pass
+
+    def close(self) -> None:
+        with self.lock:
+            self._close()
+
+    def recognize_path(self, path: Path, lang_tag: str) -> dict[str, Any]:
+        with self.lock:
+            try:
+                if self.process is None or self.process.poll() is not None:
+                    self._close()
+                    self._start()
+                assert self.process is not None and self.process.stdin is not None and self.responses is not None
+                self.process.stdin.write(json.dumps({"path": str(path), "lang_tag": lang_tag}, ensure_ascii=False) + "\n")
+                self.process.stdin.flush()
+                response = self.responses.get(timeout=self.timeout)
+                if isinstance(response, Exception):
+                    raise response
+                if not isinstance(response, dict) or not isinstance(response.get("ok"), bool):
+                    raise RuntimeError("Invalid Windows OCR worker response")
+                return response
+            except queue.Empty as exc:
+                self._close()
+                raise TimeoutError("Windows OCR worker timed out") from exc
+            except Exception:
+                self._close()
+                raise
+
+
+_ocr_worker = OcrWorker()
+close = _ocr_worker.close
+atexit.register(close)
+
+
+def _run_powershell(path: Path, lang_tag: str) -> dict[str, Any]:
+    return _ocr_worker.recognize_path(path, lang_tag)
 
 
 def _write_temp_png(png_bytes: bytes) -> Path:
@@ -108,6 +190,9 @@ def _windows_ocr(png_bytes: bytes, lang: str) -> dict[str, Any]:
     return payload
 
 
+_TESSERACT_LANG_CACHE: dict[Path, set[str]] = {}
+
+
 def _tesseract_binary() -> Path | None:
     found = shutil.which("tesseract")
     if found:
@@ -119,6 +204,9 @@ def _tesseract_binary() -> Path | None:
 
 
 def _tesseract_languages(binary: Path) -> set[str]:
+    cached = _TESSERACT_LANG_CACHE.get(binary)
+    if cached is not None:
+        return cached
     try:
         completed = subprocess.run(
             [str(binary), "--list-langs"],
@@ -132,7 +220,10 @@ def _tesseract_languages(binary: Path) -> set[str]:
     except Exception:  # noqa: BLE001
         return set()
     lines = (completed.stdout or "").splitlines()
-    return {line.strip() for line in lines if line.strip() and " " not in line and ":" not in line}
+    langs = {line.strip() for line in lines if line.strip() and " " not in line and ":" not in line}
+    if langs:
+        _TESSERACT_LANG_CACHE[binary] = langs
+    return langs
 
 
 def _tesseract_ocr(png_bytes: bytes, lang: str) -> dict[str, Any]:
@@ -397,3 +488,54 @@ def find_matches(
 
     results.sort(key=lambda item: (item["rect"]["y"], item["rect"]["x"]))
     return results[:max_results]
+
+
+def _join_segment_words(segment: list[dict[str, Any]]) -> str:
+    """把同一视觉段的 OCR 词合并为自然文本：中文字间不加多余空格，英文/数字词间保留空格。"""
+    parts: list[str] = []
+    for word in segment:
+        token = str(word.get("text") or "").strip()
+        if not token:
+            continue
+        if not parts:
+            parts.append(token)
+            continue
+        prev = parts[-1]
+        prev_ascii = ord(prev[-1]) < 128 and (prev[-1].isalnum() or prev[-1] in ".,:;+-/_")
+        curr_ascii = ord(token[0]) < 128 and (token[0].isalnum() or token[0] in ".,:;+-/_")
+        if prev_ascii and curr_ascii:
+            parts.append(" ")
+        parts.append(token)
+    return "".join(parts)
+
+
+def extract_text_blocks(
+    lines: list[dict[str, Any]],
+    max_items: int = 150,
+) -> list[dict[str, Any]]:
+    """把 OCR 词框重建为按阅读顺序排列的文本块及中心点坐标，供免截图快速读屏。"""
+    words = [
+        word
+        for line in lines
+        for word in (line.get("words") or [])
+        if str(word.get("text") or "").strip()
+    ]
+    blocks: list[dict[str, Any]] = []
+    for segment in _row_segments(words):
+        text = _join_segment_words(segment)
+        if not text:
+            continue
+        left = min(int(word["x"]) for word in segment)
+        top = min(int(word["y"]) for word in segment)
+        right = max(int(word["x"]) + int(word["w"]) for word in segment)
+        bottom = max(int(word["y"]) + int(word["h"]) for word in segment)
+        blocks.append(
+            {
+                "text": text,
+                "rect": {"x": left, "y": top, "width": right - left, "height": bottom - top},
+                "cx": int(round((left + right) / 2.0)),
+                "cy": int(round((top + bottom) / 2.0)),
+            }
+        )
+    blocks.sort(key=lambda item: (item["rect"]["y"], item["rect"]["x"]))
+    return blocks[:max_items]

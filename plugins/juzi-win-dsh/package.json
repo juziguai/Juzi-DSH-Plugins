@@ -33,7 +33,9 @@
     "smoke_test.py",
     "regression_test.py",
     "focused_text.py",
-    "focused_text.ps1"
+    "focused_text.ps1",
+    "ui_tree.py",
+    "ui_tree.ps1"
   ],
   "engines": {
     "dsh": ">=0.2.1-rc.2 <0.2.3-0"

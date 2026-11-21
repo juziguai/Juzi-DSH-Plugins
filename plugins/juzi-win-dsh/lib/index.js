@@ -5,7 +5,7 @@ export const name = 'juzi-win-dsh';
 export const inject = ['tools'];
 
 const WRITE_TOOLS = new Set([
-  'input_batch', 'click', 'scroll', 'type_text', 'press_keys', 'hover', 'drag', 'launch_app',
+  'action_batch', 'input_batch', 'click', 'scroll', 'type_text', 'press_keys', 'hover', 'drag', 'launch_app',
 ]);
 
 function isWriteInvocation(publicName, args) {

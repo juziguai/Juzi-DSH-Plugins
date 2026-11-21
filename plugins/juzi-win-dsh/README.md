@@ -10,11 +10,11 @@ Python 服务独立运行，`cordis.patch.yml` 负责 bundle 注册。
 |---|---|---|
 | `list_windows` | `mcp__win__list_windows` | 可见顶层窗口：hwnd、进程名、PID、标题、物理像素矩形、最小化、最大化、前台；最小化窗口给出还原矩形 |
 | `focus_window` | `mcp__win__focus_window` | 按 hwnd / 进程名 / 标题关键字切前台；最小化先还原；返回真实 `foreground` |
-| `screenshot` | `mcp__win__screenshot` | 整屏或窗口客户区 PNG；`max_width` 等比缩放；返回原始尺寸、缩放比例、origin；Chrome/Electron 窗口自动回退屏幕截图 |
-| `click` | `mcp__win__click` | 物理像素左键/右键/双击；可选 hwnd 客户区相对坐标 |
+| `screenshot` | `mcp__win__screenshot` | 整屏或窗口客户区 PNG/JPEG；支持 `max_width`、`format`、`quality`；返回原始尺寸、缩放比例、origin；Chrome/Electron 窗口自动回退屏幕截图 |
+| `click` | `mcp__win__click` | 物理像素左键/右键/双击；可选 hwnd 客户区相对坐标与 `after_screenshot` 后置截图 |
 | `scroll` | `mcp__win__scroll` | 在指定坐标滚动，正数向上、负数向下 |
 | `type_text` | `mcp__win__type_text` | 输入中文/换行/制表符；默认剪贴板粘贴并恢复，`method=unicode` 时用 SendInput |
-| `press_keys` | `mcp__win__press_keys` | 组合键：`ctrl+a`、`ctrl+c`、`alt+tab`、`win+d`、`f5` 等 |
+| `press_keys` | `mcp__win__press_keys` | 组合键：`ctrl+a`、`ctrl+c`、`alt+tab`、`win+d`、`f5` 等；支持 `after_screenshot` 后置截图 |
 | `system` | `mcp__win__system` | 亮度 0~100（WMI 读回）、音量 0~100、静音、锁屏；无参数时只读 |
 | `manage_window` | `mcp__win__manage_window` | `get_work_area` / `move` / `resize` / `set_bounds` / `minimize` / `maximize` / `restore` / `close` / `tile`；坐标全部物理像素，`tile` 相对工作区 |
 | `hover` | `mcp__win__hover` | 光标移到物理像素坐标并停留 `duration_ms`（默认 500，上限 10000），不按键 |
@@ -22,7 +22,12 @@ Python 服务独立运行，`cordis.patch.yml` 负责 bundle 注册。
 | `wait` | `mcp__win__wait` | `timeout` / `window_exists` / `window_gone` / `title_contains` / `foreground_is` / `screenshot_stable`；超时返回 `ok=false` 不抛异常 |
 | `clipboard` | `mcp__win__clipboard` | `get` / `set` / `clear` / `restore`，本批只保证 Unicode 文本 |
 | `launch_app` | `mcp__win__launch_app` | ShellExecuteEx 启动绝对路径/URI，可等待主窗口出现；拒绝相对路径、提权与脚本宿主 |
-| `find_text` | `mcp__win__find_text` | OCR 找字：返回 `confidence`、屏幕物理像素 `cx/cy` 与外接矩形，可直接传给 `click` |
+| `find_text` | `mcp__win__find_text` | OCR 找字（常驻 STA Worker）：返回 `confidence`、屏幕物理像素 `cx/cy` 与外接矩形，可直接传给 `click` |
+| `inspect_ui` | `mcp__win__inspect_ui` | 免截图读取 Windows UI Automation 控件树：返回控件名称、物理像素 `(cx,cy)` 及 `enabled`/`selected`/`checked`/`expanded` 状态 |
+| `read_screen_text` | `mcp__win__read_screen_text` | 免截图全窗 OCR 读屏：一次返回窗口/区域内全部文字与物理像素 `(cx,cy)` 纯文本清单 |
+| `get_focused_text` | `mcp__win__get_focused_text` | 只读当前焦点控件文本；不支持或密码控件明确失败，不改变焦点 |
+| `input_batch` | `mcp__win__input_batch` | 一次确认执行同一前台窗口的有序 `type_text`/`press_keys` 批次；失败即停 |
+| `action_batch` | `mcp__win__action_batch` | 一次调用按顺序执行 1~20 步桌面连招（支持聚焦/点击/悬停/滚动/等待/输入/按键/找字/UIA 控件树/读屏/截图），任一步失败即停 |
 
 ## 安装
 
@@ -77,13 +82,13 @@ dsh plugin --profile <profile> add "link:D:/Tools/AI/Juzi-Skill/Juzi-DSH-Plugins
 | `allowlist` | 目标进程在白名单内时直接执行；否则同上需要确认。进程名可带或不带 `.exe`。 |
 | `off` | 不要求确认，直接执行。 |
 
-写操作清单：`click` / `scroll` / `type_text` / `press_keys` / `hover` / `drag` /
+写操作清单：`action_batch`（含写动作时）/ `input_batch` / `click` / `scroll` / `type_text` / `press_keys` / `hover` / `drag` /
 `manage_window` 的 `move`、`resize`、`set_bounds`、`minimize`、`maximize`、`restore`、
 `close`、`tile` / `clipboard` 的 `set`、`clear`、`restore` / `launch_app` /
 `system` 包含 `brightness`、`volume`、`mute`、`lock` 任一写参数时。
 
 只读、不走确认门：`focus_window`、`screenshot`、`list_windows`、`system`（无参数）、
-`manage_window` 的 `get_work_area`、`wait`、`clipboard.get`、`find_text`。
+`manage_window` 的 `get_work_area`、`wait`、`clipboard.get`、`find_text`、`inspect_ui`、`read_screen_text`、`get_focused_text`。
 受保护窗口（UAC、Windows 安全中心、登录/锁屏、常见密码管理器）在任何模式下都会被拒绝；
 `drag` 途中落点进入受保护窗口也会立即抬键中止。
 
@@ -195,7 +200,7 @@ C:\Python314\python.exe plugins\juzi-win-dsh\smoke_test.py
 C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
 ```
 
-`smoke_test.py` 是安全冒烟：MCP 握手、17 工具清单（含 `get_focused_text`、`input_batch`）、窗口枚举、截图、`get_work_area`、
+`smoke_test.py` 是安全冒烟：MCP 握手、20 工具清单（含 `get_focused_text`、`input_batch`、`action_batch`、`inspect_ui`、`read_screen_text`）、窗口枚举、截图、`get_work_area`、
 `clipboard.get`、`wait` 短超时、`find_text` 引擎探测、Notepad++ 置前和系统状态读取；
 不点击、不输入、不按键、不修改音量/亮度、不写剪贴板。预期最后一行 `SMOKE_OK`。
 `regression_test.py` 是纯标准库 unittest，覆盖 R2/R3/R4/R5/R6/R7/R8/R9/R10/R12/R13 的
@@ -222,8 +227,10 @@ C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
 | `confirm.py` | 一次性确认令牌 |
 | `clipboard_win.py` | ctypes 剪贴板文本读写与单槽备份 |
 | `launcher.py` | ShellExecuteExW 启动、脚本宿主拦截、新窗口等待 |
-| `ocr.py` | OCR 引擎编排、视觉行重建与文字命中计算 |
-| `ocr_windows.ps1` | Windows.Media.Ocr WinRT 调用，输出词框 JSON |
+| `ocr.py` | 常驻 OCR Worker、引擎编排、视觉行重建、文字命中与全窗文本块提取 |
+| `ocr_windows.ps1` | Windows.Media.Ocr WinRT 调用（支持 `-Worker` 常驻与 `-Path` 单次），输出词框 JSON |
+| `ui_tree.py` / `ui_tree.ps1` | 常驻 STA Windows UI Automation 控件树采集器（Per-Monitor V2 物理像素坐标） |
+| `focused_text.py` / `focused_text.ps1` | 常驻 STA 焦点文本回读（UIA + WM_GETTEXT） |
 | `schema_validate.py` | 工具参数 JSON Schema 严格校验 |
 | `paste_text.py` / `paste_text.ps1` | 剪贴板粘贴、序列号事务与恢复 |
 | `system_control.py` / `system_control.ps1` | WMI 亮度 + Core Audio 音量/静音 + 锁屏 |
