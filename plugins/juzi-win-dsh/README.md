@@ -1,71 +1,37 @@
-# @juzi/juzi-win-dsh「电脑控制」
+# 电脑控制 · juzi-win-dsh
 
-把 Windows 桌面封装成本地 MCP（stdio）服务，让 DSH 里的模型能看到并操作这台电脑。
-插件结构参照 `plugins/dsh-deepseek-tools`：`lib/index.js` 把配置交给官方 MCP 客户端，
-Python 服务独立运行，`cordis.patch.yml` 负责 bundle 注册。
+让 DSH 里的模型读取和操作 Windows 桌面。它可以找到窗口，判断按钮是否可用，读取被遮挡窗口中的文字，也可以在确认后点击或输入。插件通过本地 MCP 服务 `win` 提供工具。要操作另一台已授权的 Windows 电脑，见[远程 SSH 桥接指南](remote/README.md)。
 
-## 工具
+[安装与首次使用](#安装与首次使用) · [选择读屏方式](#选择读屏方式) · [工具速查](#工具速查) · [写操作与确认](#写操作与确认) · [开发与验收](#开发与验收)
 
-| 工具 | 完整调用名 | 说明 |
-|---|---|---|
-| `list_windows` | `mcp__win__list_windows` | 可见顶层窗口：hwnd、进程名、PID、标题、物理像素矩形、最小化、最大化、前台；最小化窗口给出还原矩形 |
-| `focus_window` | `mcp__win__focus_window` | 按 hwnd / 进程名 / 标题关键字切前台；最小化先还原；返回真实 `foreground` |
-| `screenshot` | `mcp__win__screenshot` | 整屏或窗口客户区 PNG/JPEG；支持 `max_width`、`format`、`quality`；返回原始尺寸、缩放比例、origin；Chrome/Electron 窗口自动回退屏幕截图 |
-| `click` | `mcp__win__click` | 物理像素左键/右键/双击；可选 hwnd 客户区相对坐标与 `after_screenshot` 后置截图 |
-| `scroll` | `mcp__win__scroll` | 在指定坐标滚动，正数向上、负数向下 |
-| `type_text` | `mcp__win__type_text` | 输入中文/换行/制表符；默认剪贴板粘贴并恢复，`method=unicode` 时用 SendInput |
-| `press_keys` | `mcp__win__press_keys` | 组合键：`ctrl+a`、`ctrl+c`、`alt+tab`、`win+d`、`f5` 等；支持 `after_screenshot` 后置截图 |
-| `system` | `mcp__win__system` | 亮度 0~100（WMI 读回）、音量 0~100、静音、锁屏；无参数时只读 |
-| `manage_window` | `mcp__win__manage_window` | `get_work_area` / `move` / `resize` / `set_bounds` / `minimize` / `maximize` / `restore` / `close` / `tile`；坐标全部物理像素，`tile` 相对工作区 |
-| `hover` | `mcp__win__hover` | 光标移到物理像素坐标并停留 `duration_ms`（默认 500，上限 10000），不按键；途中检测到用户晃动鼠标接管时立即返回 `user_interrupted` |
-| `drag` | `mcp__win__drag` | 起点按下、按 `steps` 插值移动、终点松开；支持 left/right/middle；途中命中禁止窗口或检测到用户晃动鼠标接管控制权时立即抬键中止 |
-| `wait` | `mcp__win__wait` | `timeout` / `window_exists` / `window_gone` / `title_contains` / `foreground_is` / `screenshot_stable` / `ui_text` / `ui_gone` / `ocr_text`；超时返回 `ok=false` 不抛异常 |
-| `clipboard` | `mcp__win__clipboard` | `get` / `set` / `clear` / `restore`，本批只保证 Unicode 文本 |
-| `launch_app` | `mcp__win__launch_app` | ShellExecuteEx 启动绝对路径/URI，可等待主窗口出现；拒绝相对路径、提权与脚本宿主 |
-| `find_text` | `mcp__win__find_text` | OCR 找字（常驻 STA Worker）：返回 `confidence`、屏幕物理像素 `cx/cy` 与外接矩形，可直接传给 `click` |
-| `inspect_ui` | `mcp__win__inspect_ui` | 读取 UIA 控件名称、物理像素坐标与状态，可附带父子层级和控件可见原文 |
-| `read_screen_text` | `mcp__win__read_screen_text` | 读取可见屏幕文字，或用 `capture_mode="wgc"` 读取指定窗口被遮挡的客户区；返回文字和屏幕物理像素坐标 |
-| `chrome_cdp` | `mcp__win__chrome_cdp` | 免截图、免抢鼠标直连本地已登录 Chrome/Edge（`DevToolsActivePort` CDP）：穿透 Shadow DOM 读写网页控件与标签页 |
-| `get_focused_text` | `mcp__win__get_focused_text` | 只读当前焦点控件文本；不支持或密码控件明确失败，不改变焦点 |
-| `input_batch` | `mcp__win__input_batch` | 一次确认执行同一前台窗口的有序 `type_text`/`press_keys` 批次；失败即停 |
-| `action_batch` | `mcp__win__action_batch` | 一次调用按顺序执行 1~20 步桌面连招（支持聚焦/点击/悬停/滚动/等待/输入/按键/找字/UIA 控件树/读屏/CDP/截图），任一步失败或用户晃鼠接管即停 |
+## 安装与首次使用
 
-## 安装
+1. **准备 Python。** 插件默认使用 `C:\Python314\python.exe`。在 PowerShell 中运行下面的命令，为这个解释器安装截图依赖。使用其他解释器时，把命令路径和插件配置里的 `python` 改成同一个位置。
 
-Python 服务以系统临时目录作为工作目录，入口及辅助脚本均使用安装包内的绝对路径，避免工作目录占用阻止 Windows 替换插件目录。代码不会搬入临时目录。
+   ```powershell
+   & 'C:\Python314\python.exe' -m pip install 'Pillow>=11.2.1'
+   ```
 
-焦点文本回读在首次使用时启动私有 STA PowerShell 子进程，后续读取复用已加载的 UI Automation 类型，但每次重新校验窗口、焦点及密码控件，不缓存文本。MCP 服务退出时通过 EOF 关闭辅助进程；超时或协议故障时回收，下一次调用再创建。单次回读仍有 15 秒等待上限，失败后优雅退出等待最多 3 秒再终止；输入验证仅对内容尚未出现重试，不对传输故障反复重启等待。
+2. **在 DSH Desktop 启用「电脑控制」。** 要使用本文的 21 个工具，在桌面端插件管理器添加本仓库的 `plugins/juzi-win-dsh` 目录。市场安装使用市场索引固定的版本，工具清单以已安装版本为准。当前源码声明的 DSH 兼容范围为 `>=0.2.1-rc.2 <0.2.3-0`。
 
-包含此优化的版本改变了私有辅助脚本的通信协议：升级时先停用电脑控制插件、更新完整包、再启用以重新加载 MCP；无需停用其他插件。不要仅覆盖辅助脚本并保留旧 Python 进程。回退同样恢复完整旧包并重新启用，不混用两版脚本。
+3. **做一次只读验证。** 在 DSH 对话里试试这句话。
 
-从仍使用包内工作目录的旧版升级时，先停用电脑控制插件，等待 MCP 子进程退出，再安装并启用。仅结束进程可能触发宿主自动重连。此改动消除工作目录占用，不保证所有宿主更新均免重启；以 DSH 的应用结果为准。
+   > 列出当前可见窗口，只告诉我哪个窗口在前台，以及它的标题和进程名。
 
-运行时依赖只有 Pillow（本机 `C:\Python314` 已装 12.1.1；最低 **11.2.1**，因为窗口截图使用
-`ImageGrab.grab(window=...)`）：
+   对应调用为 `mcp__win__list_windows`，参数为 `{}`。返回的 `windows` 列表里，每项都有窗口句柄 `hwnd`，可用于后续定向读屏。若看不到工具，检查当前 profile 的 `dsh.profile.bundles` 是否包含 `@juzi/juzi-win-dsh`，以及配置的解释器能否导入 `PIL`，再重新启用插件。
+
+<details>
+<summary>其他 profile、本地配置与升级</summary>
+
+Desktop profile 由桌面应用管理。其他 profile 可以从仓库根目录运行以下命令，链接同一份源码。
 
 ```powershell
-C:\Python314\python.exe -m pip install -r plugins\juzi-win-dsh\requirements.txt
+$pluginPath = (Resolve-Path '.\plugins\juzi-win-dsh').Path.Replace('\', '/')
+$profileName = Read-Host '输入目标 DSH profile 名称'
+dsh plugin --profile $profileName add "link:$pluginPath"
 ```
 
-OCR 不需要 Python 依赖：
-
-- **首选** Windows.Media.Ocr：使用系统「中文(简体)」OCR 语言组件，本机已可用；
-- **回退** Tesseract 5：放在 `C:\Program Files\Tesseract-OCR\tesseract.exe` 或 PATH 中，
-  语言数据至少 `eng`，中文找字需要 `chi_sim`。`find_text` 会先试 Windows OCR，
-  不可用时再试 Tesseract；两者都没有则返回 `ocr_unavailable` 与安装提示。
-
-本机桌面端 profile 由 Electron 独占管理，CLI 的
-`dsh plugin --profile desktop add ...` 会被拒绝（实测：`profile "desktop" is managed
-exclusively by the Electron application`）。开发时请用桌面端插件管理器添加本地目录，
-或等 Codex 发布后从市场「电脑控制」升级；非 desktop profile 仍可用 `link:`：
-
-```powershell
-dsh plugin --profile <profile> add "link:D:/Tools/AI/Juzi-Skill/Juzi-DSH-Plugins/plugins/juzi-win-dsh"
-```
-
-发布后从插件市场安装「电脑控制」即可。安装后确认 profile 的 `dsh.profile.bundles` 含
-`@juzi/juzi-win-dsh`；未出现工具时重启 Desktop。插件默认使用 `C:\Python314\python.exe`，
-可在 profile patch 覆盖：
+默认配置见 [cordis.patch.yml](cordis.patch.yml)。需要修改解释器或确认模式时，可在 profile patch 中覆盖这些字段。
 
 ```yaml
 - id: juzi-win-dsh
@@ -75,242 +41,95 @@ dsh plugin --profile <profile> add "link:D:/Tools/AI/Juzi-Skill/Juzi-DSH-Plugins
     allowlist: []
 ```
 
-## 确认模式
+升级或回退时，先停用「电脑控制」，等它的 Python 子进程退出，替换完整插件包后再启用。Python 服务和 PowerShell 辅助脚本需要使用同一版本。
 
-| 模式 | 行为 |
-|---|---|
-| `always`（默认） | 所有写操作第一次调用只返回 `confirmation_required` 和一次性 `confirm_token`，**不执行任何操作**。模型必须先在 dsh 里向用户说明目标和参数并取得确认，再用同一个 token 重试。token 绑定 action + 参数 + 目标窗口，180 秒过期、单次有效。 |
-| `allowlist` | 目标进程在白名单内时直接执行；否则同上需要确认。进程名可带或不带 `.exe`。 |
-| `off` | 不要求确认，直接执行。 |
+</details>
 
-写操作清单：`action_batch`（含写动作时）/ `input_batch` / `click` / `scroll` / `type_text` / `press_keys` / `hover` / `drag` /
-`manage_window` 的 `move`、`resize`、`set_bounds`、`minimize`、`maximize`、`restore`、
-`close`、`tile` / `clipboard` 的 `set`、`clear`、`restore` / `launch_app` /
-`chrome_cdp` 的 `open_url`、`activate_tab`、`close_tab`、`click`、`fill`、`press_key` /
-`system` 包含 `brightness`、`volume`、`mute`、`lock` 任一写参数时。
+## 选择读屏方式
 
-只读、不走确认门：`focus_window`、`screenshot`、`list_windows`、`system`（无参数）、
-`manage_window` 的 `get_work_area`、`wait`、`clipboard.get`、`find_text`、`inspect_ui`、`read_screen_text`、`get_focused_text`、
-`chrome_cdp` 的 `list_tabs`、`inspect_page`、`read_text`。
-受保护窗口（UAC、Windows 安全中心、登录/锁屏、常见密码管理器）在任何模式下都会被拒绝；
-`drag` 途中落点进入受保护窗口也会立即抬键中止。
+| 想知道什么 | 选哪个工具 | 能读到什么 |
+| --- | --- | --- |
+| “保存”按钮能点吗？两个同名按钮分别在哪一行？ | `inspect_ui` | Windows UI Automation（UIA）提供的控件名称、状态、层级和屏幕坐标 |
+| 焦点输入框里实际写入了什么？ | `get_focused_text` | 当前焦点控件的原文、焦点标识和截断状态。密码控件拒绝回读 |
+| 自绘界面上写了什么？某个词在哪里？ | `read_screen_text` / `find_text` | 前者按块返回 OCR 文字，后者按关键词返回命中框和中心点 |
+| 浏览器标签页里有哪些网页控件？ | `chrome_cdp` | Chrome 或 Edge 开放本地调试并允许连接后，可枚举标签页、读取页面文字及控件状态 |
+| 需要看实际布局、颜色或图标？ | `screenshot` | 整个桌面或窗口客户区的 PNG/JPEG，附原点、原始尺寸和缩放比例 |
 
-### 确认门的真实边界（R1）
+**识别同名按钮。** 假设 `list_windows` 返回的目标 `hwnd` 为 `123456`。向 `inspect_ui` 传入下面的参数，在 `elements` 找到两个“删除”，再沿各自的 `parent_id` 在 `hierarchy` 中找到所属行或分组。节点 ID 仅在这一次结果中有效。
 
-- DSH 宿主提供 `ctx.approval` 与 `tools/pre-execute` 审批 seam。本插件的
-  `lib/index.js` 在宿主 approval 策略为 `ask` 时，会对 `mcp__win__*` 的写操作返回
-  `ask`，由宿主原生审批链决定是否放行。
-- 本机当前 profile 是 `danger-full-access`（approval policy `never`），插件会跳过
-  `ask`；此时服务内 `confirm_token` 只是**模型侧两阶段协议**：它保证没有 token 不会执行、
-  token 绑定参数且一次性，但**不能证明 token 是由人工批准后使用的**，也不是服务端强制确认。
-- 需要硬审批时，请在 DSH 权限预设中启用 `ask` 并确保宿主 approval answerer 可用；不要把
-  `confirm_mode=always` 当作独立的安全边界。
-- 工具结果统一带 `ok` / `error_code` / `message`。执行失败或安全拒绝时 MCP `isError=true`；
-  `confirmation_required` 是明确的非执行状态（`status=confirmation_required`，`isError=false`），
-  不会与成功混淆。
-
-## 坐标与 DPI
-
-- 服务启动时切 **Per-Monitor V2** DPI 感知，所有坐标都是**物理像素**。
-- 本机屏幕 2160×1440、缩放 150%；DPI 不感知的程序只会看到 1440×960。
-- `screenshot` 元数据：`original_width/original_height` 是原始物理尺寸，
-  `width/height` 是缩放后图像尺寸，`scale = width / original_width`。
-- **唯一推荐换算**：`屏幕坐标 = origin + 截图坐标 / scale`。
-- `hwnd` 截图只含**客户区**（不含标题栏），`origin` 为客户区左上角；
-  `click(hwnd=..., x, y)` 使用同一个客户区原点。
-- 整屏截图 `origin` 是虚拟屏幕左上角，覆盖所有显示器。
-- `find_text` 返回的 `cx/cy` 已经是屏幕物理像素，可直接传给 `click`；其
-  `origin` 与 `scale` 也一并返回，需要自行换算时用同一公式。
-- Chrome / Electron 窗口的 `PrintWindow` 可能返回纯白，服务会自动改用屏幕客户区截图，
-  `capture_method` 为 `window-screen`；此时窗口必须可见、未被完全遮挡。
-
-### UIA 层级和可见原文
-
-要区分同名按钮，调用 `inspect_ui`，例如 `{"query":"删除","include_elements":true}`。每个命中元素都有 `id`、`parent_id` 和 `depth`。在同一结果的 `hierarchy` 里沿 `parent_id` 可以找到所属行、分组和窗口根节点。过滤和数量限制只作用于命中列表，必要的祖先仍然返回。节点 ID 只在本次读取内有效。
-
-要读取编辑器或文档当前显示的文字，可传 `{"include_visible_text":true,"include_elements":true}`。支持 UIA TextPattern 的控件按可见范围返回 `visible_text`，保留空格和换行。未提供 TextPattern 但支持 ValuePattern 的控件仍可返回当前 `value`，例如可编辑下拉框的选中值。关键字可匹配名称、可见原文或这类控件的当前值。每个控件最多读取 2048 个 UTF-16 代码单元、64 段可见范围，达到读取上限且仍有剩余内容时会标记 `visible_text_truncated`。密码控件跳过内容读取。省略 `include_elements` 时，可见原文仍出现在 `compact` 中。
-
-源码仓库的独立桌面验收命令是 `python -B scripts/test-win-uia.py`。它创建临时 WPF 窗口，通过 MCP 检查同名按钮归属、滚动后的文本范围、截断和密码控件，成功时输出 `UIA_SMOKE_OK`。
-
-### 按窗口 OCR
-
-`read_screen_text` 默认使用 `capture_mode="screen"`，读取桌面可见像素。要读另一个窗口遮住的内容，传入目标窗口的实际句柄，例如 `{"hwnd":123456,"capture_mode":"wgc","include_items":true}`。结果的 `image.capture_method` 标明取图方式。
-
-WGC 使用 Windows 10 1903 及更高版本的系统窗口捕获接口。目标窗口需要已还原。省略 `region` 会读取整个客户区，指定区域时使用屏幕物理像素，区域须完全位于客户区内。受保护窗口检查同样适用。捕获不可用或超时时返回 `wgc_capture_failed`，取帧期间窗口位置或尺寸变化时会拒绝给出失效坐标。
-
-WGC 捕获期间，Windows 会在目标周围显示系统提示边框，短时取帧可能看到黄框一闪。插件使用系统默认行为。无边框捕获接口从系统 build 20348 引入，需要用户授权。[微软捕获边框说明](https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturesession.isborderrequired)
-
-## 窗口管理
-
-- `tile` 相对显示器**工作区**（排除任务栏），支持 `left_half` / `right_half` /
-  `top_left` / `top_right` / `bottom_left` / `bottom_right` / `maximize`。
-- `set_bounds` / `tile` 按 DWM 可见外框补偿不可见边框，然后回读真实矩形；
-  返回 `requested_bounds`、`applied_bounds`、`delta`、`clamped`。被系统最小尺寸或
-  DPI 钳制时 `clamped=true`，不会假装成功。
-- `minimize` / `maximize` / `restore` 回读 `state` 与 `window.minimized/maximized`。
-- `close` 只发送 `WM_CLOSE`（等价点标题栏关闭），**不杀进程、不自动点保存按钮**。
-  若窗口仍在并出现同进程对话框（例如 Notepad++ 的 `#32770` 保存框），返回
-  `close_pending_dialog=true`、`foreground` 与 `dialogs`，由上层决定。
-- 对禁止清单窗口的任何 action（含 `close`）一律拒绝。
-
-## OCR 找字
-
-- `find_text` 默认在整屏找；传 `hwnd` 只搜该窗口客户区；传 `region`
-  （屏幕物理像素 `{x,y,width,height}`）只搜该区域。
-- 默认 `lang=chi_sim+eng`，`match=contains`；`exact` 按整行/整词精确匹配。
-- Windows OCR 没有置信度 API，命中项 `confidence=null`；Tesseract 回退时返回 0~1 的
-  平均置信度。两者都会给出 `cx/cy` 与 `rect`。
-- Windows OCR 常在中文之间插空格、把中英文拆成多个 OcrLine；服务按词框重建视觉行，
-  忽略空白匹配。拉丁字母被文本光标遮挡时（如 `AB` 读不到 `C`），会用 Tesseract `eng`
-  补词框，`engine` 显示为 `windows-ocr+tesseract`。
-- 已知限制：艺术字、极小字、低对比度、强反光可能失败；此时回退到坐标或后续
-  无障碍方案（本批不含 UI Automation）。
-- 日志只记录查询与命中框/文案，不保存整张截图。
-
-## 剪贴板
-
-- `clipboard.get` 读取 Unicode 文本，默认截断到 8192 字节（UTF-8），返回 `length`、
-  `returned_length` 与 `truncated`；空剪贴板返回 `empty=true`。`get` 不走确认门。
-- `clipboard.set` / `clear` 默认把写之前的**文本快照**保存在本进程内存（单槽），
-  快照状态区分 `success` / `empty`；**备份失败则不写入**。写入后记录
-  `GetClipboardSequenceNumber` 作为所有权序列号，`action=restore` 前若发现序列号变化
-  （用户或其他程序复制了新内容），返回 `clipboard_changed` 冲突并保留新内容，不覆盖。
-- `type_text` 默认粘贴路径也在 PowerShell helper 中做同样的快照/序列号事务，并分别返回
-  `paste_ok`、`restore_ok`、`restore_conflict`、`backup_status`；`type_text` 的文本通过
-  stdin 传入，不占 Windows 命令行。
-- 本批只支持 `format=text`，其它格式返回 `unsupported_format`。
-- 剪贴板是系统级共享资源。即使前台是密码管理器，`get` 仍可读取系统剪贴板；
-  不要在不可信环境下把敏感内容留在剪贴板，README 在此明确提示风险。
-
-## 启动应用
-
-- `path` 必须是绝对路径或明确 URI scheme（`ms-settings:`、`shell:` 等）；相对路径拒绝。
-- `as_admin` 本批固定 `false`；传 `true` 直接返回 `as_admin_not_supported`。
-- 使用 `ShellExecuteExW` 的 `open` 动词，不经过 `cmd /c` 拼接；`args` 原样传给目标程序。
-- 本批一律拒绝脚本宿主、提权/注册表工具与卸载器：`powershell.exe`、`pwsh.exe`、
-  `cmd.exe`、`wscript.exe`、`cscript.exe`、`mshta.exe`、`reg.exe`、`regedit.exe`、
-  `rundll32.exe`、`msiexec.exe`，以及 `unins*` / `uninstall*` 等疑似卸载器；同时拒绝
-  `.bat/.cmd/.ps1/.psm1/.vbs/.js/.wsf/.hta/.reg/.lnk/.url` 等脚本或快捷方式文件。
-  文件名按 Windows 规则去掉尾部点和空格后再比较，防止 `cmd.exe.` 这类绕过。
-- `wait_window_ms>0` 时按启动进程 PID / 进程名匹配新窗口；超时仍返回
-  `started=true` 但 `window=null`（例如复用了已有进程）。
-
-## 安全
-
-- 禁止清单：`consent.exe`、Windows 安全中心、`LogonUI`/`LockApp`、1Password /
-  Bitwarden / KeePass / LastPass / Proton Pass / Enpass 等；按进程名与标题双重匹配。
-  进程身份读取失败时按 fail-closed 拒绝写操作。
-- 点击/悬停/拖拽以**屏幕落点实际顶层窗口**为准，传入 hwnd 只作为预期目标；实际窗口不一致
-  或派发前发生变化就中止。输入/按键在派发前再次核对前台窗口。
-- `screenshot` / `find_text` 会检查截图区域与所有可见禁止窗口的交集，命中即拒绝，
-  避免截取密码管理器等受保护内容。
-- 操作日志写系统临时目录 `juzi-win-dsh-<pid>.jsonl`，进程正常退出即删除，不跨运行保留；
-  确认令牌不写入日志；剪贴板日志只记录长度，不记录内容。
-- `type_text` 默认先备份剪贴板所有可读取格式，粘贴后按序列号事务恢复；
-  `method=unicode` 完全不碰剪贴板。
-- 锁屏（`system(lock=true)`）执行后当前会话会立即锁定，属于预期行为。
-
-## 测试
-
-```powershell
-# 首次跑 smoke 前安装测试依赖
-C:\Python314\python.exe -m pip install -r plugins\juzi-win-dsh\requirements-dev.txt
-C:\Python314\python.exe plugins\juzi-win-dsh\smoke_test.py
-C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
+```json
+{"hwnd": 123456, "query": "删除", "include_elements": true}
 ```
 
-`smoke_test.py` 是安全冒烟：MCP 握手、21 工具清单（含 `get_focused_text`、`input_batch`、`action_batch`、`inspect_ui`、`read_screen_text`、`chrome_cdp`）、窗口枚举、截图、`get_work_area`、
-`clipboard.get`、`wait` 短超时、`find_text` 引擎探测、Notepad++ 置前和系统状态读取；
-不点击、不输入、不按键、不修改音量/亮度、不写剪贴板。预期最后一行 `SMOKE_OK`。
-`regression_test.py` 是纯标准库 unittest，覆盖 R2/R3/R4/R5/R6/R7/R8/R9/R10/R12/R13 的
-可隔离回归（不执行真实键鼠/窗口/剪贴板写），预期 `OK`。
+读取编辑器时，`include_visible_text=true` 会让支持 `TextPattern` 的控件返回可见原文。仅支持 `ValuePattern` 的控件可返回当前值。每个控件最多读取 2048 个 UTF-16 代码单元和 64 段可见范围，`visible_text_truncated=true` 表示还有内容未返回。日常查看可直接读默认的 `compact` 摘要。
 
-### 测试约定（必须遵守）
+**读取被遮挡的窗口。** `read_screen_text` 默认识别桌面可见像素，即使指定了 `hwnd`，遮挡物上的字也可能被读到。需要目标窗口自己的画面时，可向该工具传入 Windows Graphics Capture（WGC）参数。
 
-- 输入类测试**禁止往已有标签页/已有文件里打字**。自动化流程必须先让 Notepad++ 执行
-  `Ctrl+N` 新建空白标签页，确认标题是新的「新文件」后再输入。
-- 测试结束用 `Ctrl+W` 关闭该标签页；若弹出保存提示选择「不保存」，不写入任何用户文件。
-- 临时截图、脚本、日志一律用 `.tmp-*` 前缀放在仓库根或系统临时目录，测试后立即删除；
-  `.gitignore` 已忽略 `.tmp-*`，但清理仍是硬要求。
-- 不把测试产生的文件、截图或日志加入 git。
+```json
+{"hwnd": 123456, "capture_mode": "wgc", "include_items": true}
+```
 
-## 文件
+WGC 需要支持窗口捕获的 Windows 10 1903 或更高版本，以及已还原的目标窗口。`items` 给出文字和屏幕坐标，`image.capture_method` 标明采集方式。可选 `region` 必须完全位于客户区内。抓帧期间可能闪现系统提示边框。取帧失败会返回错误。
 
-| 文件 | 作用 |
-|---|---|
-| `lib/index.js` | DSH 插件入口，交给官方 `@deepseek-ai/dsh-mcp-client` |
-| `lib/config.js` | 解析 Python、confirmMode、allowlist，生成 MCP stdio 配置 |
-| `server.py` | 纯标准库 MCP stdio 服务；实现 initialize / tools/list / tools/call |
-| `winapi.py` | DPI、窗口枚举/布局/状态、前台切换、截图、SendInput 鼠标/键盘、稳定度差分 |
-| `security.py` | 禁止操作窗口清单 |
-| `confirm.py` | 一次性确认令牌 |
-| `clipboard_win.py` | ctypes 剪贴板文本读写与单槽备份 |
-| `launcher.py` | ShellExecuteExW 启动、脚本宿主拦截、新窗口等待 |
-| `ocr.py` | 常驻 OCR Worker、引擎编排、视觉行重建、文字命中与全窗文本块提取 |
-| `ocr_windows.ps1` | Windows.Media.Ocr WinRT 调用（支持 `-Worker` 常驻与 `-Path` 单次），输出词框 JSON |
-| `ui_tree.py` / `ui_tree.ps1` | 常驻 STA Windows UI Automation 控件树采集器（Per-Monitor V2 物理像素坐标） |
-| `cdp.py` | 纯标准库本地 Chrome/Edge CDP WebSocket 客户端（`DevToolsActivePort` 直连，穿透 Shadow DOM） |
-| `cursor_overlay.py` | 1:1 原生尺寸 AI 专属穿透悬浮游标（仅物理指针操作期间显示，`WDA_EXCLUDEFROMCAPTURE` 对截图/OCR 自动隐身，`JUZI_WIN_DSH_CURSOR=off` 可关） |
-| `focused_text.py` / `focused_text.ps1` | 常驻 STA 焦点文本回读（UIA + WM_GETTEXT） |
-| `wgc.cs` | Windows Graphics Capture 后台抓帧组件（供 `read_screen_text(capture_mode="wgc")` 读取被遮挡窗口） |
-| `schema_validate.py` | 工具参数 JSON Schema 严格校验 |
-| `paste_text.py` / `paste_text.ps1` | 剪贴板粘贴、序列号事务与恢复 |
-| `system_control.py` / `system_control.ps1` | WMI 亮度 + Core Audio 音量/静音 + 锁屏 |
-| `runlog.py` | 本次运行内的 JSONL 日志 |
-| `smoke_test.py` | 安全冒烟测试 |
-| `regression_test.py` | R1-R13 隔离回归测试（unittest） |
-| `cordis.patch.yml` | bundle 注册与默认配置 |
-| `requirements.txt` | 运行时依赖：Pillow >= 11.2.1 |
-| `requirements-dev.txt` | 测试依赖：mcp 客户端 |
+**OCR 找字。** `find_text` 优先使用 Windows OCR。中文识别需安装相应的 Windows OCR 语言组件，也可使用 Tesseract 5 和 `chi_sim`、`eng` 语言数据。Windows OCR 返回的 `confidence=null` 表示引擎未提供置信度。两种引擎均不可用时，查看 `ocr_unavailable` 附带的安装提示。
 
-## 已知限制
+**从图像换算点击坐标。** 桌面坐标使用物理像素。缩放截图上的点按 `屏幕坐标 = origin + 图中坐标 / scale` 逐轴换算。`find_text` 返回的 `cx/cy` 已是屏幕坐标，可直接用于不带 `hwnd` 的 `click`。带 `hwnd` 的点击使用客户区相对坐标，需要先减去客户区在屏幕上的原点。窗口截图若返回 `capture_method="window-screen"`，画面来自该区域当时可见的桌面。
 
-- `server.py` 为绕开 DSH 约 2 秒的插件启动等待，使用纯标准库 MCP 实现；不依赖 `mcp`
-  Python 包，`mcp` 只用于 `smoke_test.py`。
-- 窗口截图回退为屏幕截图时，窗口必须可见；完全被遮挡时会截到遮挡窗口。
-- 以管理员权限运行的窗口（UIPI）可能拒绝 SendInput 或前台切换；`focus_window` 会返回
-  `foreground=false`，不会假装成功。
-- `type_text` 的 paste 模式依赖目标窗口支持 `Ctrl+V`；极少数只接受按键的应用需显式
-  `method=unicode`。
-- Windows OCR 的 `confidence` 为 `null`（系统 API 不提供）；需要置信度时确保 Tesseract
-  与对应语言数据可用。
-- 确认令牌由模型转述给用户。服务端保证没有 token 绝不执行，且 token 绑定参数/目标、
-  180 秒过期、单次有效；但**服务端无法验证 token 是否经人工批准**。宿主 approval 策略为
-  `ask` 时 `lib/index.js` 会额外走原生审批；本机 `danger-full-access`（policy `never`）
-  下该原生审批被禁用，`confirm_mode=always` 不是独立安全边界。
-- R11（协议读取与串行执行队列分离）未在本批实现：DSH 的 MCP 客户端按会话串行调用，
-  桌面写操作又必须保持单写者；拆队列需要重写协议循环、取消传播和按键释放保证，风险高于
-  本批收益，留待后续版本。当前慢操作仍会占用该 MCP 连接，`ping`/取消不能提前插队。
+## 工具速查
 
+在 DSH 中，给下列工具名加上 `mcp__win__` 前缀即可得到完整调用名。MCP 客户端可通过 `tools/list` 获取已加载版本的参数定义。
 
-## 输入验证（1.1.1）
+| 用途 | 工具 | 常用操作 |
+| --- | --- | --- |
+| 窗口 | `list_windows`、`focus_window`、`manage_window` | 取得句柄、还原并切到前台、查询工作区、移动、调整大小、平铺或关闭 |
+| 桌面内容 | `inspect_ui`、`get_focused_text`、`read_screen_text`、`find_text`、`screenshot` | 读取结构或原文、识别自绘文字、定位关键词、查看画面 |
+| 网页 | `chrome_cdp` | 用 `list_tabs` 选择标签页，用 `inspect_page` 或 `read_text` 检查内容，也可点击或填写网页控件 |
+| 鼠标 | `click`、`scroll`、`hover`、`drag` | 单击、双击、右击、滚动、悬停和拖拽 |
+| 键盘与连续操作 | `type_text`、`press_keys`、`input_batch`、`action_batch` | 发送文本或组合键。同一前台窗口的连续输入用 `input_batch`，混合读屏与操作用 `action_batch`。每批最多 20 步 |
+| 等待 | `wait` | 等窗口出现、前台切换或画面稳定。`ui_text` 等 UIA 文字出现，`ui_gone` 等其消失，`ocr_text` 等文字出现在画面上 |
+| 剪贴板、应用与系统 | `clipboard`、`launch_app`、`system` | 读写及恢复文本、按绝对路径或受支持 URI 启动应用、读取或调整亮度和音量、锁屏 |
 
-`type_text`、`press_keys` 可传 `hwnd` 固定前台目标；不匹配时拒绝派发，调用方先明确聚焦。
-`type_text` 使用 UI Automation 读取可编辑焦点控件，并将其标识纳入确认参数。
-默认严格验证：不支持回读或文本超过读取上限时拒绝输入。密码控件始终拒绝。派发后以内容插入/选区替换比对验证；
-无法验证返回 `paste_unverified` / `input_unverified`，其中 `dispatched=true` 表示可能已经写入，禁止自动重试。
-已有相同文本且无法观察变化也返回未验证，而非宣称成功。
+`manage_window` 的 `tile` 按显示器工作区布局，避开任务栏。尺寸受系统限制时看 `applied_bounds` 和 `clamped`。关闭窗口发送 `WM_CLOSE`，若返回 `close_pending_dialog=true`，应先处理保存对话框。
 
-新增只读 `get_focused_text(hwnd?, max_chars=10000)`，返回文本、长度、控件类型、焦点标识及截断标记。
-UI Automation Pattern 不可用时，对经典 Edit / WindowsForms10.EDIT 文本控件使用有 500ms 超时的 WM_GETTEXT 回读，核对所属窗口并拒绝密码样式；其他控件不使用窗口标题冒充文本。返回 read_method 标明来源。
-Unicode 模式换行使用 Shift+Enter，制表符作为 Unicode 字符派发，字符间间隔 10ms；
-Shift+Enter 的具体语义仍由目标应用决定，默认粘贴模式适合多行文本。
-节流不能保证 Electron 不丢字，最终仍需回读验证。
+## 写操作与确认
 
-确认令牌保持一次性、绑定参数与目标。新增 `input_batch(hwnd, actions, confirm_token?)`，一次确认覆盖同一窗口上最多 20 个明确的 type_text/press_keys 动作。两次调用完成整批；任何失败停止，返回已执行结果，授权不复用到批次外。
-例如 actions 为 `[{"tool":"press_keys","arguments":{"keys":"ctrl+a"}},{"tool":"type_text","arguments":{"text":"你好"}}]`。
-Windows OCR 的 `confidence=null` 表示引擎不提供置信度，不能视为 0 或虚构相似度。
+`confirmMode` 默认取 `always`。点击、输入等写操作首次调用返回 `confirmation_required` 和一次性 `confirm_token`。模型应向用户说明目标和动作，取得确认后携带令牌、原参数和原目标再次调用。令牌 180 秒内有效。`allowlist` 对列出的目标进程免确认，`off` 关闭服务内确认。
 
+需要人工审批时，在 DSH 宿主启用 `ask` 并配置可用的审批应答方。服务端令牌只校验动作、参数和目标，人工批准由宿主负责。`focus_window` 会改变前台窗口，但不经过写操作确认。UAC、登录界面、Windows 安全中心和常见密码管理器属于受保护窗口。
 
-### 未验证输入与延迟回读
+| 遇到的结果 | 如何继续 |
+| --- | --- |
+| `target_changed` / `not_foreground` | 重新核对目标窗口和焦点，再决定是否派发。鼠标操作还会核对落点实际所属的窗口 |
+| 输入返回 `dispatched=true`、`verified=false` | 文本可能已经写入。先用 `get_focused_text` 或截图查结果，避免重复输入。批次遇到未验证输入会停止 |
+| `clipboard_changed` / `restore_conflict=true` | 其他程序或用户已改动剪贴板，保留较新的内容。`clipboard` 工具的备份只覆盖 Unicode 文本 |
+| `user_interrupted` | 用户在悬停、拖拽或批次操作期间移动了鼠标。停止后续操作，让用户接管 |
+| 远程桥接返回 `remote_outcome_unknown` | 请求可能已送达远端。先检查远端窗口或输入内容，再决定下一步 |
 
-`type_text(..., allow_unverified=true)` 显式允许在焦点可绑定但文本无法可靠回读时派发。
-返回 `ok=true, dispatched=true, verified=false, status="dispatched_unverified"` 仅表示已派发，
-不代表内容正确落地，`paste_ok=false`。默认 `allow_unverified=false` 继续严格验证。
-该参数纳入确认令牌，不能使用严格模式令牌偷偷切换；密码控件、目标漂移及无法取得焦点标识仍拒绝。
-批次遇到未验证派发即停止，不继续按键或再次输入；应使用 get_focused_text 或截图确认后再规划下一步。
+`type_text` 默认粘贴并尝试恢复剪贴板，`method="unicode"` 可直接派发字符。默认会回读焦点控件验证文本。只有明确接受无法验证结果时才用 `allow_unverified=true`，密码控件仍拒绝输入。`clipboard.get` 读取的是系统共享剪贴板，其内容独立于当前前台窗口。
 
-验证最多读取四次，读取之间等待 100/200/400ms（另外计入读取自身耗时），不会重复派发输入。
-CRLF、CR、软换行 U+000B 和行分隔 U+2028 统一为 LF 后比对；不删除空格或任意尾部文本。
+<details>
+<summary>输入验证、鼠标接管与受保护窗口</summary>
 
-浏览器 contenteditable 即使能够回读，也可能被 UIA 标记为不可编辑；这种目标每次输入均可能需要显式 `allow_unverified=true`。
+- `type_text` 和 `press_keys` 可带 `hwnd` 固定前台目标。文本验证最多回读四次，回读之间等待 100、200、400 毫秒，整个过程只派发一次输入。`status="dispatched_unverified"` 表示已派发、内容待核实。
+- `hover`、`drag` 以及含物理指针动作的 `action_batch` 会检查用户接管。`JUZI_WIN_DSH_TAKEOVER_PX` 控制位移阈值，默认 60 像素。若只想隐藏 AI 游标，可设置 `JUZI_WIN_DSH_CURSOR=off`。
+- 截图或 OCR 区域与可见的受保护窗口相交时，会返回 `forbidden_window`。`launch_app` 支持普通权限下的应用启动，拒绝提权、脚本宿主和卸载器。[窗口保护规则](src/security.py) · [启动规则](src/launcher.py)
+- 同一 MCP 连接按顺序执行请求。长时间的 `wait` 会占用该连接，后续调用需等它结束。
+
+</details>
+
+## 开发与验收
+
+宿主从 `lib/` 读取配置，经包根目录的 `server.py` 启动 MCP。工具实现位于 `src/`，Windows 原生辅助脚本位于 `scripts/`。排查工具名或参数先看服务入口。[宿主配置](lib/config.js) · [工具定义与分发](src/core_server.py) · [版本记录](CHANGELOG.md)
+
+以下命令从**仓库根目录**运行，`python` 应指向已安装插件依赖的解释器。
+
+| 验证内容 | 命令 | 通过标志 |
+| --- | --- | --- |
+| 桌面工具隔离回归 | `python -B plugins/juzi-win-dsh/tests/regression_test.py` | `OK` |
+| 桥接鉴权、断线处理与版本切换的本机回归 | `python -B plugins/juzi-win-dsh/tests/remote_test.py` | `OK` |
+| 真实 WPF 测试窗口的 UIA 层级、可见原文与密码控件 | `python -B scripts/test-win-uia.py` | `UIA_SMOKE_OK` |
+| 本机 MCP 握手、窗口、截图、剪贴板读取与系统状态 | `python -B plugins/juzi-win-dsh/tests/smoke_test.py` | `SMOKE_OK` |
+
+首次运行本机冒烟测试，先执行 `python -m pip install -r plugins/juzi-win-dsh/requirements-dev.txt`。该测试会读取桌面，若 Notepad++ 已打开，还会将其置于前台。手工验证输入时，在 Notepad++ 用 `Ctrl+N` 创建空白标签，确认目标后再输入，结束后关闭并选择“不保存”。临时截图、脚本和日志使用 `.tmp-*` 前缀并在测试后清理。
+
+运行中的服务日志在系统临时目录 `juzi-win-dsh-<pid>.jsonl`，正常退出时删除。远程部署、权限、升级和回退步骤见[远程桥接指南](remote/README.md)。

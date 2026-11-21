@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-SCRIPT = Path(__file__).resolve().parent / "system_control.ps1"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "system_control.ps1"
 POWERSHELL = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
 
 

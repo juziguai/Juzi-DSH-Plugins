@@ -25,13 +25,14 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PLUGIN_ROOT / "src"))
 import launcher  # noqa: E402
 import ocr  # noqa: E402
 import security  # noqa: E402
 from confirm import ConfirmationGate  # noqa: E402
 
-SERVER = str(Path(__file__).resolve().parent / "server.py")
+SERVER = str(PLUGIN_ROOT / "server.py")
 PYTHON = sys.executable
 EXPECTED_TOOLS = {
     "list_windows", "focus_window", "screenshot",

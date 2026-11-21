@@ -21,7 +21,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-SCRIPT_DIR = Path(__file__).resolve().parent
+SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 WINDOWS_OCR_SCRIPT = SCRIPT_DIR / "ocr_windows.ps1"
 POWERSHELL = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
 TESSERACT_CANDIDATES = (

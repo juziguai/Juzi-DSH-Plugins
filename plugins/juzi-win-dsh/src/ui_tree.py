@@ -20,7 +20,7 @@ from typing import Any
 
 from paste_text import POWERSHELL
 
-SCRIPT_PATH = Path(__file__).resolve().with_suffix(".ps1")
+SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "ui_tree.ps1"
 MAX_UI_RESPONSE_BYTES = 16 * 1024 * 1024
 
 

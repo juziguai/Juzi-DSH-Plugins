@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory(prefix='juzi-update-') as scratch:
     root = pathlib.Path(scratch)
     package = root / 'plugin with spaces'
     shutil.copytree(pathlib.Path(config['args'][0]).parent, package,
-                    ignore=shutil.ignore_patterns('__pycache__'))
+                    ignore=shutil.ignore_patterns('__pycache__', 'bundle', '.tmp-*'))
     moved = root / 'replaced'
     for inside in (True, False):
         child = subprocess.Popen([sys.executable, str(package / 'server.py')],
@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix='juzi-update-') as scratch:
         finally:
             child.communicate(timeout=5)
         assert child.returncode == 0, child.returncode
-    sys.path.insert(0, str(package))
+    sys.path.insert(0, str(package / 'src'))
     import focused_text
     worker = None
     try:

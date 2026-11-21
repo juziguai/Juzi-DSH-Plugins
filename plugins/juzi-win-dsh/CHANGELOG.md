@@ -1,29 +1,28 @@
 # 更新日志
 
-## [Unreleased]
+## [1.1.5] - 2026-11-22
 
 ### 新增
 
-- 人机礼让物理急刹（`user_interrupted`）：`hover` / `drag` / `action_batch` 执行期间按步核对真实鼠标位移，一旦检测到用户主动晃动鼠标接管桌面（默认阈值 `60px`，可通过 `JUZI_WIN_DSH_TAKEOVER_PX` 调整或设为 `0` 关闭），立即释放按键并中止后续物理操作。
-- `wait` 新增 `ui_text` / `ui_gone` / `ocr_text` 智能轮询条件：支持在单次调用内轮询等待目标 UIA 控件/文字出现（直接附带 `compact` 坐标清单返回）、等待加载态消失或等待 OCR 文字出现，消除固定时长盲等。
-- `cursor_overlay.py`：为物理桌面鼠标操作（`click` / `hover` / `drag` / `scroll` 与含物理指针的 `action_batch`）新增 1:1 原生尺寸的 AI 专属穿透悬浮游标（黑箭头 + `[● AI]` 胶囊 + 点击水波纹）；采用 `WS_EX_LAYERED | WS_EX_TRANSPARENT` 与 `WDA_EXCLUDEFROMCAPTURE`（对截图/OCR/WGC 自动隐身），严格仅在调用执行期间展示、收工即刻隐藏（支持 `JUZI_WIN_DSH_CURSOR=off` 关闭）。
-- `inspect_ui` 的 `include_elements=true` 结果附带可回溯的父子层级。可选的 `include_visible_text=true` 提取 UIA 文本控件当前可见的原文，支持按原文查询和截断标记。仅提供 ValuePattern 的控件保留当前值并支持按值查询。
+本版新增 4 个 MCP 工具，工具总数从 17 个增至 21 个。
 
-- `chrome_cdp`：内置纯标准库 Chrome/Edge DevTools Protocol 客户端（`cdp.py`，零新增第三方依赖），自动发现本地已登录浏览器的 `DevToolsActivePort` 并复用常驻 WebSocket 会话；支持 `list_tabs` / `inspect_page`（穿透 Shadow DOM 输出编号控件与 `DISABLED`/`selected` 状态）/ `read_text` / `open_url` / `activate_tab` / `close_tab` / `click` / `fill` / `press_key`，后台操作不占用物理鼠标，并集成禁区页面拦截与 `confirm_mode` 审批门禁。
-- `inspect_ui`：新增常驻 STA Windows UI Automation 控件树采集工具（`ui_tree.py` / `ui_tree.ps1`），支持 Per-Monitor V2 物理像素坐标、关键字/区域过滤，直接返回按钮/菜单/单选框/文本的精确中心点与 `enabled`/`selected`/`checked`/`expanded` 状态，免截图感知界面与置灰项（默认精简 `compact` 文本输出，可选 `include_elements=true`）。
-- `read_screen_text` 新增可选的 `capture_mode="wgc"`，按窗口句柄捕获被遮挡的客户区或其中的指定区域，返回 OCR 文字和屏幕物理像素坐标。默认使用可见屏幕取图，两种模式均支持 `include_items=true`。
-- `action_batch`：新增多步桌面连招工具（1~20 步，支持 `focus_window` / `click` / `hover` / `scroll` / `wait` / `type_text` / `press_keys` / `find_text` / `inspect_ui` / `read_screen_text` / `screenshot`），支持统一确认门禁、禁区窗口强校验与失败即停，并在 `lib/index.js` 纳入 `WRITE_TOOLS` 审批清单。
-- `screenshot` 新增 `format=jpeg` 与 `quality`（40~95）参数；`click` 与 `press_keys` 新增 `after_screenshot` / `after_wait_ms` / `screenshot_max_width` / `screenshot_format` 后置截图选项。
+- `inspect_ui` 读取 Windows UIA 控件的名称、状态和屏幕坐标。可用父子层级区分同名按钮，也可读取控件的可见原文或当前值。
+- `read_screen_text` 按块返回 OCR 文字和屏幕坐标。默认读取桌面可见像素，指定 `hwnd` 和 `capture_mode="wgc"` 可读取被遮挡窗口的客户区。
+- `chrome_cdp` 通过本地调试连接读取和操作 Chrome、Edge 标签页。网页控件支持后台点击和填写，写操作沿用插件的确认策略。
+- `action_batch` 可按顺序执行 1～20 步桌面操作，把控件查询、点击、输入、等待和截图放在同一次调用里。批次遇到失败或未验证输入时停止。
+- 新增可选的 SSH 桌面桥接和便携包。远端默认要求确认，客户端只能收紧策略。守护进程按用户和桌面会话隔离令牌，复用连接时核对会话身份。已发送的写操作若失去响应，返回 `remote_outcome_unknown`，供调用方核对执行结果。
 
 ### 变更
 
-- `inspect_ui` 默认采集深度 `max_depth` 从 `12` 提升至 `18`（`wait` 的 `ui_text` / `ui_gone` 轮询内置 `22`），覆盖 Electron/Chromium 深层弹出菜单与嵌套容器。
-- `ocr.py` / `ocr_windows.ps1`：Windows OCR 升级为常驻 STA PowerShell Worker（`-Worker` 模式）并缓存 `WinRT` 引擎与 Tesseract 语言列表，显著降低重复找字与读屏的冷启动开销；保留 `-Path` 单次调用兼容模式。
-- `winapi.py` / `server.py`：PNG 截图改用快速压缩（`compress_level=1`）替代慢速 `optimize=True`，并保持原有元数据和返回结构兼容。
+- `wait` 新增 `ui_text`、`ui_gone` 和 `ocr_text`，分别等待 UIA 文字出现、消失或 OCR 识别到指定文字。`inspect_ui` 默认遍历深度从 12 增至 18，UIA 条件等待可遍历至 22 层。
+- 物理指针操作期间显示 AI 游标。`hover`、`drag` 及含物理指针操作的 `action_batch` 可检测用户接管并中止后续动作。默认位移阈值为 60 像素，可用 `JUZI_WIN_DSH_TAKEOVER_PX` 调整，用 `JUZI_WIN_DSH_CURSOR=off` 隐藏游标。
+- Windows OCR 复用辅助进程和识别引擎。截图采用快速 PNG 压缩，也可选择 JPEG 和质量参数。`click`、`press_keys` 可在同一次调用中返回操作后的截图。
+- Python 实现、Windows 辅助脚本和测试分别整理到 `src/`、`scripts/` 和 `tests/`，现有 MCP 配置继续使用包根目录的 `server.py`。npm 包排除本机 Python 缓存。README 增加首次调用、读屏方式选择和验收入口。
 
 ### 修复
 
-- `cursor_overlay.py`：修正 `WM_TIMER` 常量误写（`0x0011` → `0x0113`，原值误撞 `WM_QUERYENDSESSION`）导致 `click` / `scroll` 结尾 200ms 点击水波纹定时器无法触发、AI 悬浮游标滞留屏幕不消失的问题，并补齐 64 位 Win32 窗口句柄调用的 `argtypes` 签名声明。
+- 修正游标定时器消息和 64 位窗口句柄声明。点击或滚动结束后，水波纹与 AI 游标会按时消失。
+- 远程升级在独立版本目录校验并启动候选包，通过后才切换活动版本。指定 `--verify-bridge` 时，桥接验收失败会返回非零退出码，并保留原活动版本。旧版平铺目录的迁移步骤见[远程桥接指南](remote/README.md)。
 
 ## [1.1.4] - 2026-11-15
 

@@ -21,7 +21,7 @@ class FocusReader:
     def _start(self):
         process = subprocess.Popen(
             [str(POWERSHELL), '-NoProfile', '-STA', '-NonInteractive', '-File',
-             str(Path(__file__).with_suffix('.ps1'))],
+             str(Path(__file__).resolve().parent.parent / 'scripts' / 'focused_text.ps1')],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             text=True, encoding='utf-8', cwd=tempfile.gettempdir(),
             creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))

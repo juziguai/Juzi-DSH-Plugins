@@ -17,8 +17,10 @@ import subprocess
 from pathlib import Path
 from unittest import mock
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
+SRC_DIR = ROOT / "src"
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(SRC_DIR))
 
 import clipboard_win  # noqa: E402
 import launcher  # noqa: E402
@@ -325,7 +327,7 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(payload["timed_out"])
 
     def test_r12_paste_uses_stdin_not_argv(self):
-        source = (ROOT / "paste_text.py").read_text(encoding="utf-8")
+        source = (SRC_DIR / "paste_text.py").read_text(encoding="utf-8")
         self.assertNotIn("-TextB64", source)
         self.assertIn("input=text", source)
 

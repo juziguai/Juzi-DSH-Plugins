@@ -14,6 +14,9 @@ deepseek-tools-usage.json
 *.tmp
 .tmp-*
 *.bak*
+# Portable remote runtime bundle (contains embedded Python + Pillow binaries)
+plugins/juzi-win-dsh/remote/bundle/
+plugins/juzi-win-dsh/remote/*.zip
 # Historical local artifacts; source patches already tracked remain preserved
 plugins/dsh-ultra-effort/docs/
 plugins/dsh-ultra-effort/archive/legacy-patches/apply-v1[2-9]*.ps1
