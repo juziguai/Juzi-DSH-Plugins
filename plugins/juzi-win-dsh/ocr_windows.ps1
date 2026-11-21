@@ -6,7 +6,7 @@
 # Windows.Media.Ocr 识别 PNG，输出一行 JSON：
 # { ok, engine, lang, requested_lang, lines:[{text, words:[{text,x,y,w,h}]}] }
 # 支持单次模式（-Path）与常驻 STA worker 模式（-Worker，stdin/stdout newline-JSON）。
-# 只做 OCR，不落盘、不写日志；调用方负责删除传入的临时图片。
+# WGC 按需加载；调用方拥有并清理临时图片。
 $ErrorActionPreference = 'Stop'
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -106,13 +106,45 @@ function Invoke-OcrFile([string]$ImagePath, [string]$Tag) {
     }
 }
 
+function Invoke-WindowCapture($Request) {
+    if ($null -eq $script:WindowCaptureType) {
+        # Use the OS WinRT metadata and .NET Framework compiler; no SDK is required.
+        $options = New-Object System.CodeDom.Compiler.CompilerParameters
+        $options.GenerateInMemory = $true
+        $options.ReferencedAssemblies.Add('System.dll') | Out-Null
+        $options.ReferencedAssemblies.Add([System.WindowsRuntimeSystemExtensions].Assembly.Location) | Out-Null
+        foreach ($name in ('System.Runtime', 'System.Runtime.InteropServices.WindowsRuntime')) {
+            $assembly = [Reflection.Assembly]::Load("$name, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a")
+            $options.ReferencedAssemblies.Add($assembly.Location) | Out-Null
+        }
+        foreach ($name in ('Windows.Foundation', 'Windows.Graphics', 'Windows.Storage')) {
+            $options.ReferencedAssemblies.Add("$env:SystemRoot\System32\WinMetadata\$name.winmd") | Out-Null
+        }
+        $compiler = New-Object Microsoft.CSharp.CSharpCodeProvider
+        try {
+            $build = $compiler.CompileAssemblyFromFile($options, (Join-Path $PSScriptRoot 'wgc.cs'))
+            if ($build.Errors.HasErrors) { throw ($build.Errors -join ' ') }
+            $script:WindowCaptureType = $build.CompiledAssembly.GetType('JuziWindowCapture', $true)
+        } finally {
+            $compiler.Dispose()
+        }
+    }
+    $script:WindowCaptureType::SavePng([long]$Request.hwnd, [int]$Request.frame_width, [int]$Request.frame_height,
+        [int]$Request.x, [int]$Request.y, [int]$Request.width, [int]$Request.height, [string]$Request.path)
+    return '{"ok":true}'
+}
+
 if ($Worker) {
     while ($null -ne ($line = [Console]::ReadLine())) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
         try {
             $req = $line | ConvertFrom-Json
-            $tag = if ($req.lang_tag) { [string]$req.lang_tag } else { "zh-Hans-CN" }
-            $out = Invoke-OcrFile ([string]$req.path) $tag
+            if ($req.operation -eq 'capture_window') {
+                $out = Invoke-WindowCapture $req
+            } else {
+                $tag = if ($req.lang_tag) { [string]$req.lang_tag } else { "zh-Hans-CN" }
+                $out = Invoke-OcrFile ([string]$req.path) $tag
+            }
         } catch {
             $out = (@{ ok = $false; error = "ocr_failed"; message = $_.Exception.Message } | ConvertTo-Json -Compress)
         }

@@ -4,9 +4,11 @@
 
 ### 新增
 
+- `inspect_ui` 的 `include_elements=true` 结果附带可回溯的父子层级。可选的 `include_visible_text=true` 提取 UIA 文本控件当前可见的原文，支持按原文查询和截断标记。仅提供 ValuePattern 的控件保留当前值并支持按值查询。
+
 - `chrome_cdp`：内置纯标准库 Chrome/Edge DevTools Protocol 客户端（`cdp.py`，零新增第三方依赖），自动发现本地已登录浏览器的 `DevToolsActivePort` 并复用常驻 WebSocket 会话；支持 `list_tabs` / `inspect_page`（穿透 Shadow DOM 输出编号控件与 `DISABLED`/`selected` 状态）/ `read_text` / `open_url` / `activate_tab` / `close_tab` / `click` / `fill` / `press_key`，后台操作不占用物理鼠标，并集成禁区页面拦截与 `confirm_mode` 审批门禁。
 - `inspect_ui`：新增常驻 STA Windows UI Automation 控件树采集工具（`ui_tree.py` / `ui_tree.ps1`），支持 Per-Monitor V2 物理像素坐标、关键字/区域过滤，直接返回按钮/菜单/单选框/文本的精确中心点与 `enabled`/`selected`/`checked`/`expanded` 状态，免截图感知界面与置灰项（默认精简 `compact` 文本输出，可选 `include_elements=true`）。
-- `read_screen_text`：新增免截图全窗纯文本 OCR 读屏工具，复用常驻 OCR Worker 按阅读顺序返回窗口或区域内全部文字与物理像素坐标（默认精简 `compact` 清单，可选 `include_items=true`）。
+- `read_screen_text` 新增可选的 `capture_mode="wgc"`，按窗口句柄捕获被遮挡的客户区或其中的指定区域，返回 OCR 文字和屏幕物理像素坐标。默认使用可见屏幕取图，两种模式均支持 `include_items=true`。
 - `action_batch`：新增多步桌面连招工具（1~20 步，支持 `focus_window` / `click` / `hover` / `scroll` / `wait` / `type_text` / `press_keys` / `find_text` / `inspect_ui` / `read_screen_text` / `screenshot`），支持统一确认门禁、禁区窗口强校验与失败即停，并在 `lib/index.js` 纳入 `WRITE_TOOLS` 审批清单。
 - `screenshot` 新增 `format=jpeg` 与 `quality`（40~95）参数；`click` 与 `press_keys` 新增 `after_screenshot` / `after_wait_ms` / `screenshot_max_width` / `screenshot_format` 后置截图选项。
 

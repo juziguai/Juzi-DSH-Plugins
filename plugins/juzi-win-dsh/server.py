@@ -1608,6 +1608,7 @@ def inspect_ui(
     max_depth: int = 12,
     timeout_ms: int = 2500,
     region: dict[str, Any] | None = None,
+    include_visible_text: bool = False,
 ) -> str:
     """用 Windows UI Automation 控件树免截图读取窗口内所有可见控件、状态（含 DISABLED/selected）与屏幕物理像素中心坐标。"""
     if hwnd is not None:
@@ -1638,6 +1639,7 @@ def inspect_ui(
     params = {
         "hwnd": hwnd, "query": query, "interactive_only": bool(interactive_only),
         "include_text": bool(include_text), "max_elements": limit,
+        "include_visible_text": include_visible_text, "include_elements": include_elements,
         "max_depth": depth, "timeout_ms": budget, "region": parsed_region,
     }
     LOG.write("inspect_ui", "start", params)
@@ -1661,6 +1663,8 @@ def inspect_ui(
             query=query,
             timeout_ms=budget,
             region=parsed_region,
+            include_hierarchy=include_elements,
+            include_visible_text=include_visible_text,
         )
     except Exception as exc:  # noqa: BLE001
         LOG.write("inspect_ui", "error", params, target, error=repr(exc))
@@ -1686,6 +1690,7 @@ def read_screen_text(
     lang: str = "chi_sim+eng",
     max_items: int = 150,
     include_items: bool = False,
+    capture_mode: str = "screen",
 ) -> str:
     """免截图整窗 OCR 读屏：一次返回窗口/区域内全部文字与屏幕物理像素中心点坐标，无需落盘看图。"""
     if not isinstance(lang, str) or not lang.strip():
@@ -1698,7 +1703,11 @@ def read_screen_text(
         if parsed is None:
             return _error("invalid_hwnd", "hwnd 必须是整数。")
         hwnd = parsed
-    params = {"hwnd": hwnd, "region": region, "lang": lang, "max_items": limit}
+    if capture_mode not in ("screen", "wgc"):
+        return _error("invalid_arguments", "capture_mode 必须为 screen 或 wgc。")
+    if capture_mode == "wgc" and hwnd is None:
+        return _error("invalid_hwnd", "WGC 需要指定目标窗口 hwnd。")
+    params = {"hwnd": hwnd, "region": region, "lang": lang, "max_items": limit, "capture_mode": capture_mode}
     LOG.write("read_screen_text", "start", params)
 
     if hwnd is not None:
@@ -1709,6 +1718,8 @@ def read_screen_text(
         if reason:
             LOG.write("read_screen_text", "blocked", params, info)
             return _error("forbidden_window", reason, window=info)
+        if capture_mode == "wgc" and info["minimized"]:
+            return _error("window_minimized", "WGC 读屏需要已还原的窗口。")
 
     if region is not None and not isinstance(region, dict):
         return _error("invalid_region", "region 必须是 {x,y,width,height} 对象。")
@@ -1734,18 +1745,42 @@ def read_screen_text(
                 "读屏区域与受保护窗口相交，已拒绝；请先关闭或移动受保护窗口。",
                 windows=forbidden_hits,
             )
-        if region is not None:
-            image, metadata = winapi.grab_image(region=parsed_region)
+        if capture_mode == "wgc":
+            client = winapi.client_metrics(hwnd) if region is not None else capture_rect
+            if any(capture_rect[n] <= 0 for n in ("width", "height")) or not all(
+                client[pos] <= capture_rect[pos]
+                and capture_rect[pos] + capture_rect[length] <= client[pos] + client[length]
+                for pos, length in (("x", "width"), ("y", "height"))
+            ):
+                return _error("invalid_region", "WGC 的 region 必须完整位于目标窗口客户区内。")
+            png = ocr.capture_window_png(hwnd, info["rect"], capture_rect)
+            current = winapi.window_info(hwnd)
+            if (not current or current["pid"] != info["pid"] or current["minimized"]
+                    or current["rect"] != info["rect"] or winapi.client_metrics(hwnd) != client):
+                return _error("target_changed", "取帧时目标窗口或客户区发生变化，请重新读屏。")
+            reason = security.forbidden_reason(current)
+            if reason:
+                return _error("forbidden_window", reason, window=current)
+            metadata = {"mode": "region" if region is not None else "window", "hwnd": hwnd,
+                        "width": capture_rect["width"], "height": capture_rect["height"],
+                        "origin": {"x": capture_rect["x"], "y": capture_rect["y"]}}
         else:
-            image, metadata = winapi.grab_image(hwnd=hwnd)
+            if region is not None:
+                image, metadata = winapi.grab_image(region=parsed_region)
+            else:
+                image, metadata = winapi.grab_image(hwnd=hwnd)
+            buffer = BytesIO()
+            image.save(buffer, format="PNG", compress_level=1)
+            png = buffer.getvalue()
     except ValueError as exc:
         return _error("invalid_region", str(exc))
     except Exception as exc:  # noqa: BLE001
+        if capture_mode == "wgc":
+            LOG.write("read_screen_text", "error", params, error=repr(exc))
+            return _error("wgc_capture_failed", f"WGC 窗口取帧失败：{exc}")
         return _error("screenshot_failed", f"读屏截图失败：{exc}")
 
-    buffer = BytesIO()
-    image.save(buffer, format="PNG", compress_level=1)
-    recognized = ocr.recognize(buffer.getvalue(), lang)
+    recognized = ocr.recognize(png, lang)
     if not recognized.get("ok"):
         LOG.write("read_screen_text", "error", params, error=recognized.get("error"))
         code = recognized.get("error") or "ocr_unavailable"
@@ -1780,6 +1815,7 @@ def read_screen_text(
         "coordinate_space": "screen-physical-pixels",
         "image": {
             "mode": metadata["mode"],
+            "capture_method": capture_mode,
             "hwnd": metadata.get("hwnd"),
             "width": metadata["width"],
             "height": metadata["height"],
@@ -2125,10 +2161,11 @@ _INSPECT_UI_SCHEMA = {
     "type": "object",
     "properties": {
         "hwnd": {"type": ["integer", "null"], "default": None, "description": "目标窗口句柄；省略则检查当前前台窗口。"},
-        "query": {"type": ["string", "null"], "default": None, "maxLength": 200, "description": "可选关键字过滤（不区分大小写，匹配控件名称或值）。"},
+        "query": {"type": ["string", "null"], "default": None, "maxLength": 200, "description": "按名称或值过滤。开启 include_visible_text 后，文本控件按可见原文匹配，仅支持 ValuePattern 的控件仍按当前值匹配。"},
         "interactive_only": {"type": "boolean", "default": False, "description": "为 true 时仅返回按钮/菜单/输入框/单选框等可交互控件。"},
         "include_text": {"type": "boolean", "default": True, "description": "是否包含普通文本节点（便于直接读数字和提示信息）。"},
-        "include_elements": {"type": "boolean", "default": False, "description": "默认只返回精简 compact 文本清单以防输出过大落盘；设为 true 时附带完整 elements JSON 数组。"},
+        "include_elements": {"type": "boolean", "default": False, "description": "附带 elements 及 hierarchy。按本次结果的 parent_id 回溯命中控件的祖先。"},
+        "include_visible_text": {"type": "boolean", "default": False, "description": "用 UIA TextPattern 读取控件可见原文，每个控件至多 2048 个 UTF-16 代码单元。"},
         "max_elements": {"type": "integer", "default": 150, "minimum": 1, "maximum": 500},
         "max_depth": {"type": "integer", "default": 12, "minimum": 1, "maximum": 30},
         "timeout_ms": {"type": "integer", "default": 2500, "minimum": 200, "maximum": 8000},
@@ -2147,6 +2184,8 @@ _INSPECT_UI_SCHEMA = {
 _READ_SCREEN_TEXT_SCHEMA = {
     "type": "object",
     "properties": {
+        "capture_mode": {"type": "string", "enum": ["screen", "wgc"], "default": "screen",
+                         "description": "screen 读取桌面可见像素；wgc 仅捕获指定 hwnd 的客户区，可读取被其他窗口遮挡的内容。"},
         "hwnd": {"type": ["integer", "null"], "default": None, "description": "窗口句柄；省略则读整屏。"},
         "region": {
             "type": ["object", "null"],
@@ -2290,12 +2329,12 @@ TOOLS = [
     },
     {
         "name": "inspect_ui",
-        "description": "免截图读取 Windows UI Automation 控件树：直接返回目标窗口可见按钮、菜单、单选框、输入框、文本的精确名称、屏幕物理像素中心点 (cx,cy)、以及 enabled（是否置灰）/selected/checked/expanded 状态，速度远快于截图看图。只读，不走确认门。",
+        "description": "读取 UIA 控件名称、状态和屏幕物理像素中心点。用 include_elements 查看控件所属行或分组，用 include_visible_text 读取支持 TextPattern 的控件可见原文。只读。",
         "inputSchema": _INSPECT_UI_SCHEMA,
     },
     {
         "name": "read_screen_text",
-        "description": "免截图整窗 OCR 读屏：一次返回窗口/区域内全部文字与屏幕物理像素中心点 (cx,cy) 纯文本清单，无需落盘或再次看图；适合 UIA 控件树为空的自绘界面。只读，不走确认门。",
+        "description": "OCR 读取窗口或区域内的文字及屏幕物理像素中心点。默认读取桌面可见像素；需读取被遮挡的窗口时指定 hwnd 和 capture_mode=wgc。只读。",
         "inputSchema": _READ_SCREEN_TEXT_SCHEMA,
     },
     {

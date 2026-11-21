@@ -126,13 +126,16 @@ class OcrWorker:
             self._close()
 
     def recognize_path(self, path: Path, lang_tag: str) -> dict[str, Any]:
+        return self.request({"path": str(path), "lang_tag": lang_tag})
+
+    def request(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self.lock:
             try:
                 if self.process is None or self.process.poll() is not None:
                     self._close()
                     self._start()
                 assert self.process is not None and self.process.stdin is not None and self.responses is not None
-                self.process.stdin.write(json.dumps({"path": str(path), "lang_tag": lang_tag}, ensure_ascii=False) + "\n")
+                self.process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
                 self.process.stdin.flush()
                 response = self.responses.get(timeout=self.timeout)
                 if isinstance(response, Exception):
@@ -155,6 +158,22 @@ atexit.register(close)
 
 def _run_powershell(path: Path, lang_tag: str) -> dict[str, Any]:
     return _ocr_worker.recognize_path(path, lang_tag)
+
+
+def capture_window_png(hwnd: int, frame: dict[str, int], area: dict[str, int]) -> bytes:
+    """Capture only the requested WGC window. Both rectangles use physical screen pixels."""
+    with tempfile.TemporaryDirectory(prefix=".tmp-juzi-wgc-") as directory:
+        path = Path(directory) / "frame.png"
+        path.touch()
+        result = _ocr_worker.request({
+            "operation": "capture_window", "hwnd": hwnd, "path": str(path),
+            "frame_width": frame["width"], "frame_height": frame["height"],
+            "x": area["x"] - frame["x"], "y": area["y"] - frame["y"],
+            "width": area["width"], "height": area["height"],
+        })
+        if not result["ok"]:
+            raise RuntimeError(result.get("message") or "Windows Graphics Capture failed")
+        return path.read_bytes()
 
 
 def _write_temp_png(png_bytes: bytes) -> Path:

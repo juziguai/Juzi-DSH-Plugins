@@ -36,7 +36,8 @@
     "focused_text.ps1",
     "ui_tree.py",
     "ui_tree.ps1",
-    "cdp.py"
+    "cdp.py",
+    "wgc.cs"
   ],
   "engines": {
     "dsh": ">=0.2.1-rc.2 <0.2.3-0"

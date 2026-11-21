@@ -558,11 +558,13 @@ class ScreenlessPerceptionTests(unittest.TestCase):
             ],
         }
         with mock.patch.object(winapi, "window_info", return_value=_window(hwnd=100)), \
-             mock.patch.object(module, "inspect", return_value=dict(fake_ui)):
+             mock.patch.object(module, "inspect", return_value=dict(fake_ui)) as inspect:
             batch_res = json.loads(server.action_batch([
                 {"tool": "wait", "arguments": {"condition": "timeout", "timeout_ms": 0}},
-                {"tool": "inspect_ui", "arguments": {"hwnd": 100, "query": "GPU"}},
+                {"tool": "inspect_ui", "arguments": {"hwnd": 100, "query": "GPU", "include_visible_text": True}},
             ]))
+        self.assertTrue(inspect.call_args.kwargs["include_visible_text"])
+        self.assertFalse(inspect.call_args.kwargs["include_hierarchy"])
         self.assertTrue(batch_res["ok"])
         self.assertEqual(batch_res["completed_steps"], 2)
         self.assertIn("H100 GPU", batch_res["results"][1]["compact"])
@@ -599,6 +601,58 @@ class ScreenlessPerceptionTests(unittest.TestCase):
         self.assertEqual(res["items"][0]["text"], "可用200个")
         self.assertEqual(res["items"][0]["cx"], 50 + 52)
         self.assertIn('"Colab Pro"', res["compact"])
+
+
+class WindowCaptureTests(unittest.TestCase):
+    def test_wgc_region_coordinates_in_batch(self):
+        window = _window(hwnd=100)
+        client = {"x": -460, "y": 30, "width": 300, "height": 200}
+        window["rect"] = {"x": -470, "y": 0, "width": 320, "height": 250}
+        region = {"x": -400, "y": 60, "width": 120, "height": 80}
+        lines = [{"words": [{"text": "Target", "x": 10, "y": 20, "w": 40, "h": 16}]}]
+        args = {"capture_mode": "wgc", "hwnd": 100, "region": region, "include_items": True}
+        with mock.patch.object(winapi, "window_info", return_value=window), \
+             mock.patch.object(winapi, "client_metrics", return_value=client), \
+             mock.patch.object(security, "forbidden_windows", return_value=[]), \
+             mock.patch.object(server.ocr, "capture_window_png", return_value=b"window") as capture, \
+             mock.patch.object(server.ocr, "recognize", return_value={"ok": True, "lines": lines}) as recognize:
+            batch = json.loads(server.action_batch([{"tool": "read_screen_text", "arguments": args}]))
+        self.assertTrue(batch["ok"])
+        result = batch["results"][0]
+        capture.assert_called_once_with(100, window["rect"], region)
+        recognize.assert_called_once_with(b"window", "chi_sim+eng")
+        self.assertEqual(result["image"]["capture_method"], "wgc")
+        self.assertEqual((result["items"][0]["cx"], result["items"][0]["cy"]), (-370, 88))
+
+    def test_wgc_rejects_invalid_targets_and_never_substitutes_desktop_pixels(self):
+        window = _window(hwnd=100)
+        with mock.patch.object(winapi, "window_info", return_value=window) as info, \
+             mock.patch.object(winapi, "client_metrics", return_value=window["rect"]), \
+             mock.patch.object(security, "forbidden_windows", return_value=[]) as intersecting, \
+             mock.patch.object(winapi, "grab_image") as desktop, \
+             mock.patch.object(server.ocr, "capture_window_png") as capture, \
+             mock.patch.object(server.ocr, "recognize") as recognize:
+            def error(**args):
+                return json.loads(server.read_screen_text(capture_mode="wgc", **args))["error_code"]
+
+            self.assertEqual(error(), "invalid_hwnd")
+            info.return_value = {**window, "minimized": True}
+            self.assertEqual(error(hwnd=100), "window_minimized")
+            info.return_value = _window(hwnd=100, process="consent.exe")
+            self.assertEqual(error(hwnd=100), "forbidden_window")
+            info.return_value = window
+            self.assertEqual(error(hwnd=100, region={**window["rect"], "x": -1}), "invalid_region")
+            intersecting.return_value = [_window(hwnd=200, process="consent.exe")]
+            self.assertEqual(error(hwnd=100), "forbidden_window")
+            capture.assert_not_called()
+            intersecting.return_value = []
+            capture.side_effect = RuntimeError("No frame")
+            self.assertEqual(error(hwnd=100), "wgc_capture_failed")
+            capture.side_effect = None
+            info.side_effect = [window, {**window, "rect": {**window["rect"], "x": 10}}]
+            self.assertEqual(error(hwnd=100), "target_changed")
+            desktop.assert_not_called()
+            recognize.assert_not_called()
 
 
 class ChromeCdpTests(unittest.TestCase):

@@ -114,6 +114,8 @@ class UiTreeWorker:
         query: str | None = None,
         timeout_ms: int = 2500,
         region: dict[str, int] | None = None,
+        include_hierarchy: bool = False,
+        include_visible_text: bool = False,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "hwnd": hwnd,
@@ -125,6 +127,8 @@ class UiTreeWorker:
             "query": query or "",
             "timeout_ms": int(timeout_ms),
             "region": region,
+            "include_hierarchy": include_hierarchy,
+            "include_visible_text": include_visible_text,
         }
         with self.lock:
             try:
@@ -164,6 +168,8 @@ def inspect(
     query: str | None = None,
     timeout_ms: int = 2500,
     region: dict[str, int] | None = None,
+    include_hierarchy: bool = False,
+    include_visible_text: bool = False,
 ) -> dict[str, Any]:
     if not SCRIPT_PATH.exists():
         return {"ok": False, "error": "uia_unavailable", "message": "缺少 ui_tree.ps1。"}
@@ -177,4 +183,6 @@ def inspect(
         query=query,
         timeout_ms=timeout_ms,
         region=region,
+        include_hierarchy=include_hierarchy,
+        include_visible_text=include_visible_text,
     )

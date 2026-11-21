@@ -23,8 +23,8 @@ Python 服务独立运行，`cordis.patch.yml` 负责 bundle 注册。
 | `clipboard` | `mcp__win__clipboard` | `get` / `set` / `clear` / `restore`，本批只保证 Unicode 文本 |
 | `launch_app` | `mcp__win__launch_app` | ShellExecuteEx 启动绝对路径/URI，可等待主窗口出现；拒绝相对路径、提权与脚本宿主 |
 | `find_text` | `mcp__win__find_text` | OCR 找字（常驻 STA Worker）：返回 `confidence`、屏幕物理像素 `cx/cy` 与外接矩形，可直接传给 `click` |
-| `inspect_ui` | `mcp__win__inspect_ui` | 免截图读取 Windows UI Automation 控件树：返回控件名称、物理像素 `(cx,cy)` 及 `enabled`/`selected`/`checked`/`expanded` 状态 |
-| `read_screen_text` | `mcp__win__read_screen_text` | 免截图全窗 OCR 读屏：一次返回窗口/区域内全部文字与物理像素 `(cx,cy)` 纯文本清单 |
+| `inspect_ui` | `mcp__win__inspect_ui` | 读取 UIA 控件名称、物理像素坐标与状态，可附带父子层级和控件可见原文 |
+| `read_screen_text` | `mcp__win__read_screen_text` | 读取可见屏幕文字，或用 `capture_mode="wgc"` 读取指定窗口被遮挡的客户区；返回文字和屏幕物理像素坐标 |
 | `chrome_cdp` | `mcp__win__chrome_cdp` | 免截图、免抢鼠标直连本地已登录 Chrome/Edge（`DevToolsActivePort` CDP）：穿透 Shadow DOM 读写网页控件与标签页 |
 | `get_focused_text` | `mcp__win__get_focused_text` | 只读当前焦点控件文本；不支持或密码控件明确失败，不改变焦点 |
 | `input_batch` | `mcp__win__input_batch` | 一次确认执行同一前台窗口的有序 `type_text`/`press_keys` 批次；失败即停 |
@@ -123,6 +123,22 @@ dsh plugin --profile <profile> add "link:D:/Tools/AI/Juzi-Skill/Juzi-DSH-Plugins
   `origin` 与 `scale` 也一并返回，需要自行换算时用同一公式。
 - Chrome / Electron 窗口的 `PrintWindow` 可能返回纯白，服务会自动改用屏幕客户区截图，
   `capture_method` 为 `window-screen`；此时窗口必须可见、未被完全遮挡。
+
+### UIA 层级和可见原文
+
+要区分同名按钮，调用 `inspect_ui`，例如 `{"query":"删除","include_elements":true}`。每个命中元素都有 `id`、`parent_id` 和 `depth`。在同一结果的 `hierarchy` 里沿 `parent_id` 可以找到所属行、分组和窗口根节点。过滤和数量限制只作用于命中列表，必要的祖先仍然返回。节点 ID 只在本次读取内有效。
+
+要读取编辑器或文档当前显示的文字，可传 `{"include_visible_text":true,"include_elements":true}`。支持 UIA TextPattern 的控件按可见范围返回 `visible_text`，保留空格和换行。未提供 TextPattern 但支持 ValuePattern 的控件仍可返回当前 `value`，例如可编辑下拉框的选中值。关键字可匹配名称、可见原文或这类控件的当前值。每个控件最多读取 2048 个 UTF-16 代码单元、64 段可见范围，达到读取上限且仍有剩余内容时会标记 `visible_text_truncated`。密码控件跳过内容读取。省略 `include_elements` 时，可见原文仍出现在 `compact` 中。
+
+源码仓库的独立桌面验收命令是 `python -B scripts/test-win-uia.py`。它创建临时 WPF 窗口，通过 MCP 检查同名按钮归属、滚动后的文本范围、截断和密码控件，成功时输出 `UIA_SMOKE_OK`。
+
+### 按窗口 OCR
+
+`read_screen_text` 默认使用 `capture_mode="screen"`，读取桌面可见像素。要读另一个窗口遮住的内容，传入目标窗口的实际句柄，例如 `{"hwnd":123456,"capture_mode":"wgc","include_items":true}`。结果的 `image.capture_method` 标明取图方式。
+
+WGC 使用 Windows 10 1903 及更高版本的系统窗口捕获接口。目标窗口需要已还原。省略 `region` 会读取整个客户区，指定区域时使用屏幕物理像素，区域须完全位于客户区内。受保护窗口检查同样适用。捕获不可用或超时时返回 `wgc_capture_failed`，取帧期间窗口位置或尺寸变化时会拒绝给出失效坐标。
+
+WGC 捕获期间，Windows 会在目标周围显示系统提示边框，短时取帧可能看到黄框一闪。插件使用系统默认行为。无边框捕获接口从系统 build 20348 引入，需要用户授权。[微软捕获边框说明](https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturesession.isborderrequired)
 
 ## 窗口管理
 

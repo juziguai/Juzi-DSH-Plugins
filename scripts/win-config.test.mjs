@@ -45,7 +45,9 @@ with tempfile.TemporaryDirectory(prefix='juzi-update-') as scratch:
             return reply['result']
         try:
             request('initialize', 1)
-            assert len(request('tools/list', 2)['tools']) == 17
+            tools = request('tools/list', 2)['tools']
+            read_screen = next(tool for tool in tools if tool['name'] == 'read_screen_text')
+            assert 'wgc' in read_screen['inputSchema']['properties']['capture_mode']['enum']
             if inside:
                 try:
                     package.rename(moved)
@@ -56,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix='juzi-update-') as scratch:
             else:
                 package.rename(moved)
                 moved.rename(package)
-                assert len(request('tools/list', 3)['tools']) == 17
+                assert request('tools/list', 3)['tools'] == tools
                 result = request('tools/call', 4, {'name':'manage_window',
                     'arguments':{'action':'get_work_area'}})
                 assert not result.get('isError'), result

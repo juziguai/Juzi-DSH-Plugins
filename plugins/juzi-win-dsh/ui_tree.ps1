@@ -117,6 +117,57 @@ public static class JuziUiTree {
         public AutomationElement Element;
         public int Depth;
         public string ParentInteractiveText;
+        public Node Parent;
+    }
+
+    // Snapshot-local IDs also name containers omitted by query/region filters.
+    private class Node {
+        public int Id, Depth;
+        public string Type, Name;
+        public Node Parent;
+
+        public void AppendLinks(StringBuilder json) {
+            json.Append(",\"id\":").Append(Id).Append(",\"parent_id\":");
+            if (Parent == null) json.Append("null"); else json.Append(Parent.Id);
+            json.Append(",\"depth\":").Append(Depth);
+        }
+    }
+
+    private static string ReadVisibleText(AutomationElement element, Stopwatch timer,
+        int timeoutMs, out bool truncated) {
+        truncated = false;
+        const int maxChars = 2048;
+        try {
+            if (element.Current.IsPassword) return null;
+            object pattern;
+            if (!element.TryGetCurrentPattern(TextPattern.Pattern, out pattern)) return null;
+            var ranges = ((TextPattern)pattern).GetVisibleRanges();
+            var text = new StringBuilder();
+            for (int i = 0; i < ranges.Length; i++) {
+                if (i >= 64 || timer.ElapsedMilliseconds >= timeoutMs) {
+                    truncated = true;
+                    break;
+                }
+                int remaining = maxChars - text.Length;
+                string part = ranges[i].GetText(remaining + 1);
+                if (String.IsNullOrEmpty(part)) continue;
+                if (text.Length > 0 && remaining > 0) {
+                    text.Append('\n');
+                    remaining--;
+                }
+                if (part.Length > remaining) {
+                    if (remaining > 0 && Char.IsHighSurrogate(part[remaining - 1])) remaining--;
+                    text.Append(part, 0, remaining);
+                    truncated = true;
+                    break;
+                }
+                text.Append(part);
+            }
+            return text.ToString();
+        } catch (Exception) {
+            // Providers can withdraw a pattern or element between the cached and live calls.
+            return null;
+        }
     }
 
     public static string Inspect(
@@ -129,7 +180,8 @@ public static class JuziUiTree {
         string query,
         int timeoutMs,
         bool hasRegion,
-        int rx, int ry, int rw, int rh
+        int rx, int ry, int rw, int rh,
+        bool includeHierarchy, bool includeVisibleText
     ) {
         InitDpi();
         var sw = Stopwatch.StartNew();
@@ -149,8 +201,13 @@ public static class JuziUiTree {
             cache.Add(AutomationElement.IsOffscreenProperty);
             cache.Add(AutomationElement.BoundingRectangleProperty);
             cache.Add(AutomationElement.IsPasswordProperty);
+            if (includeVisibleText) {
+                cache.Add(AutomationElement.IsTextPatternAvailableProperty);
+                cache.Add(AutomationElement.IsValuePatternAvailableProperty);
+            }
             cache.Add(AutomationElement.AutomationIdProperty);
-            cache.Add(ValuePattern.ValueProperty);
+            // ValuePattern may contain the entire document, including scrolled-out lines.
+            if (!includeVisibleText) cache.Add(ValuePattern.ValueProperty);
             cache.Add(SelectionItemPattern.IsSelectedProperty);
             cache.Add(TogglePattern.ToggleStateProperty);
             cache.Add(ExpandCollapsePattern.ExpandCollapseStateProperty);
@@ -173,6 +230,7 @@ public static class JuziUiTree {
             var itemsJson = new List<string>();
             var compactLines = new List<string>();
             var seenKeys = new HashSet<string>();
+            var hierarchy = new SortedDictionary<int, Node>();
 
             int visited = 0;
             bool truncated = false;
@@ -210,7 +268,7 @@ public static class JuziUiTree {
                     isPassword = el.Cached.IsPassword;
                     rect = el.Cached.BoundingRectangle;
 
-                    if (!isPassword) {
+                    if (!isPassword && !includeVisibleText) {
                         object vObj = el.GetCachedPropertyValue(ValuePattern.ValueProperty, true);
                         if (vObj != AutomationElement.NotSupported && vObj is string) {
                             valueText = CleanText((string)vObj, 120);
@@ -257,6 +315,26 @@ public static class JuziUiTree {
 
                 bool inRegion = !hasRegion || (validRect && cx >= rx && cx <= rx + rw && cy >= ry && cy <= ry + rh);
                 bool visibleOk = (!skipOffscreen || !isOffscreen) && validRect;
+                Node node = includeHierarchy ? new Node {
+                    Id = visited, Parent = current.Parent, Depth = current.Depth, Type = typeName, Name = name
+                } : null;
+                string visibleText = null;
+                bool textTruncated = false;
+                if (includeVisibleText && !isPassword && visibleOk && inRegion && (!interactiveOnly || isInteractive)) {
+                    bool hasText = (bool)el.GetCachedPropertyValue(AutomationElement.IsTextPatternAvailableProperty);
+                    if (hasText) {
+                        visibleText = ReadVisibleText(el, sw, timeoutMs, out textTruncated);
+                    } else if ((bool)el.GetCachedPropertyValue(AutomationElement.IsValuePatternAvailableProperty)) {
+                        // Query a value only for this value-only control. Never fall back
+                        // to a document's full value when reading its visible ranges fails.
+                        try {
+                            if (!el.Current.IsPassword &&
+                                !(bool)el.GetCurrentPropertyValue(AutomationElement.IsTextPatternAvailableProperty)) {
+                                valueText = CleanText(el.GetCurrentPropertyValue(ValuePattern.ValueProperty, true) as string, 120);
+                            }
+                        } catch (Exception) { /* A live provider can disappear after the cached lookup. */ }
+                    }
+                }
 
                 bool shouldEmit = false;
                 if (current.Depth > 0 && visibleOk && inRegion) {
@@ -272,10 +350,12 @@ public static class JuziUiTree {
                     }
                 }
 
+                if (visibleText != null) shouldEmit = true;
                 if (shouldEmit && hasQuery) {
                     bool matchName = name.IndexOf(queryNorm, StringComparison.OrdinalIgnoreCase) >= 0;
                     bool matchVal = valueText.IndexOf(queryNorm, StringComparison.OrdinalIgnoreCase) >= 0;
-                    if (!matchName && !matchVal) {
+                    bool matchText = visibleText != null && visibleText.IndexOf(queryNorm, StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!matchName && !matchVal && !matchText) {
                         shouldEmit = false;
                     }
                 }
@@ -283,10 +363,20 @@ public static class JuziUiTree {
                 if (shouldEmit) {
                     // Deduplicate identical control type + text at nearly the same center.
                     string dedupKey = typeName + "|" + name + "|" + valueText + "|" + (cx / 4) + "|" + (cy / 4);
+                    if (node != null && node.Parent != null) dedupKey = node.Parent.Id + "|" + dedupKey;
                     if (seenKeys.Add(dedupKey)) {
                         var js = new StringBuilder(192);
                         js.Append("{\"type\":"); AppendJsonString(js, typeName);
                         js.Append(",\"name\":"); AppendJsonString(js, name);
+                        if (node != null) {
+                            node.AppendLinks(js);
+                            for (Node n = node; n != null && !hierarchy.ContainsKey(n.Id); n = n.Parent)
+                                hierarchy.Add(n.Id, n);
+                        }
+                        if (visibleText != null) {
+                            js.Append(",\"visible_text\":"); AppendJsonString(js, visibleText);
+                            js.Append(",\"visible_text_truncated\":").Append(textTruncated ? "true" : "false");
+                        }
                         js.Append(",\"cx\":").Append(cx).Append(",\"cy\":").Append(cy);
                         js.Append(",\"rect\":{\"x\":").Append(x).Append(",\"y\":").Append(y)
                           .Append(",\"width\":").Append(w).Append(",\"height\":").Append(h).Append('}');
@@ -322,12 +412,16 @@ public static class JuziUiTree {
                         if (checkedState != null) line.Append(" [checked=").Append(checkedState).Append(']');
                         if (isExpanded.HasValue) line.Append(isExpanded.Value ? " [expanded]" : " [collapsed]");
                         if (isPassword) line.Append(" [password]");
+                        if (visibleText != null) {
+                            line.Append(" text="); AppendJsonString(line, visibleText);
+                            if (textTruncated) line.Append(" [text truncated]");
+                        }
                         compactLines.Add(line.ToString());
                     }
                 }
 
                 // Decide whether to enqueue children
-                bool canDescend = current.Depth < maxDepth
+                bool canDescend = !isPassword && current.Depth < maxDepth
                     && !LeafSkipExpandTypes.Contains(typeName)
                     && !(skipOffscreen && isOffscreen && current.Depth > 2);
 
@@ -353,6 +447,7 @@ public static class JuziUiTree {
                             queue.Enqueue(new QueueItem {
                                 Element = children[i],
                                 Depth = current.Depth + 1,
+                                Parent = node,
                                 ParentInteractiveText = nextParentText
                             });
                         }
@@ -369,6 +464,19 @@ public static class JuziUiTree {
             outSb.Append(",\"elapsed_ms\":").Append(sw.ElapsedMilliseconds);
             outSb.Append(",\"coordinate_space\":\"screen-physical-pixels\"");
             outSb.Append(",\"compact\":"); AppendJsonString(outSb, string.Join("\n", compactLines));
+            if (includeHierarchy) {
+                outSb.Append(",\"hierarchy\":[");
+                bool first = true;
+                foreach (Node n in hierarchy.Values) {
+                    if (!first) outSb.Append(',');
+                    first = false;
+                    outSb.Append("{\"type\":"); AppendJsonString(outSb, n.Type);
+                    outSb.Append(",\"name\":"); AppendJsonString(outSb, n.Name);
+                    n.AppendLinks(outSb);
+                    outSb.Append('}');
+                }
+                outSb.Append(']');
+            }
             outSb.Append(",\"elements\":[");
             for (int i = 0; i < itemsJson.Count; i++) {
                 if (i > 0) outSb.Append(',');
@@ -412,7 +520,7 @@ while ($null -ne ($line = [Console]::ReadLine())) {
             $rw = [int]$req.region.width
             $rh = [int]$req.region.height
         }
-        $json = [JuziUiTree]::Inspect($hwnd, $maxElements, $maxDepth, $interactiveOnly, $includeText, $skipOffscreen, $query, $timeoutMs, $hasRegion, $rx, $ry, $rw, $rh)
+        $json = [JuziUiTree]::Inspect($hwnd, $maxElements, $maxDepth, $interactiveOnly, $includeText, $skipOffscreen, $query, $timeoutMs, $hasRegion, $rx, $ry, $rw, $rh, [bool]$req.include_hierarchy, [bool]$req.include_visible_text)
         [Console]::WriteLine($json)
     } catch {
         $msg = $_.Exception.Message -replace '"', "'"
