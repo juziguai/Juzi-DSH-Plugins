@@ -680,6 +680,41 @@ DRAG_BUTTONS = {
 }
 
 
+class UserInterruptedError(RuntimeError):
+    """物理操作进行中检测到用户主动大幅移动真鼠标接管控制权。"""
+
+    def __init__(self, expected: dict[str, int], actual: dict[str, int]) -> None:
+        super().__init__(
+            f"检测到用户移动物理鼠标接管控制权（预期 {expected['x']},{expected['y']}，实际 {actual['x']},{actual['y']}），已立即礼让中止。"
+        )
+        self.expected = expected
+        self.actual = actual
+
+
+def takeover_threshold_px() -> int:
+    raw = os.environ.get("JUZI_WIN_DSH_TAKEOVER_PX", "60").strip()
+    try:
+        val = int(raw)
+    except ValueError:
+        return 60
+    return max(0, val)
+
+
+def cursor_moved_from(expected_x: int, expected_y: int) -> dict[str, int] | None:
+    threshold = takeover_threshold_px()
+    if threshold <= 0:
+        return None
+    try:
+        cur = current_cursor()
+    except Exception:  # noqa: BLE001
+        return None
+    dx = cur["x"] - int(expected_x)
+    dy = cur["y"] - int(expected_y)
+    if dx * dx + dy * dy > threshold * threshold:
+        return cur
+    return None
+
+
 def hover(
     x: int,
     y: int,
@@ -687,7 +722,7 @@ def hover(
     hwnd: int | None = None,
     expected_hwnd: int | None = None,
 ) -> dict[str, Any]:
-    """把光标移到目标并停留，不按键；派发前后核对真实落点窗口。"""
+    """把光标移到目标并停留，不按键；派发前后核对真实落点窗口，途中用户晃鼠标立即礼让中止。"""
     if not 0 <= int(duration_ms) <= 10000:
         raise ValueError("duration_ms 必须在 0~10000 之间。")
     screen_x, screen_y = resolve_click_point(int(x), int(y), hwnd)
@@ -696,25 +731,34 @@ def hover(
     glide_s = min(0.22, total_s * 0.5) if int(duration_ms) >= 120 else 0.0
     with cursor_overlay.work_scope():
         if glide_s >= 0.04:
-            try:
-                start = current_cursor()
-                steps = max(4, int(glide_s / 0.016))
-                for idx in range(1, steps):
-                    t = idx / float(steps)
-                    ease = 1.0 - (1.0 - t) * (1.0 - t)
-                    gx = int(round(start["x"] + (screen_x - start["x"]) * ease))
-                    gy = int(round(start["y"] + (screen_y - start["y"]) * ease))
-                    user32.SetCursorPos(gx, gy)
-                    cursor_overlay.notify_move(gx, gy)
-                    time.sleep(glide_s / steps)
-            except Exception:  # noqa: BLE001
-                pass
+            start = current_cursor()
+            steps = max(4, int(glide_s / 0.016))
+            for idx in range(1, steps):
+                t = idx / float(steps)
+                ease = 1.0 - (1.0 - t) * (1.0 - t)
+                gx = int(round(start["x"] + (screen_x - start["x"]) * ease))
+                gy = int(round(start["y"] + (screen_y - start["y"]) * ease))
+                user32.SetCursorPos(gx, gy)
+                anchor = current_cursor()
+                cursor_overlay.notify_move(gx, gy)
+                time.sleep(glide_s / steps)
+                drifted = cursor_moved_from(anchor["x"], anchor["y"])
+                if drifted is not None:
+                    raise UserInterruptedError(anchor, drifted)
         if not user32.SetCursorPos(screen_x, screen_y):
             raise ctypes.WinError(ctypes.get_last_error())
+        anchor = current_cursor()
         cursor_overlay.notify_move(screen_x, screen_y)
         remain_s = max(0.0, total_s - glide_s)
-        if remain_s > 0:
-            time.sleep(remain_s)
+        deadline = time.monotonic() + remain_s
+        while True:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                break
+            time.sleep(min(0.08, left))
+            drifted = cursor_moved_from(anchor["x"], anchor["y"])
+            if drifted is not None:
+                raise UserInterruptedError(anchor, drifted)
     actual_target_at(screen_x, screen_y, expected_hwnd)
     return {
         "x": screen_x,
@@ -757,37 +801,48 @@ def drag(
 
     if not user32.SetCursorPos(start_x, start_y):
         raise ctypes.WinError(ctypes.get_last_error())
+    anchor = current_cursor()
     cursor_overlay.begin_work(start_x, start_y)
     cursor_overlay.notify_move(start_x, start_y, pressed=True)
     aborted = None
+    interrupted = None
     actual_end = {"x": start_x, "y": start_y}
     down_sent = False
     try:
         time.sleep(int(hold_ms_before) / 1000.0)
-        actual_target_at(start_x, start_y, expected_hwnd)
-        _mouse_event(down)
-        down_sent = True
-        for index in range(1, steps + 1):
-            ratio = index / steps
-            point_x = int(round(start_x + (end_x - start_x) * ratio))
-            point_y = int(round(start_y + (end_y - start_y) * ratio))
-            if not user32.SetCursorPos(point_x, point_y):
-                raise ctypes.WinError(ctypes.get_last_error())
-            cursor_overlay.notify_move(point_x, point_y, pressed=True)
-            actual_end = {"x": point_x, "y": point_y}
-            time.sleep(step_delay)
-            hit = window_at_point(point_x, point_y)
-            reason = security.forbidden_reason(hit)
-            if reason:
-                aborted = {"reason": reason, "window": hit}
-                break
-        if not aborted:
-            final_target = window_at_point(actual_end["x"], actual_end["y"])
-            reason = security.forbidden_reason(final_target)
-            if reason:
-                aborted = {"reason": reason, "window": final_target}
-        if not aborted:
-            time.sleep(int(hold_ms_after) / 1000.0)
+        drifted = cursor_moved_from(anchor["x"], anchor["y"])
+        if drifted is not None:
+            interrupted = {"expected_cursor": anchor, "actual_cursor": drifted}
+        else:
+            actual_target_at(start_x, start_y, expected_hwnd)
+            _mouse_event(down)
+            down_sent = True
+            for index in range(1, steps + 1):
+                ratio = index / steps
+                point_x = int(round(start_x + (end_x - start_x) * ratio))
+                point_y = int(round(start_y + (end_y - start_y) * ratio))
+                if not user32.SetCursorPos(point_x, point_y):
+                    raise ctypes.WinError(ctypes.get_last_error())
+                anchor = current_cursor()
+                cursor_overlay.notify_move(point_x, point_y, pressed=True)
+                actual_end = {"x": point_x, "y": point_y}
+                time.sleep(step_delay)
+                drifted = cursor_moved_from(anchor["x"], anchor["y"])
+                if drifted is not None:
+                    interrupted = {"expected_cursor": anchor, "actual_cursor": drifted}
+                    break
+                hit = window_at_point(point_x, point_y)
+                reason = security.forbidden_reason(hit)
+                if reason:
+                    aborted = {"reason": reason, "window": hit}
+                    break
+            if not aborted and not interrupted:
+                final_target = window_at_point(actual_end["x"], actual_end["y"])
+                reason = security.forbidden_reason(final_target)
+                if reason:
+                    aborted = {"reason": reason, "window": final_target}
+            if not aborted and not interrupted:
+                time.sleep(int(hold_ms_after) / 1000.0)
     finally:
         if down_sent:
             _mouse_event(up)
@@ -802,11 +857,17 @@ def drag(
         "cursor": current_cursor(),
         "target": window_at_point(actual_end["x"], actual_end["y"]),
     }
-    if aborted:
+    if interrupted:
+        result["user_interrupted"] = True
+        result["aborted_blocked_window"] = False
+        result.update(interrupted)
+    elif aborted:
+        result["user_interrupted"] = False
         result["aborted_blocked_window"] = True
         result["aborted_reason"] = aborted["reason"]
         result["blocked_window"] = aborted["window"]
     else:
+        result["user_interrupted"] = False
         result["aborted_blocked_window"] = False
     return result
 

@@ -335,9 +335,10 @@ class CursorOverlay:
         except Exception:  # noqa: BLE001
             return
 
-        u32 = ctypes.windll.user32
-        gdi32 = ctypes.windll.gdi32
-        k32 = ctypes.windll.kernel32
+        # 使用独立 WinDLL 实例，避免污染进程全局 ctypes.windll.user32 的 argtypes
+        u32 = ctypes.WinDLL("user32", use_last_error=True)
+        gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
         u32.DefWindowProcW.restype = ctypes.c_ssize_t
         u32.DefWindowProcW.argtypes = [w.HWND, w.UINT, w.WPARAM, w.LPARAM]

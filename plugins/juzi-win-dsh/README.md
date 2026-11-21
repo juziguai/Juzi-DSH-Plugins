@@ -17,9 +17,9 @@ Python 服务独立运行，`cordis.patch.yml` 负责 bundle 注册。
 | `press_keys` | `mcp__win__press_keys` | 组合键：`ctrl+a`、`ctrl+c`、`alt+tab`、`win+d`、`f5` 等；支持 `after_screenshot` 后置截图 |
 | `system` | `mcp__win__system` | 亮度 0~100（WMI 读回）、音量 0~100、静音、锁屏；无参数时只读 |
 | `manage_window` | `mcp__win__manage_window` | `get_work_area` / `move` / `resize` / `set_bounds` / `minimize` / `maximize` / `restore` / `close` / `tile`；坐标全部物理像素，`tile` 相对工作区 |
-| `hover` | `mcp__win__hover` | 光标移到物理像素坐标并停留 `duration_ms`（默认 500，上限 10000），不按键 |
-| `drag` | `mcp__win__drag` | 起点按下、按 `steps` 插值移动、终点松开；支持 left/right/middle；途中命中禁止窗口立即抬键中止 |
-| `wait` | `mcp__win__wait` | `timeout` / `window_exists` / `window_gone` / `title_contains` / `foreground_is` / `screenshot_stable`；超时返回 `ok=false` 不抛异常 |
+| `hover` | `mcp__win__hover` | 光标移到物理像素坐标并停留 `duration_ms`（默认 500，上限 10000），不按键；途中检测到用户晃动鼠标接管时立即返回 `user_interrupted` |
+| `drag` | `mcp__win__drag` | 起点按下、按 `steps` 插值移动、终点松开；支持 left/right/middle；途中命中禁止窗口或检测到用户晃动鼠标接管控制权时立即抬键中止 |
+| `wait` | `mcp__win__wait` | `timeout` / `window_exists` / `window_gone` / `title_contains` / `foreground_is` / `screenshot_stable` / `ui_text` / `ui_gone` / `ocr_text`；超时返回 `ok=false` 不抛异常 |
 | `clipboard` | `mcp__win__clipboard` | `get` / `set` / `clear` / `restore`，本批只保证 Unicode 文本 |
 | `launch_app` | `mcp__win__launch_app` | ShellExecuteEx 启动绝对路径/URI，可等待主窗口出现；拒绝相对路径、提权与脚本宿主 |
 | `find_text` | `mcp__win__find_text` | OCR 找字（常驻 STA Worker）：返回 `confidence`、屏幕物理像素 `cx/cy` 与外接矩形，可直接传给 `click` |
@@ -28,7 +28,7 @@ Python 服务独立运行，`cordis.patch.yml` 负责 bundle 注册。
 | `chrome_cdp` | `mcp__win__chrome_cdp` | 免截图、免抢鼠标直连本地已登录 Chrome/Edge（`DevToolsActivePort` CDP）：穿透 Shadow DOM 读写网页控件与标签页 |
 | `get_focused_text` | `mcp__win__get_focused_text` | 只读当前焦点控件文本；不支持或密码控件明确失败，不改变焦点 |
 | `input_batch` | `mcp__win__input_batch` | 一次确认执行同一前台窗口的有序 `type_text`/`press_keys` 批次；失败即停 |
-| `action_batch` | `mcp__win__action_batch` | 一次调用按顺序执行 1~20 步桌面连招（支持聚焦/点击/悬停/滚动/等待/输入/按键/找字/UIA 控件树/读屏/截图），任一步失败即停 |
+| `action_batch` | `mcp__win__action_batch` | 一次调用按顺序执行 1~20 步桌面连招（支持聚焦/点击/悬停/滚动/等待/输入/按键/找字/UIA 控件树/读屏/CDP/截图），任一步失败或用户晃鼠接管即停 |
 
 ## 安装
 

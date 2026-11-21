@@ -4,6 +4,8 @@
 
 ### 新增
 
+- 人机礼让物理急刹（`user_interrupted`）：`hover` / `drag` / `action_batch` 执行期间按步核对真实鼠标位移，一旦检测到用户主动晃动鼠标接管桌面（默认阈值 `60px`，可通过 `JUZI_WIN_DSH_TAKEOVER_PX` 调整或设为 `0` 关闭），立即释放按键并中止后续物理操作。
+- `wait` 新增 `ui_text` / `ui_gone` / `ocr_text` 智能轮询条件：支持在单次调用内轮询等待目标 UIA 控件/文字出现（直接附带 `compact` 坐标清单返回）、等待加载态消失或等待 OCR 文字出现，消除固定时长盲等。
 - `cursor_overlay.py`：为物理桌面鼠标操作（`click` / `hover` / `drag` / `scroll` 与含物理指针的 `action_batch`）新增 1:1 原生尺寸的 AI 专属穿透悬浮游标（黑箭头 + `[● AI]` 胶囊 + 点击水波纹）；采用 `WS_EX_LAYERED | WS_EX_TRANSPARENT` 与 `WDA_EXCLUDEFROMCAPTURE`（对截图/OCR/WGC 自动隐身），严格仅在调用执行期间展示、收工即刻隐藏（支持 `JUZI_WIN_DSH_CURSOR=off` 关闭）。
 - `inspect_ui` 的 `include_elements=true` 结果附带可回溯的父子层级。可选的 `include_visible_text=true` 提取 UIA 文本控件当前可见的原文，支持按原文查询和截断标记。仅提供 ValuePattern 的控件保留当前值并支持按值查询。
 
@@ -15,6 +17,7 @@
 
 ### 变更
 
+- `inspect_ui` 默认采集深度 `max_depth` 从 `12` 提升至 `18`（`wait` 的 `ui_text` / `ui_gone` 轮询内置 `22`），覆盖 Electron/Chromium 深层弹出菜单与嵌套容器。
 - `ocr.py` / `ocr_windows.ps1`：Windows OCR 升级为常驻 STA PowerShell Worker（`-Worker` 模式）并缓存 `WinRT` 引擎与 Tesseract 语言列表，显著降低重复找字与读屏的冷启动开销；保留 `-Path` 单次调用兼容模式。
 - `winapi.py` / `server.py`：PNG 截图改用快速压缩（`compress_level=1`）替代慢速 `optimize=True`，并保持原有元数据和返回结构兼容。
 

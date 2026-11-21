@@ -811,5 +811,80 @@ class CursorOverlayTests(unittest.TestCase):
             self.assertEqual(ov2._active_depth, 0)
 
 
+class TakeoverAndSmartWaitTests(unittest.TestCase):
+    def test_action_batch_stops_when_user_moves_physical_mouse(self):
+        actions = [
+            {"tool": "click", "arguments": {"x": 100, "y": 100}},
+            {"tool": "click", "arguments": {"x": 300, "y": 300}},
+        ]
+        # Step 1 leaves AI cursor at (100,100); before Step 2 user moves real mouse to (260,260)
+        with mock.patch.object(server, "GATE", server.ConfirmationGate("off", [])), \
+             mock.patch.object(winapi, "resolve_click_point", side_effect=[(100, 100), (300, 300)]), \
+             mock.patch.object(winapi, "window_at_point", return_value=_window()), \
+             mock.patch.object(winapi, "click", return_value={"x": 100, "y": 100, "cursor": {"x": 100, "y": 100}, "target": _window()}) as clk, \
+             mock.patch.object(winapi, "current_cursor", return_value={"x": 260, "y": 260}):
+            res = json.loads(server.action_batch(actions))
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["error_code"], "user_interrupted")
+        self.assertEqual(res["failed_step"], 1)
+        self.assertEqual(clk.call_count, 1)
+
+    def test_drag_releases_button_and_aborts_on_user_mouse_takeover(self):
+        events = []
+        # Anchor after SetCursorPos(0,0) is (0,0), then after sleep user moved cursor to (200,200)
+        cursors = [{"x": 0, "y": 0}, {"x": 200, "y": 200}, {"x": 200, "y": 200}]
+        with mock.patch.object(winapi, "resolve_click_point", side_effect=[(0, 0), (100, 100)]), \
+             mock.patch.object(winapi.user32, "SetCursorPos", return_value=True), \
+             mock.patch.object(winapi, "current_cursor", side_effect=cursors), \
+             mock.patch.object(winapi, "window_at_point", return_value=_window()), \
+             mock.patch.object(winapi, "_mouse_event", side_effect=lambda *a: events.append(a[0])), \
+             mock.patch.object(time, "sleep"):
+            raw = winapi.drag(0, 0, 100, 100, hold_ms_before=10)
+        self.assertTrue(raw["user_interrupted"])
+        self.assertEqual(events, [])  # Interrupted during hold_ms_before before even pressing mouse down!
+
+        # Interrupted mid-drag after pressing mouse down must release button cleanly
+        events2 = []
+        cursors2 = [
+            {"x": 0, "y": 0}, {"x": 0, "y": 0},        # hold_ms_before stable
+            {"x": 50, "y": 50}, {"x": 220, "y": 220},  # step 1 user yanked mouse away!
+            {"x": 220, "y": 220},
+        ]
+        with mock.patch.object(winapi, "resolve_click_point", side_effect=[(0, 0), (100, 100), (0, 0), (100, 100)]), \
+             mock.patch.object(winapi.user32, "SetCursorPos", return_value=True), \
+             mock.patch.object(winapi, "current_cursor", side_effect=cursors2), \
+             mock.patch.object(winapi, "window_at_point", return_value=_window()), \
+             mock.patch.object(winapi, "_mouse_event", side_effect=lambda *a: events2.append(a[0])), \
+             mock.patch.object(time, "sleep"):
+            with mock.patch.object(server, "GATE", server.ConfirmationGate("off", [])):
+                resp = json.loads(server.drag(0, 0, 100, 100, steps=2))
+        self.assertFalse(resp["ok"])
+        self.assertEqual(resp["error_code"], "user_interrupted")
+        self.assertEqual(events2, [0x0002, 0x0004])  # Down then guaranteed Up!
+
+    def test_wait_ui_text_ui_gone_and_ocr_text(self):
+        win = _window(hwnd=100)
+        empty_ui = {"ok": True, "count": 0, "compact": ""}
+        hit_ui = {"ok": True, "count": 1, "compact": 'Button "连接" (1850,125)'}
+        with mock.patch.object(winapi, "window_info", return_value=win), \
+             mock.patch.object(server.ui_tree, "inspect", side_effect=[empty_ui, hit_ui]):
+            r1 = json.loads(server.wait(condition="ui_text", hwnd=100, text="连接", timeout_ms=2000, poll_ms=50))
+        self.assertTrue(r1["ok"])
+        self.assertEqual(r1["count"], 1)
+        self.assertIn("1850,125", r1["compact"])
+
+        with mock.patch.object(winapi, "window_info", return_value=win), \
+             mock.patch.object(server.ui_tree, "inspect", side_effect=[hit_ui, empty_ui]):
+            r2 = json.loads(server.wait(condition="ui_gone", hwnd=100, text="加载中", timeout_ms=2000, poll_ms=50))
+        self.assertTrue(r2["ok"])
+
+        ocr_miss = json.dumps({"ok": True, "count": 0, "results": []})
+        ocr_hit = json.dumps({"ok": True, "count": 1, "results": [{"text": "就绪", "cx": 88, "cy": 99}]})
+        with mock.patch.object(server, "find_text", side_effect=[ocr_miss, ocr_hit]):
+            r3 = json.loads(server.wait(condition="ocr_text", hwnd=100, text="就绪", timeout_ms=2000, poll_ms=50))
+        self.assertTrue(r3["ok"])
+        self.assertEqual(r3["results"][0]["cx"], 88)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -567,12 +567,29 @@ def action_batch(
 
     results: list[dict[str, Any]] = []
     last_image: dict[str, Any] | None = None
+    last_ai_cursor: dict[str, int] | None = None
     has_physical_pointer = any(name in ("click", "hover", "scroll") for name, _ in prepared)
     token = _ACTION_BATCH_CONFIRMED.set(confirmed_batch)
     if has_physical_pointer:
         cursor_overlay.begin_work()
     try:
         for index, (name, args) in enumerate(prepared):
+            if last_ai_cursor is not None and name in _ACTION_BATCH_WRITE_TOOLS:
+                drifted = winapi.cursor_moved_from(last_ai_cursor["x"], last_ai_cursor["y"])
+                if drifted is not None:
+                    LOG.write("action_batch", "interrupted", {"step": index, "expected": last_ai_cursor, "actual": drifted})
+                    return _dump(
+                        {
+                            "ok": False,
+                            "error": "batch_stopped",
+                            "error_code": "user_interrupted",
+                            "message": f"第 {index + 1} 步 ({name}) 执行前检测到用户移动物理鼠标接管控制权，已紧急刹车中止后续动作。",
+                            "failed_step": index,
+                            "expected_cursor": last_ai_cursor,
+                            "actual_cursor": drifted,
+                            "results": results,
+                        }
+                    )
             fn = TOOL_FUNCTIONS[name]
             allowed_params = {p.name for p in inspect.signature(fn).parameters.values()}
             kwargs = {k: v for k, v in args.items() if k in allowed_params}
@@ -584,6 +601,10 @@ def action_batch(
                 for block in raw:
                     if isinstance(block, dict) and block.get("type") == "image":
                         last_image = block
+            if name in ("click", "hover", "scroll") and step_payload.get("ok") and isinstance(step_payload.get("cursor"), dict):
+                cur = step_payload["cursor"]
+                if isinstance(cur.get("x"), int) and isinstance(cur.get("y"), int):
+                    last_ai_cursor = {"x": cur["x"], "y": cur["y"]}
             results.append({"step": index, "tool": name, **step_payload})
             if not step_payload.get("ok") or step_payload.get("status") in ("dispatched_unverified", "confirmation_required"):
                 out: dict[str, Any] = {
@@ -1046,6 +1067,15 @@ def hover(
             x_value, y_value, duration_value, hwnd,
             expected_hwnd=None if target is None else int(target["hwnd"]),
         )
+    except winapi.UserInterruptedError as exc:
+        LOG.write("hover", "interrupted", params, target, outcome="user_interrupted")
+        return _error(
+            "user_interrupted",
+            str(exc),
+            expected_cursor=exc.expected,
+            actual_cursor=exc.actual,
+            window=target,
+        )
     except ValueError as exc:
         LOG.write("hover", "blocked", params, target, outcome="target_changed")
         return _error("target_changed", str(exc), window=target)
@@ -1125,6 +1155,17 @@ def drag(
     except Exception as exc:  # noqa: BLE001
         LOG.write("drag", "error", params, target, error=repr(exc))
         return _error("drag_failed", f"拖拽失败：{exc}")
+    if result.get("user_interrupted"):
+        LOG.write("drag", "interrupted", params, result.get("target"), outcome="user_interrupted")
+        return _dump(
+            {
+                "ok": False,
+                "error": "user_interrupted",
+                "error_code": "user_interrupted",
+                "message": "拖拽途中检测到用户移动物理鼠标接管控制权，已立即抬起按键并礼让中止。",
+                **result,
+            }
+        )
     if result.get("aborted_blocked_window"):
         LOG.write("drag", "blocked", params, result.get("blocked_window"))
         return _dump(
@@ -1163,6 +1204,7 @@ def wait(
     poll_ms: int = 200,
     process: str | None = None,
     title: str | None = None,
+    text: str | None = None,
     hwnd: int | None = None,
     stable_rect: dict[str, Any] | None = None,
     stable_frames: int = 3,
@@ -1172,7 +1214,7 @@ def wait(
     del confirm_token  # wait 只读，永不走确认门；保留参数仅为统一调用习惯。
     conditions = {
         "timeout", "window_exists", "window_gone", "title_contains",
-        "foreground_is", "screenshot_stable",
+        "foreground_is", "screenshot_stable", "ui_text", "ui_gone", "ocr_text",
     }
     if not isinstance(condition, str) or condition.strip().lower() not in conditions:
         return _error("invalid_condition", f"condition 必须是：{', '.join(sorted(conditions))}。")
@@ -1192,10 +1234,12 @@ def wait(
         return _error("invalid_process", "process 必须是字符串。")
     if title is not None and not isinstance(title, str):
         return _error("invalid_title", "title 必须是字符串。")
+    if text is not None and not isinstance(text, str):
+        return _error("invalid_text", "text 必须是字符串。")
 
     params = {
         "condition": condition, "timeout_ms": timeout_value, "poll_ms": poll_value,
-        "process": process, "title": title, "hwnd": hwnd,
+        "process": process, "title": title, "text": text, "hwnd": hwnd,
         "stable_rect": stable_rect, "stable_frames": stable_frames,
         "stable_threshold": stable_threshold,
     }
@@ -1217,6 +1261,90 @@ def wait(
     if condition == "timeout":
         time.sleep(timeout_value / 1000.0)
         return _dump({"ok": True, "condition": condition, "elapsed_ms": elapsed(), "timed_out": False})
+
+    if condition in ("ui_text", "ui_gone"):
+        needle = (text if text and text.strip() else (title if title and title.strip() else "")).strip()
+        if not needle:
+            return _error("invalid_args", f"{condition} 需要提供非空 text 关键字。")
+        while True:
+            if hwnd is not None:
+                found = winapi.window_info(hwnd)
+                if found is None:
+                    if condition == "ui_gone":
+                        return _dump({"ok": True, "condition": condition, "elapsed_ms": elapsed(), "timed_out": False, "query": needle})
+                    return _error("window_not_found", "窗口句柄无效或窗口已关闭。")
+            elif process or (title and text and text.strip()):
+                matches = winapi.find_windows(process=process, title=title if (text and text.strip()) else None)
+                found = matches[0] if matches else None
+            else:
+                found = winapi.foreground_info()
+
+            if found is not None:
+                reason = security.forbidden_reason(found)
+                if reason:
+                    return _error("forbidden_window", reason, window=found)
+                if not found.get("minimized"):
+                    rem_ms = int(max(300, min(1800, (deadline - time.monotonic()) * 1000)))
+                    ui_res = ui_tree.inspect(
+                        hwnd=int(found["hwnd"]),
+                        query=needle,
+                        include_visible_text=True,
+                        max_elements=10,
+                        max_depth=22,
+                        timeout_ms=rem_ms,
+                        region=stable_rect if isinstance(stable_rect, dict) else None,
+                    )
+                    if ui_res.get("ok"):
+                        hit_count = int(ui_res.get("count") or 0)
+                        if condition == "ui_text" and hit_count > 0:
+                            LOG.write("wait", "end", params, found, outcome=f"ui_text:{hit_count}")
+                            return _dump({
+                                "ok": True, "condition": condition, "elapsed_ms": elapsed(),
+                                "timed_out": False, "query": needle, "count": hit_count,
+                                "compact": ui_res.get("compact", ""), "window": found,
+                            })
+                        if condition == "ui_gone" and hit_count == 0:
+                            LOG.write("wait", "end", params, found, outcome="ui_gone")
+                            return _dump({
+                                "ok": True, "condition": condition, "elapsed_ms": elapsed(),
+                                "timed_out": False, "query": needle, "window": found,
+                            })
+            elif condition == "ui_gone" and (hwnd is not None or process or title):
+                return _dump({"ok": True, "condition": condition, "elapsed_ms": elapsed(), "timed_out": False, "query": needle})
+
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                LOG.write("wait", "timeout", params, outcome=condition)
+                return _dump({
+                    "ok": False, "timed_out": True, "condition": condition, "query": needle,
+                    "elapsed_ms": elapsed(), "message": f"{timeout_value}ms 内未满足 {condition}（{needle}）。",
+                })
+            time.sleep(min(poll_value / 1000.0, remaining))
+
+    if condition == "ocr_text":
+        needle = (text if text and text.strip() else (title if title and title.strip() else "")).strip()
+        if not needle:
+            return _error("invalid_args", "ocr_text 需要提供非空 text 关键字。")
+        while True:
+            raw_ocr = find_text(text=needle, hwnd=hwnd, region=stable_rect, max_results=5)
+            parsed_ocr = json.loads(raw_ocr)
+            if not parsed_ocr.get("ok"):
+                return raw_ocr
+            if int(parsed_ocr.get("count") or 0) > 0:
+                LOG.write("wait", "end", params, outcome=f"ocr_text:{parsed_ocr['count']}")
+                return _dump({
+                    "ok": True, "condition": condition, "elapsed_ms": elapsed(),
+                    "timed_out": False, "query": needle, "count": parsed_ocr["count"],
+                    "results": parsed_ocr["results"],
+                })
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                LOG.write("wait", "timeout", params, outcome=condition)
+                return _dump({
+                    "ok": False, "timed_out": True, "condition": condition, "query": needle,
+                    "elapsed_ms": elapsed(), "message": f"{timeout_value}ms 内 OCR 未出现「{needle}」。",
+                })
+            time.sleep(min(poll_value / 1000.0, remaining))
 
     if condition in ("window_exists", "window_gone", "title_contains", "foreground_is"):
         if hwnd is None and not process and not title:
@@ -1611,7 +1739,7 @@ def inspect_ui(
     include_text: bool = True,
     include_elements: bool = False,
     max_elements: int = 150,
-    max_depth: int = 12,
+    max_depth: int = 18,
     timeout_ms: int = 2500,
     region: dict[str, Any] | None = None,
     include_visible_text: bool = False,
@@ -2097,12 +2225,16 @@ _WAIT_SCHEMA = {
     "properties": {
         "condition": {
             "type": "string",
-            "enum": ["timeout", "window_exists", "window_gone", "title_contains", "foreground_is", "screenshot_stable"],
+            "enum": [
+                "timeout", "window_exists", "window_gone", "title_contains",
+                "foreground_is", "screenshot_stable", "ui_text", "ui_gone", "ocr_text",
+            ],
         },
         "timeout_ms": {"type": "integer", "default": 10000, "minimum": 0, "maximum": 60000},
         "poll_ms": {"type": "integer", "default": 200, "minimum": 50, "maximum": 5000},
         "process": {"type": ["string", "null"], "default": None},
         "title": {"type": ["string", "null"], "default": None},
+        "text": {"type": ["string", "null"], "default": None, "maxLength": 500, "description": "ui_text / ui_gone / ocr_text 必填的目标文字（不区分大小写子串匹配）。"},
         "hwnd": {"type": ["integer", "null"], "default": None},
         "stable_rect": {
             "type": ["object", "null"],
@@ -2173,7 +2305,7 @@ _INSPECT_UI_SCHEMA = {
         "include_elements": {"type": "boolean", "default": False, "description": "附带 elements 及 hierarchy。按本次结果的 parent_id 回溯命中控件的祖先。"},
         "include_visible_text": {"type": "boolean", "default": False, "description": "用 UIA TextPattern 读取控件可见原文，每个控件至多 2048 个 UTF-16 代码单元。"},
         "max_elements": {"type": "integer", "default": 150, "minimum": 1, "maximum": 500},
-        "max_depth": {"type": "integer", "default": 12, "minimum": 1, "maximum": 30},
+        "max_depth": {"type": "integer", "default": 18, "minimum": 1, "maximum": 30},
         "timeout_ms": {"type": "integer", "default": 2500, "minimum": 200, "maximum": 8000},
         "region": {
             "type": ["object", "null"],
@@ -2315,7 +2447,7 @@ TOOLS = [
     },
     {
         "name": "wait",
-        "description": "只读等待：timeout/window_exists/window_gone/title_contains/foreground_is/screenshot_stable。超时返回 ok=false、timed_out=true，不抛异常；screenshot_stable 只返回哈希摘要，不返回截图。不走确认门。",
+        "description": "只读智能等待：支持 timeout / window_exists / window_gone / title_contains / foreground_is / screenshot_stable / ui_text（轮询 UIA 控件或文字出现并直接返回坐标清单）/ ui_gone（轮询文字或加载框消失）/ ocr_text（轮询 OCR 文字出现并返回坐标）。超时返回 ok=false、timed_out=true，不走确认门。",
         "inputSchema": _WAIT_SCHEMA,
     },
     {
