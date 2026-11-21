@@ -308,15 +308,15 @@
       },
       "versions": [
         {
-          "version": "1.1.4",
-          "publishTimestamp": 1794760139,
+          "version": "1.1.5",
+          "publishTimestamp": 1795277367,
           "engines": {
             "dsh": ">=0.2.1-rc.2 <0.2.3-0"
           },
           "source": {
             "type": "git",
             "url": "https://github.com/juziguai/Juzi-DSH-Plugins.git",
-            "commit": "1b40565ec2d312e76b2ab531d11d1ccdea1c9290",
+            "commit": "b4d5c2fef3e58cc8fd5da4510e9842b2dc1506ee",
             "path": "plugins/juzi-win-dsh"
           }
         }
