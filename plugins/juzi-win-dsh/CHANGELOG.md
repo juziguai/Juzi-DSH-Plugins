@@ -4,6 +4,7 @@
 
 ### 新增
 
+- `cursor_overlay.py`：为物理桌面鼠标操作（`click` / `hover` / `drag` / `scroll` 与含物理指针的 `action_batch`）新增 1:1 原生尺寸的 AI 专属穿透悬浮游标（黑箭头 + `[● AI]` 胶囊 + 点击水波纹）；采用 `WS_EX_LAYERED | WS_EX_TRANSPARENT` 与 `WDA_EXCLUDEFROMCAPTURE`（对截图/OCR/WGC 自动隐身），严格仅在调用执行期间展示、收工即刻隐藏（支持 `JUZI_WIN_DSH_CURSOR=off` 关闭）。
 - `inspect_ui` 的 `include_elements=true` 结果附带可回溯的父子层级。可选的 `include_visible_text=true` 提取 UIA 文本控件当前可见的原文，支持按原文查询和截断标记。仅提供 ValuePattern 的控件保留当前值并支持按值查询。
 
 - `chrome_cdp`：内置纯标准库 Chrome/Edge DevTools Protocol 客户端（`cdp.py`，零新增第三方依赖），自动发现本地已登录浏览器的 `DevToolsActivePort` 并复用常驻 WebSocket 会话；支持 `list_tabs` / `inspect_page`（穿透 Shadow DOM 输出编号控件与 `DISABLED`/`selected` 状态）/ `read_text` / `open_url` / `activate_tab` / `close_tab` / `click` / `fill` / `press_key`，后台操作不占用物理鼠标，并集成禁区页面拦截与 `confirm_mode` 审批门禁。

@@ -250,7 +250,9 @@ C:\Python314\python.exe plugins\juzi-win-dsh\regression_test.py
 | `ocr_windows.ps1` | Windows.Media.Ocr WinRT 调用（支持 `-Worker` 常驻与 `-Path` 单次），输出词框 JSON |
 | `ui_tree.py` / `ui_tree.ps1` | 常驻 STA Windows UI Automation 控件树采集器（Per-Monitor V2 物理像素坐标） |
 | `cdp.py` | 纯标准库本地 Chrome/Edge CDP WebSocket 客户端（`DevToolsActivePort` 直连，穿透 Shadow DOM） |
+| `cursor_overlay.py` | 1:1 原生尺寸 AI 专属穿透悬浮游标（仅物理指针操作期间显示，`WDA_EXCLUDEFROMCAPTURE` 对截图/OCR 自动隐身，`JUZI_WIN_DSH_CURSOR=off` 可关） |
 | `focused_text.py` / `focused_text.ps1` | 常驻 STA 焦点文本回读（UIA + WM_GETTEXT） |
+| `wgc.cs` | Windows Graphics Capture 后台抓帧组件（供 `read_screen_text(capture_mode="wgc")` 读取被遮挡窗口） |
 | `schema_validate.py` | 工具参数 JSON Schema 严格校验 |
 | `paste_text.py` / `paste_text.ps1` | 剪贴板粘贴、序列号事务与恢复 |
 | `system_control.py` / `system_control.ps1` | WMI 亮度 + Core Audio 音量/静音 + 锁屏 |

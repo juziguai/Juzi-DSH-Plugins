@@ -34,6 +34,7 @@ from io import BytesIO
 from typing import Any
 
 import cdp
+import cursor_overlay
 import focused_text
 import clipboard_win
 import launcher
@@ -566,7 +567,10 @@ def action_batch(
 
     results: list[dict[str, Any]] = []
     last_image: dict[str, Any] | None = None
+    has_physical_pointer = any(name in ("click", "hover", "scroll") for name, _ in prepared)
     token = _ACTION_BATCH_CONFIRMED.set(confirmed_batch)
+    if has_physical_pointer:
+        cursor_overlay.begin_work()
     try:
         for index, (name, args) in enumerate(prepared):
             fn = TOOL_FUNCTIONS[name]
@@ -595,6 +599,8 @@ def action_batch(
                     out["confirm_token"] = step_payload.get("confirm_token")
                 return _dump(out)
     finally:
+        if has_physical_pointer:
+            cursor_overlay.end_work()
         _ACTION_BATCH_CONFIRMED.reset(token)
 
     summary = {"ok": True, "completed_steps": len(results), "results": results}
@@ -2629,6 +2635,7 @@ def main() -> int:
         traceback.print_exc(file=sys.stderr)
         return 1
     finally:
+        cursor_overlay.close()
         cdp.close()
         ocr.close()
         ui_tree.close()

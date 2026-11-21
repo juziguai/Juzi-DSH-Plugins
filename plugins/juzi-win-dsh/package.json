@@ -37,7 +37,8 @@
     "ui_tree.py",
     "ui_tree.ps1",
     "cdp.py",
-    "wgc.cs"
+    "wgc.cs",
+    "cursor_overlay.py"
   ],
   "engines": {
     "dsh": ">=0.2.1-rc.2 <0.2.3-0"

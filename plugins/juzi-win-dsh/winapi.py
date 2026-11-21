@@ -19,6 +19,8 @@ from ctypes import wintypes as w
 from io import BytesIO
 from typing import Any
 
+import cursor_overlay
+
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
@@ -690,9 +692,29 @@ def hover(
         raise ValueError("duration_ms 必须在 0~10000 之间。")
     screen_x, screen_y = resolve_click_point(int(x), int(y), hwnd)
     target = actual_target_at(screen_x, screen_y, expected_hwnd)
-    if not user32.SetCursorPos(screen_x, screen_y):
-        raise ctypes.WinError(ctypes.get_last_error())
-    time.sleep(int(duration_ms) / 1000.0)
+    total_s = int(duration_ms) / 1000.0
+    glide_s = min(0.22, total_s * 0.5) if int(duration_ms) >= 120 else 0.0
+    with cursor_overlay.work_scope():
+        if glide_s >= 0.04:
+            try:
+                start = current_cursor()
+                steps = max(4, int(glide_s / 0.016))
+                for idx in range(1, steps):
+                    t = idx / float(steps)
+                    ease = 1.0 - (1.0 - t) * (1.0 - t)
+                    gx = int(round(start["x"] + (screen_x - start["x"]) * ease))
+                    gy = int(round(start["y"] + (screen_y - start["y"]) * ease))
+                    user32.SetCursorPos(gx, gy)
+                    cursor_overlay.notify_move(gx, gy)
+                    time.sleep(glide_s / steps)
+            except Exception:  # noqa: BLE001
+                pass
+        if not user32.SetCursorPos(screen_x, screen_y):
+            raise ctypes.WinError(ctypes.get_last_error())
+        cursor_overlay.notify_move(screen_x, screen_y)
+        remain_s = max(0.0, total_s - glide_s)
+        if remain_s > 0:
+            time.sleep(remain_s)
     actual_target_at(screen_x, screen_y, expected_hwnd)
     return {
         "x": screen_x,
@@ -735,18 +757,23 @@ def drag(
 
     if not user32.SetCursorPos(start_x, start_y):
         raise ctypes.WinError(ctypes.get_last_error())
-    time.sleep(int(hold_ms_before) / 1000.0)
-    actual_target_at(start_x, start_y, expected_hwnd)
-    _mouse_event(down)
+    cursor_overlay.begin_work(start_x, start_y)
+    cursor_overlay.notify_move(start_x, start_y, pressed=True)
     aborted = None
     actual_end = {"x": start_x, "y": start_y}
+    down_sent = False
     try:
+        time.sleep(int(hold_ms_before) / 1000.0)
+        actual_target_at(start_x, start_y, expected_hwnd)
+        _mouse_event(down)
+        down_sent = True
         for index in range(1, steps + 1):
             ratio = index / steps
             point_x = int(round(start_x + (end_x - start_x) * ratio))
             point_y = int(round(start_y + (end_y - start_y) * ratio))
             if not user32.SetCursorPos(point_x, point_y):
                 raise ctypes.WinError(ctypes.get_last_error())
+            cursor_overlay.notify_move(point_x, point_y, pressed=True)
             actual_end = {"x": point_x, "y": point_y}
             time.sleep(step_delay)
             hit = window_at_point(point_x, point_y)
@@ -762,7 +789,9 @@ def drag(
         if not aborted:
             time.sleep(int(hold_ms_after) / 1000.0)
     finally:
-        _mouse_event(up)
+        if down_sent:
+            _mouse_event(up)
+        cursor_overlay.end_work()
 
     result: dict[str, Any] = {
         "button": button,
@@ -1184,6 +1213,7 @@ def click(
         actual_target_at(screen_x, screen_y, expected_hwnd)
         _mouse_event(down)
         _mouse_event(up)
+        cursor_overlay.notify_click(screen_x, screen_y, button=button, double=bool(double))
         if index + 1 < clicks:
             time.sleep(0.08)
     return {
@@ -1216,6 +1246,7 @@ def scroll(
     target = actual_target_at(cursor["x"], cursor["y"], expected_hwnd)
     actual_target_at(cursor["x"], cursor["y"], expected_hwnd)
     _mouse_event(MOUSEEVENTF_WHEEL, int(clicks) * WHEEL_DELTA)
+    cursor_overlay.notify_scroll(cursor["x"], cursor["y"], clicks=int(clicks))
     return {
         "clicks": int(clicks),
         "delta": int(clicks) * WHEEL_DELTA,

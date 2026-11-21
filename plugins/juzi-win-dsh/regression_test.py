@@ -787,5 +787,29 @@ class ChromeCdpTests(unittest.TestCase):
             mock_exec2.assert_called_once()
 
 
+class CursorOverlayTests(unittest.TestCase):
+    def test_render_frames_and_env_toggle(self):
+        import os
+        import cursor_overlay as co
+        normal, ripples, pressed = co._render_frames()
+        expected_bytes = co.CANVAS_SIZE * co.CANVAS_SIZE * 4
+        self.assertEqual(len(normal), expected_bytes)
+        self.assertEqual(len(pressed), expected_bytes)
+        self.assertEqual(len(ripples), co.RIPPLE_FRAMES)
+        self.assertTrue(any(normal))
+        with mock.patch.dict(os.environ, {"JUZI_WIN_DSH_CURSOR": "off"}):
+            ov = co.CursorOverlay()
+            ov.notify_click(100, 100)
+            self.assertFalse(ov._started)
+            with ov.work_scope(50, 60):
+                self.assertEqual(ov._active_depth, 0)
+        ov2 = co.CursorOverlay()
+        with mock.patch.object(ov2, "_ensure_started", return_value=True), \
+             mock.patch.object(ov2, "_wake"):
+            with ov2.work_scope(10, 20):
+                self.assertEqual(ov2._active_depth, 1)
+            self.assertEqual(ov2._active_depth, 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
