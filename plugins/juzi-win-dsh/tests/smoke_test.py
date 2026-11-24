@@ -7,7 +7,7 @@
 - 不触碰 Notepad++ 任何已有文档；只截图和置前，最小化后还原。
 - 临时文件使用 .tmp-* 前缀并在测试后删除。
 
-运行：C:\\Python314\\python.exe smoke_test.py
+运行：python smoke_test.py
 """
 
 from __future__ import annotations

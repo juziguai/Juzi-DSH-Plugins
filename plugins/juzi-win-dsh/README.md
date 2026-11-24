@@ -6,10 +6,10 @@
 
 ## 安装与首次使用
 
-1. **准备 Python。** 插件默认使用 `C:\Python314\python.exe`。在 PowerShell 中运行下面的命令，为这个解释器安装截图依赖。使用其他解释器时，把命令路径和插件配置里的 `python` 改成同一个位置。
+1. **准备 Python。** 插件默认使用 PATH 中的 `python`。在 PowerShell 中为该解释器安装截图依赖。使用虚拟环境或自定义解释器时，在插件配置的 `python` 字段填写同一解释器的完整路径。
 
    ```powershell
-   & 'C:\Python314\python.exe' -m pip install 'Pillow>=11.2.1'
+   python -m pip install 'Pillow>=11.2.1'
    ```
 
 2. **在 DSH Desktop 启用「电脑控制」。** 要使用本文的 21 个工具，在桌面端插件管理器添加本仓库的 `plugins/juzi-win-dsh` 目录。市场安装使用市场索引固定的版本，工具清单以已安装版本为准。当前源码声明的 DSH 兼容范围为 `>=0.2.1-rc.2 <0.2.3-0`。
@@ -36,7 +36,7 @@ dsh plugin --profile $profileName add "link:$pluginPath"
 ```yaml
 - id: juzi-win-dsh
   config:
-    python: 'C:/Python314/python.exe'
+    python: 'python'
     confirmMode: always
     allowlist: []
 ```

@@ -42,10 +42,10 @@ remote/local_proxy.py ──(首次 tools/call 懒连接: ssh -N -L 127.0.0.1:LP
 
 ```powershell
 # 仅在本机离线构建并做隔离环境自检（不连远端）
-C:\Python314\python.exe plugins\juzi-win-dsh\remote\build_bundle.py
+python plugins\juzi-win-dsh\remote\build_bundle.py
 
 # 构建并同步至远端主机 C:\ProgramData\RemoteWinMCP，同时执行只读桥接校验
-C:\Python314\python.exe plugins\juzi-win-dsh\remote\sync_release.py --ssh-target friend-pc --verify-bridge
+python plugins\juzi-win-dsh\remote\sync_release.py --ssh-target friend-pc --verify-bridge
 ```
 
 ### 2. 在本机注册 MCP 服务
@@ -54,15 +54,15 @@ C:\Python314\python.exe plugins\juzi-win-dsh\remote\sync_release.py --ssh-target
 
 从平铺目录旧版迁移时，先关闭旧代理并等旧守护退出，再用新版构建和同步一次，随后启动新版代理。新版代理要求协议 2。同步不会覆盖旧平铺目录，旧版的公共状态文件也不会用于新版鉴权。
 
-在 MCP 客户端配置中指向本机 `remote/local_proxy.py`：
+从仓库根目录运行 `(Resolve-Path .\plugins\juzi-win-dsh\remote\local_proxy.py).Path`，将结果填入下例 `args` 的第一项。JSON 中可用正斜杠表示 Windows 路径。
 
 ```json
 {
   "mcpServers": {
     "friend_win": {
-      "command": "C:\\Python314\\python.exe",
+      "command": "python",
       "args": [
-        "D:\\Tools\\AI\\Juzi-Skill\\Juzi-DSH-Plugins\\plugins\\juzi-win-dsh\\remote\\local_proxy.py",
+        "<插件目录>/remote/local_proxy.py",
         "--ssh-target",
         "friend-pc",
         "--remote-root",
@@ -83,5 +83,5 @@ C:\Python314\python.exe plugins\juzi-win-dsh\remote\sync_release.py --ssh-target
 
 ```powershell
 # 运行远程桥本地回环与协议回归测试（无需真实远端机器，不移动鼠标/不写剪贴板）
-C:\Python314\python.exe plugins\juzi-win-dsh\tests\remote_test.py
+python plugins\juzi-win-dsh\tests\remote_test.py
 ```

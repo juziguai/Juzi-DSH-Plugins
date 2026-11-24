@@ -1,8 +1,5 @@
-import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-
-const DEFAULT_PYTHON = 'C:\\Python314\\python.exe';
 
 function resolvePython(config) {
   if (config.python !== undefined) {
@@ -13,7 +10,6 @@ function resolvePython(config) {
   }
   const fromEnv = process.env.JUZI_WIN_DSH_PYTHON;
   if (fromEnv && fromEnv.trim()) return fromEnv.trim();
-  if (process.platform === 'win32' && existsSync(DEFAULT_PYTHON)) return DEFAULT_PYTHON;
   return 'python';
 }
 

@@ -26,7 +26,6 @@ WINDOWS_OCR_SCRIPT = SCRIPT_DIR / "ocr_windows.ps1"
 POWERSHELL = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
 TESSERACT_CANDIDATES = (
     Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe"),
-    Path(r"D:\Tools\Tesseract-OCR\tesseract.exe"),
 )
 OCR_UNAVAILABLE_HINT = (
     "未找到可用的 OCR 引擎。请启用 Windows 中文(简体) OCR 语言组件"
