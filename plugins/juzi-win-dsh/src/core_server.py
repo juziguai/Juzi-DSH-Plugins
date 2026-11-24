@@ -31,7 +31,7 @@ import sys
 import time
 import traceback
 from io import BytesIO
-from typing import Any
+from typing import Any, Iterator
 
 import cdp
 import cursor_overlay
@@ -1198,6 +1198,197 @@ def _target_matches(
     return True
 
 
+_WINDOW_WAIT_CONDITIONS = ("window_exists", "window_gone", "title_contains", "foreground_is")
+_WAIT_CONDITIONS = ("timeout", *_WINDOW_WAIT_CONDITIONS, "screenshot_stable", "ui_text", "ui_gone", "ocr_text")
+
+
+class _WaitPoll:
+    def __init__(self, params: dict[str, Any]):
+        self.params = params
+        self.condition = params["condition"]
+        self.timeout_ms = params["timeout_ms"]
+        self.poll_seconds = params["poll_ms"] / 1000.0
+        self.started = time.monotonic()
+        self.deadline = self.started + self.timeout_ms / 1000.0
+
+    def attempts(self) -> Iterator[None]:
+        # 先采样再判断超时：零超时也采样一次，最后一次休眠只用剩余时间。
+        while True:
+            yield
+            remaining = self.deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            time.sleep(min(self.poll_seconds, remaining))
+
+    def elapsed_ms(self) -> int:
+        return int(round((time.monotonic() - self.started) * 1000))
+
+    def success(self, **details: Any) -> str:
+        return _dump({"ok": True, "condition": self.condition, "elapsed_ms": self.elapsed_ms(),
+                      "timed_out": False, **details})
+
+    def timeout(self, message: str, **details: Any) -> str:
+        LOG.write("wait", "timeout", self.params, outcome=self.condition)
+        return _dump({"ok": False, "timed_out": True, "condition": self.condition,
+                      "elapsed_ms": self.elapsed_ms(), **details, "message": message})
+
+
+def _find_wait_window(hwnd: int | None, process: str | None, title: str | None) -> dict[str, Any] | None:
+    if hwnd is not None:
+        return winapi.window_info(hwnd)
+    if process or title:
+        matches = winapi.find_windows(process=process, title=title)
+        return matches[0] if matches else None
+    return winapi.foreground_info()
+
+
+def _wait_for_window(poll: _WaitPoll, hwnd: int | None, process: str | None, title: str | None) -> str:
+    condition = poll.condition
+    if hwnd is None and not process and not title:
+        return _error("invalid_args", "该条件需要 hwnd、process、title 至少一个。")
+    if condition == "title_contains" and not title:
+        return _error("invalid_args", "title_contains 需要 title 关键字。")
+
+    for _ in poll.attempts():
+        if condition == "foreground_is":
+            found = winapi.foreground_info()
+            matched = _target_matches(found, hwnd, process, title)
+        else:
+            found = _find_wait_window(hwnd, process, title)
+            if condition == "window_gone":
+                matched = found is None
+            elif condition == "title_contains":
+                matched = bool(found and title and title.casefold() in found["title"].casefold())
+            else:
+                matched = bool(found)
+        if matched:
+            window = {"window": found} if found else {}
+            result = poll.success(**window)
+            LOG.write("wait", "end", poll.params, found, outcome=condition)
+            return result
+    return poll.timeout(f"{poll.timeout_ms}ms 内条件未满足。")
+
+
+def _wait_for_ui_text(
+    poll: _WaitPoll, needle: str, hwnd: int | None, process: str | None,
+    title: str | None, window_title: str | None, region: dict[str, Any] | None,
+) -> str:
+    condition = poll.condition
+    for _ in poll.attempts():
+        found = _find_wait_window(hwnd, process, window_title)
+        if found is None:
+            if condition == "ui_gone" and (hwnd is not None or process or title):
+                return poll.success(query=needle)
+            if hwnd is not None:
+                return _error("window_not_found", "窗口句柄无效或窗口已关闭。")
+            continue
+        reason = security.forbidden_reason(found)
+        if reason:
+            return _error("forbidden_window", reason, window=found)
+        if found.get("minimized"):
+            continue
+        remaining_ms = (poll.deadline - time.monotonic()) * 1000
+        result = ui_tree.inspect(
+            hwnd=int(found["hwnd"]), query=needle, include_visible_text=True,
+            max_elements=10, max_depth=22, timeout_ms=int(max(300, min(1800, remaining_ms))),
+            region=region,
+        )
+        if not result.get("ok"):
+            continue
+        count = int(result.get("count") or 0)
+        if condition == "ui_text" and count > 0:
+            LOG.write("wait", "end", poll.params, found, outcome=f"ui_text:{count}")
+            return poll.success(query=needle, count=count, compact=result.get("compact", ""), window=found)
+        if condition == "ui_gone" and count == 0:
+            LOG.write("wait", "end", poll.params, found, outcome="ui_gone")
+            return poll.success(query=needle, window=found)
+    return poll.timeout(f"{poll.timeout_ms}ms 内未满足 {condition}（{needle}）。", query=needle)
+
+
+def _wait_for_ocr_text(poll: _WaitPoll, needle: str, hwnd: int | None, region: dict[str, Any] | None) -> str:
+    for _ in poll.attempts():
+        raw = find_text(text=needle, hwnd=hwnd, region=region, max_results=5)
+        result = json.loads(raw)
+        if not result.get("ok"):
+            return raw
+        if int(result.get("count") or 0) > 0:
+            LOG.write("wait", "end", poll.params, outcome=f"ocr_text:{result['count']}")
+            return poll.success(query=needle, count=result["count"], results=result["results"])
+    return poll.timeout(f"{poll.timeout_ms}ms 内 OCR 未出现「{needle}」。", query=needle)
+
+
+def _capture_rect(
+    region: dict[str, Any] | None, hwnd: int | None, *, name: str = "region",
+) -> dict[str, int]:
+    keys = ("x", "y", "width", "height")
+    if region is None:
+        if hwnd is not None:
+            return winapi.client_metrics(hwnd)
+        metrics = winapi.screen_metrics()
+        return {key: metrics[key] for key in keys}
+    if not isinstance(region, dict):
+        raise ValueError(f"{name} 必须是 {{x,y,width,height}} 对象。")
+    parsed = {}
+    for key in keys:
+        value = _as_int(region.get(key))
+        if value is None:
+            raise ValueError(f"{name} 需要整数 x、y、width、height。")
+        parsed[key] = value
+    return parsed
+
+
+def _wait_for_stable_screen(
+    poll: _WaitPoll, hwnd: int | None, stable_rect: dict[str, Any] | None,
+    stable_frames: int, stable_threshold: float,
+) -> str:
+    frames_value = _as_int(stable_frames)
+    if frames_value is None or not 1 <= frames_value <= 20:
+        return _error("invalid_stable_frames", "stable_frames 必须在 1~20 之间。")
+    try:
+        threshold_value = float(stable_threshold)
+    except (TypeError, ValueError):
+        return _error("invalid_threshold", "stable_threshold 必须是 0~1 之间的数字。")
+    if not 0 <= threshold_value <= 1:
+        return _error("invalid_threshold", "stable_threshold 必须是 0~1 之间的数字。")
+
+    try:
+        if stable_rect is None and hwnd is not None:
+            info = winapi.window_info(hwnd)
+            if info is None:
+                return _error("window_not_found", "窗口句柄无效或窗口已关闭。")
+            if info["minimized"]:
+                return _error("window_minimized", "窗口已最小化，先还原后再等待画面稳定。")
+        region = _capture_rect(stable_rect, hwnd, name="stable_rect")
+    except ValueError as exc:
+        return _error("invalid_region", str(exc))
+
+    previous_raw: bytes | None = None
+    stable_count = 0
+    frames_seen = 0
+    last_hash = ""
+    for _ in poll.attempts():
+        try:
+            image, _meta = winapi.grab_image(region=region)
+        except Exception as exc:  # noqa: BLE001
+            return _error("screenshot_failed", f"稳定度采样失败：{exc}")
+        last_hash, raw = winapi.image_fingerprint(image)
+        frames_seen += 1
+        if previous_raw is not None and winapi.image_diff_ratio(previous_raw, raw) <= threshold_value:
+            stable_count += 1
+        else:
+            stable_count = 1
+        previous_raw = raw
+        if stable_count >= frames_value:
+            break
+
+    details = {"frames": frames_seen, "stable_frames": stable_count, "threshold": threshold_value,
+               "last_hash": last_hash, "region": region}
+    if stable_count >= frames_value:
+        LOG.write("wait", "end", poll.params, outcome=f"stable after {frames_seen} frames")
+        return poll.success(**details)
+    return poll.timeout(f"{poll.timeout_ms}ms 内画面未稳定。", **details)
+
+
 def wait(
     condition: str,
     timeout_ms: int = 10000,
@@ -1212,12 +1403,8 @@ def wait(
     confirm_token: str | None = None,
 ) -> str:
     del confirm_token  # wait 只读，永不走确认门；保留参数仅为统一调用习惯。
-    conditions = {
-        "timeout", "window_exists", "window_gone", "title_contains",
-        "foreground_is", "screenshot_stable", "ui_text", "ui_gone", "ocr_text",
-    }
-    if not isinstance(condition, str) or condition.strip().lower() not in conditions:
-        return _error("invalid_condition", f"condition 必须是：{', '.join(sorted(conditions))}。")
+    if not isinstance(condition, str) or condition.strip().lower() not in _WAIT_CONDITIONS:
+        return _error("invalid_condition", f"condition 必须是：{', '.join(sorted(_WAIT_CONDITIONS))}。")
     condition = condition.strip().lower()
     timeout_value = _as_int(timeout_ms)
     poll_value = _as_int(poll_ms)
@@ -1244,223 +1431,25 @@ def wait(
         "stable_threshold": stable_threshold,
     }
     LOG.write("wait", "start", params)
-    started = time.monotonic()
-    deadline = started + timeout_value / 1000.0
-
-    def elapsed() -> int:
-        return int(round((time.monotonic() - started) * 1000))
-
-    def find_target() -> dict[str, Any] | None:
-        if hwnd is not None:
-            return winapi.window_info(hwnd)
-        if process or title:
-            matches = winapi.find_windows(process=process, title=title)
-            return matches[0] if matches else None
-        return None
-
+    poll = _WaitPoll(params)
     if condition == "timeout":
         time.sleep(timeout_value / 1000.0)
-        return _dump({"ok": True, "condition": condition, "elapsed_ms": elapsed(), "timed_out": False})
+        return poll.success()
+    if condition in _WINDOW_WAIT_CONDITIONS:
+        return _wait_for_window(poll, hwnd, process, title)
+    if condition == "screenshot_stable":
+        return _wait_for_stable_screen(poll, hwnd, stable_rect, stable_frames, stable_threshold)
 
-    if condition in ("ui_text", "ui_gone"):
-        needle = (text if text and text.strip() else (title if title and title.strip() else "")).strip()
-        if not needle:
-            return _error("invalid_args", f"{condition} 需要提供非空 text 关键字。")
-        while True:
-            if hwnd is not None:
-                found = winapi.window_info(hwnd)
-                if found is None:
-                    if condition == "ui_gone":
-                        return _dump({"ok": True, "condition": condition, "elapsed_ms": elapsed(), "timed_out": False, "query": needle})
-                    return _error("window_not_found", "窗口句柄无效或窗口已关闭。")
-            elif process or (title and text and text.strip()):
-                matches = winapi.find_windows(process=process, title=title if (text and text.strip()) else None)
-                found = matches[0] if matches else None
-            else:
-                found = winapi.foreground_info()
-
-            if found is not None:
-                reason = security.forbidden_reason(found)
-                if reason:
-                    return _error("forbidden_window", reason, window=found)
-                if not found.get("minimized"):
-                    rem_ms = int(max(300, min(1800, (deadline - time.monotonic()) * 1000)))
-                    ui_res = ui_tree.inspect(
-                        hwnd=int(found["hwnd"]),
-                        query=needle,
-                        include_visible_text=True,
-                        max_elements=10,
-                        max_depth=22,
-                        timeout_ms=rem_ms,
-                        region=stable_rect if isinstance(stable_rect, dict) else None,
-                    )
-                    if ui_res.get("ok"):
-                        hit_count = int(ui_res.get("count") or 0)
-                        if condition == "ui_text" and hit_count > 0:
-                            LOG.write("wait", "end", params, found, outcome=f"ui_text:{hit_count}")
-                            return _dump({
-                                "ok": True, "condition": condition, "elapsed_ms": elapsed(),
-                                "timed_out": False, "query": needle, "count": hit_count,
-                                "compact": ui_res.get("compact", ""), "window": found,
-                            })
-                        if condition == "ui_gone" and hit_count == 0:
-                            LOG.write("wait", "end", params, found, outcome="ui_gone")
-                            return _dump({
-                                "ok": True, "condition": condition, "elapsed_ms": elapsed(),
-                                "timed_out": False, "query": needle, "window": found,
-                            })
-            elif condition == "ui_gone" and (hwnd is not None or process or title):
-                return _dump({"ok": True, "condition": condition, "elapsed_ms": elapsed(), "timed_out": False, "query": needle})
-
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                LOG.write("wait", "timeout", params, outcome=condition)
-                return _dump({
-                    "ok": False, "timed_out": True, "condition": condition, "query": needle,
-                    "elapsed_ms": elapsed(), "message": f"{timeout_value}ms 内未满足 {condition}（{needle}）。",
-                })
-            time.sleep(min(poll_value / 1000.0, remaining))
-
+    text_query = (text or "").strip()
+    needle = text_query or (title or "").strip()
+    if not needle:
+        return _error("invalid_args", f"{condition} 需要提供非空 text 关键字。")
     if condition == "ocr_text":
-        needle = (text if text and text.strip() else (title if title and title.strip() else "")).strip()
-        if not needle:
-            return _error("invalid_args", "ocr_text 需要提供非空 text 关键字。")
-        while True:
-            raw_ocr = find_text(text=needle, hwnd=hwnd, region=stable_rect, max_results=5)
-            parsed_ocr = json.loads(raw_ocr)
-            if not parsed_ocr.get("ok"):
-                return raw_ocr
-            if int(parsed_ocr.get("count") or 0) > 0:
-                LOG.write("wait", "end", params, outcome=f"ocr_text:{parsed_ocr['count']}")
-                return _dump({
-                    "ok": True, "condition": condition, "elapsed_ms": elapsed(),
-                    "timed_out": False, "query": needle, "count": parsed_ocr["count"],
-                    "results": parsed_ocr["results"],
-                })
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                LOG.write("wait", "timeout", params, outcome=condition)
-                return _dump({
-                    "ok": False, "timed_out": True, "condition": condition, "query": needle,
-                    "elapsed_ms": elapsed(), "message": f"{timeout_value}ms 内 OCR 未出现「{needle}」。",
-                })
-            time.sleep(min(poll_value / 1000.0, remaining))
-
-    if condition in ("window_exists", "window_gone", "title_contains", "foreground_is"):
-        if hwnd is None and not process and not title:
-            return _error("invalid_args", "该条件需要 hwnd、process、title 至少一个。")
-        if condition == "title_contains" and not title:
-            return _error("invalid_args", "title_contains 需要 title 关键字。")
-
-        def check() -> tuple[bool, dict[str, Any] | None]:
-            if condition == "window_exists":
-                found = find_target()
-                return bool(found), found
-            if condition == "window_gone":
-                return find_target() is None, None
-            if condition == "title_contains":
-                found = find_target()
-                matched = bool(found and title and title.casefold() in found["title"].casefold())
-                return matched, found
-            foreground = winapi.foreground_info()
-            return _target_matches(foreground, hwnd, process, title), foreground
-
-        while True:
-            matched, found = check()
-            if matched:
-                payload = {
-                    "ok": True, "condition": condition, "elapsed_ms": elapsed(), "timed_out": False,
-                }
-                if found:
-                    payload["window"] = found
-                LOG.write("wait", "end", params, found, outcome=condition)
-                return _dump(payload)
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                LOG.write("wait", "timeout", params, outcome=condition)
-                return _dump(
-                    {
-                        "ok": False, "timed_out": True, "condition": condition,
-                        "elapsed_ms": elapsed(), "message": f"{timeout_value}ms 内条件未满足。",
-                    }
-                )
-            time.sleep(min(poll_value / 1000.0, remaining))
-
-    # screenshot_stable
-    frames_value = _as_int(stable_frames)
-    if frames_value is None or not 1 <= frames_value <= 20:
-        return _error("invalid_stable_frames", "stable_frames 必须在 1~20 之间。")
-    try:
-        threshold_value = float(stable_threshold)
-    except (TypeError, ValueError):
-        return _error("invalid_threshold", "stable_threshold 必须是 0~1 之间的数字。")
-    if not 0 <= threshold_value <= 1:
-        return _error("invalid_threshold", "stable_threshold 必须是 0~1 之间的数字。")
-
-    try:
-        if stable_rect is not None:
-            if not isinstance(stable_rect, dict):
-                raise ValueError("stable_rect 必须是 {x,y,width,height} 对象。")
-            region = {key: _as_int(stable_rect.get(key)) for key in ("x", "y", "width", "height")}
-            if any(value is None for value in region.values()):
-                raise ValueError("stable_rect 需要整数 x、y、width、height。")
-        elif hwnd is not None:
-            info = winapi.window_info(hwnd)
-            if info is None:
-                return _error("window_not_found", "窗口句柄无效或窗口已关闭。")
-            if info["minimized"]:
-                return _error("window_minimized", "窗口已最小化，先还原后再等待画面稳定。")
-            region = winapi.client_metrics(hwnd)
-        else:
-            metrics = winapi.screen_metrics()
-            region = {
-                "x": metrics["x"], "y": metrics["y"],
-                "width": metrics["width"], "height": metrics["height"],
-            }
-    except ValueError as exc:
-        return _error("invalid_region", str(exc))
-
-    previous_raw: bytes | None = None
-    stable_count = 0
-    frames_seen = 0
-    last_hash = ""
-    while True:
-        try:
-            image, _meta = winapi.grab_image(region=region)
-        except Exception as exc:  # noqa: BLE001
-            return _error("screenshot_failed", f"稳定度采样失败：{exc}")
-        digest, raw = winapi.image_fingerprint(image)
-        frames_seen += 1
-        last_hash = digest
-        if previous_raw is None:
-            stable_count = 1
-        else:
-            ratio = winapi.image_diff_ratio(previous_raw, raw)
-            stable_count = stable_count + 1 if ratio <= threshold_value else 1
-        previous_raw = raw
-        if stable_count >= frames_value:
-            LOG.write("wait", "end", params, outcome=f"stable after {frames_seen} frames")
-            return _dump(
-                {
-                    "ok": True, "condition": condition, "elapsed_ms": elapsed(),
-                    "timed_out": False, "frames": frames_seen,
-                    "stable_frames": stable_count, "threshold": threshold_value,
-                    "last_hash": last_hash, "region": region,
-                }
-            )
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            LOG.write("wait", "timeout", params, outcome=condition)
-            return _dump(
-                {
-                    "ok": False, "timed_out": True, "condition": condition,
-                    "elapsed_ms": elapsed(), "frames": frames_seen,
-                    "stable_frames": stable_count, "threshold": threshold_value,
-                    "last_hash": last_hash, "region": region,
-                    "message": f"{timeout_value}ms 内画面未稳定。",
-                }
-            )
-        time.sleep(min(poll_value / 1000.0, remaining))
+        return _wait_for_ocr_text(poll, needle, hwnd, stable_rect)
+    # 兼容用 title 传搜索文字的调用：只有另传 text 时才按窗口标题筛选。
+    window_title = title if text_query else None
+    region = stable_rect if isinstance(stable_rect, dict) else None
+    return _wait_for_ui_text(poll, needle, hwnd, process, title, window_title, region)
 
 
 def clipboard(
@@ -1581,6 +1570,15 @@ def launch_app(
     return _dump({"ok": True, **result})
 
 
+def _ocr_screen_rect(rect: dict[str, int], origin: dict[str, int], scale: float) -> dict[str, int]:
+    return {
+        "x": int(round(origin["x"] + rect["x"] / scale)),
+        "y": int(round(origin["y"] + rect["y"] / scale)),
+        "width": int(round(rect["width"] / scale)),
+        "height": int(round(rect["height"] / scale)),
+    }
+
+
 def find_text(
     text: str,
     hwnd: int | None = None,
@@ -1620,22 +1618,8 @@ def find_text(
             LOG.write("find_text", "blocked", params, info)
             return _error("forbidden_window", reason, window=info)
 
-    if region is not None and not isinstance(region, dict):
-        return _error("invalid_region", "region 必须是 {x,y,width,height} 对象。")
     try:
-        if region is not None:
-            parsed_region = {key: _as_int(region.get(key)) for key in ("x", "y", "width", "height")}
-            if any(value is None for value in parsed_region.values()):
-                raise ValueError("region 需要整数 x、y、width、height。")
-            capture_rect = parsed_region
-        elif hwnd is not None:
-            capture_rect = winapi.client_metrics(hwnd)
-        else:
-            metrics = winapi.screen_metrics()
-            capture_rect = {
-                "x": metrics["x"], "y": metrics["y"],
-                "width": metrics["width"], "height": metrics["height"],
-            }
+        capture_rect = _capture_rect(region, hwnd)
         forbidden_hits = security.forbidden_windows(capture_rect)
         if forbidden_hits:
             LOG.write("find_text", "blocked", params, None)
@@ -1645,7 +1629,7 @@ def find_text(
                 windows=forbidden_hits,
             )
         if region is not None:
-            image, metadata = winapi.grab_image(region=parsed_region)
+            image, metadata = winapi.grab_image(region=capture_rect)
         else:
             image, metadata = winapi.grab_image(hwnd=hwnd)
     except ValueError as exc:
@@ -1682,12 +1666,6 @@ def find_text(
         rect = hit["rect"]
         center_x = int(round(origin["x"] + hit["cx"] / scale))
         center_y = int(round(origin["y"] + hit["cy"] / scale))
-        screen_rect = {
-            "x": int(round(origin["x"] + rect["x"] / scale)),
-            "y": int(round(origin["y"] + rect["y"] / scale)),
-            "width": int(round(rect["width"] / scale)),
-            "height": int(round(rect["height"] / scale)),
-        }
         results.append(
             {
                 "text": hit["text"],
@@ -1695,7 +1673,7 @@ def find_text(
                 "cx": center_x,
                 "cy": center_y,
                 "center": {"x": center_x, "y": center_y},
-                "rect": screen_rect,
+                "rect": _ocr_screen_rect(rect, origin, scale),
                 "image_rect": rect,
                 **(
                     {"confidence_note": "Windows OCR 不提供置信度；Tesseract 补词框时才有数值。"}
@@ -1855,22 +1833,8 @@ def read_screen_text(
         if capture_mode == "wgc" and info["minimized"]:
             return _error("window_minimized", "WGC 读屏需要已还原的窗口。")
 
-    if region is not None and not isinstance(region, dict):
-        return _error("invalid_region", "region 必须是 {x,y,width,height} 对象。")
     try:
-        if region is not None:
-            parsed_region = {key: _as_int(region.get(key)) for key in ("x", "y", "width", "height")}
-            if any(value is None for value in parsed_region.values()):
-                raise ValueError("region 需要整数 x、y、width、height。")
-            capture_rect = parsed_region
-        elif hwnd is not None:
-            capture_rect = winapi.client_metrics(hwnd)
-        else:
-            metrics = winapi.screen_metrics()
-            capture_rect = {
-                "x": metrics["x"], "y": metrics["y"],
-                "width": metrics["width"], "height": metrics["height"],
-            }
+        capture_rect = _capture_rect(region, hwnd)
         forbidden_hits = security.forbidden_windows(capture_rect)
         if forbidden_hits:
             LOG.write("read_screen_text", "blocked", params, None)
@@ -1900,7 +1864,7 @@ def read_screen_text(
                         "origin": {"x": capture_rect["x"], "y": capture_rect["y"]}}
         else:
             if region is not None:
-                image, metadata = winapi.grab_image(region=parsed_region)
+                image, metadata = winapi.grab_image(region=capture_rect)
             else:
                 image, metadata = winapi.grab_image(hwnd=hwnd)
             buffer = BytesIO()
@@ -1927,22 +1891,17 @@ def read_screen_text(
     items: list[dict[str, Any]] = []
     compact_lines: list[str] = []
     for block in blocks:
-        rect = block["rect"]
         cx = int(round(origin["x"] + block["cx"] / scale))
         cy = int(round(origin["y"] + block["cy"] / scale))
-        screen_rect = {
-            "x": int(round(origin["x"] + rect["x"] / scale)),
-            "y": int(round(origin["y"] + rect["y"] / scale)),
-            "width": int(round(rect["width"] / scale)),
-            "height": int(round(rect["height"] / scale)),
-        }
-        items.append({"text": block["text"], "cx": cx, "cy": cy, "rect": screen_rect})
+        if include_items:
+            items.append({"text": block["text"], "cx": cx, "cy": cy,
+                          "rect": _ocr_screen_rect(block["rect"], origin, scale)})
         compact_lines.append(f"\"{block['text']}\" ({cx},{cy})")
 
-    LOG.write("read_screen_text", "end", params, outcome=f"{len(items)} blocks")
+    LOG.write("read_screen_text", "end", params, outcome=f"{len(blocks)} blocks")
     payload: dict[str, Any] = {
         "ok": True,
-        "count": len(items),
+        "count": len(blocks),
         "compact": "\n".join(compact_lines),
         "engine": recognized.get("engine"),
         "ocr_lang": recognized.get("lang"),
@@ -2225,10 +2184,7 @@ _WAIT_SCHEMA = {
     "properties": {
         "condition": {
             "type": "string",
-            "enum": [
-                "timeout", "window_exists", "window_gone", "title_contains",
-                "foreground_is", "screenshot_stable", "ui_text", "ui_gone", "ocr_text",
-            ],
+            "enum": list(_WAIT_CONDITIONS),
         },
         "timeout_ms": {"type": "integer", "default": 10000, "minimum": 0, "maximum": 60000},
         "poll_ms": {"type": "integer", "default": 200, "minimum": 50, "maximum": 5000},

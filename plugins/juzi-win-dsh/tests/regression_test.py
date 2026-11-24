@@ -598,6 +598,8 @@ class ScreenlessPerceptionTests(unittest.TestCase):
              mock.patch.object(winapi, "grab_image", return_value=(img, meta)), \
              mock.patch.object(ocr_mod, "recognize", return_value={"ok": True, "engine": "windows-ocr", "lang": "zh-Hans-CN", "lines": lines}):
             res = json.loads(server.read_screen_text(hwnd=100, include_items=True))
+            compact = json.loads(server.read_screen_text(hwnd=100))
+        self.assertEqual(compact, {key: value for key, value in res.items() if key != "items"})
         self.assertTrue(res["ok"])
         self.assertEqual(res["count"], 2)
         self.assertEqual(res["items"][0]["text"], "可用200个")
@@ -606,6 +608,17 @@ class ScreenlessPerceptionTests(unittest.TestCase):
 
 
 class WindowCaptureTests(unittest.TestCase):
+    def test_invalid_capture_regions_fail_before_sampling(self):
+        for value in [[], {"x": True, "y": 0, "width": 20, "height": 20}, {"x": 0}]:
+            with self.subTest(region=value), mock.patch.object(winapi, "grab_image") as grab:
+                for result in (
+                    server.wait("screenshot_stable", stable_rect=value, timeout_ms=0),
+                    server.read_screen_text(region=value),
+                    server.find_text(text="文字", region=value),
+                ):
+                    self.assertEqual(json.loads(result)["error_code"], "invalid_region")
+                grab.assert_not_called()
+
     def test_wgc_region_coordinates_in_batch(self):
         window = _window(hwnd=100)
         client = {"x": -460, "y": 30, "width": 300, "height": 200}
@@ -867,6 +880,76 @@ class TakeoverAndSmartWaitTests(unittest.TestCase):
         self.assertFalse(resp["ok"])
         self.assertEqual(resp["error_code"], "user_interrupted")
         self.assertEqual(events2, [0x0002, 0x0004])  # Down then guaranteed Up!
+
+    def test_wait_window_conditions_sample_even_at_zero_timeout(self):
+        win = _window(title="Document")
+        with mock.patch.object(winapi, "window_info", return_value=win), \
+             mock.patch.object(winapi, "foreground_info", return_value=win), \
+             mock.patch.object(server.time, "sleep") as sleep:
+            for condition, extra in [
+                ("window_exists", {}), ("title_contains", {"title": "cUm"}),
+                ("foreground_is", {}),
+            ]:
+                with self.subTest(condition=condition):
+                    result = json.loads(server.wait(condition, hwnd=1, timeout_ms=0, **extra))
+                    self.assertEqual(result["window"], win)
+                    self.assertFalse(result["timed_out"])
+            result = json.loads(server.wait("window_gone", hwnd=1, timeout_ms=0))
+            self.assertTrue(result["timed_out"])
+            sleep.assert_not_called()
+
+    def test_wait_caps_last_sleep_and_checks_again_at_deadline(self):
+        clock = [0.0]
+
+        def advance(seconds):
+            clock[0] += seconds
+
+        with mock.patch.object(server.time, "monotonic", side_effect=lambda: clock[0]), \
+             mock.patch.object(server.time, "sleep", side_effect=advance) as sleep, \
+             mock.patch.object(winapi, "window_info", side_effect=[_window(), _window(), None]):
+            result = json.loads(server.wait("window_gone", hwnd=1, timeout_ms=75, poll_ms=50))
+        self.assertEqual(result, {"ok": True, "condition": "window_gone", "elapsed_ms": 75, "timed_out": False})
+        self.assertEqual(len(sleep.call_args_list), 2)
+        self.assertAlmostEqual(sleep.call_args_list[0].args[0], 0.050)
+        self.assertAlmostEqual(sleep.call_args_list[1].args[0], 0.025)
+
+    def test_wait_ui_missing_window_and_unavailable_tree(self):
+        with mock.patch.object(winapi, "window_info", return_value=None), \
+             mock.patch.object(server.ui_tree, "inspect") as inspect_ui:
+            gone = json.loads(server.wait("ui_gone", hwnd=1, text="ready", timeout_ms=0))
+            missing = json.loads(server.wait("ui_text", hwnd=1, text="ready", timeout_ms=0))
+            self.assertTrue(gone["ok"])
+            self.assertNotIn("window", gone)
+            self.assertEqual(missing["error_code"], "window_not_found")
+            inspect_ui.assert_not_called()
+        with mock.patch.object(winapi, "foreground_info", return_value=_window()), \
+             mock.patch.object(server.ui_tree, "inspect", return_value={"ok": False}) as inspect_ui:
+            result = json.loads(server.wait("ui_gone", title="  ready  ", timeout_ms=0))
+            self.assertTrue(result["timed_out"])
+            self.assertEqual(result["query"], "ready")
+            self.assertEqual(inspect_ui.call_args.kwargs["timeout_ms"], 300)
+
+    def test_wait_ocr_preserves_provider_error(self):
+        raw = '{"ok":false,"error_code":"ocr_unavailable"}'
+        with mock.patch.object(server, "find_text", return_value=raw) as find:
+            self.assertEqual(server.wait("ocr_text", title=" ready ", timeout_ms=0), raw)
+            find.assert_called_once_with(text="ready", hwnd=None, region=None, max_results=5)
+
+    def test_wait_stability_counts_consecutive_frames_and_reports_last_sample(self):
+        region = {"x": 0, "y": 0, "width": 4, "height": 4}
+        with mock.patch.object(winapi, "grab_image", return_value=(object(), {})), \
+             mock.patch.object(winapi, "image_fingerprint", side_effect=[("A", b"a"), ("B", b"b"), ("B", b"b")]), \
+             mock.patch.object(winapi, "image_diff_ratio", side_effect=[1.0, 0.0]), \
+             mock.patch.object(server.time, "sleep"):
+            result = json.loads(server.wait("screenshot_stable", stable_rect=region, stable_frames=2))
+        self.assertTrue(result["ok"])
+        self.assertEqual((result["frames"], result["stable_frames"], result["last_hash"]), (3, 2, "B"))
+        with mock.patch.object(winapi, "grab_image", return_value=(object(), {})), \
+             mock.patch.object(winapi, "image_fingerprint", return_value=("A", b"a")):
+            result = json.loads(server.wait("screenshot_stable", stable_rect=region, timeout_ms=0))
+        self.assertTrue(result["timed_out"])
+        self.assertEqual((result["frames"], result["stable_frames"], result["last_hash"], result["region"]),
+                         (1, 1, "A", region))
 
     def test_wait_ui_text_ui_gone_and_ocr_text(self):
         win = _window(hwnd=100)
