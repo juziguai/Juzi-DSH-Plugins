@@ -36,7 +36,7 @@ npm test
 Ultra 快速执行的 Host/React 集成测试需先解析插件自身依赖，并提供官方测试运行时入口；完整依赖安装命令和环境变量见 [CI 检查配置](.github/workflows/verify.yml)。市场已发布版本以市场索引中的固定源码为准。
 
 `npm test` 检查构建漂移、清单/JS语法、布局宽度记忆与生命周期、引用序列化/存储/交互、变更快照与生命周期、Ultra单包标签与交互、预设生成、搜索配置及Python计数并发与凭证边界，不请求真实API。CI另用官方SlotCore、Cordis和预设schema验证声明契约。电脑控制的Windows真机冒烟与隔离回归需单独运行其`tests/smoke_test.py`、`tests/regression_test.py`、`tests/remote_test.py`；包本身没有独立npm测试脚本。
-Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp` 就报错；未设置时，依次尝试 Windows 的 `C:\Python314\python.exe` 和 PATH 中的 `python`，取能导入依赖的解释器。
+Python 部分设置了 `PYTHON` 时严格使用该解释器，不能 `import mcp` 就报错；未设置时，依次尝试预设的 Windows 解释器和 PATH 中的 `python`，取能导入依赖的解释器。
 搜索服务运行时另需使用目标 Python 安装 `plugins/dsh-deepseek-tools/requirements.txt`。
 
 升级到 Ultra 0.2.2 或更新版本后先验证内置角标与动效，再停用旧 Model Version Badge；无须同时维护两个版本。迁移和回退说明见 [Ultra 自述](plugins/dsh-ultra-effort/README.md#模型版本角标)。
@@ -63,7 +63,7 @@ Ultra 0.3.2支持DSH 0.2.1-rc.3至0.2.2-rc.3。闪电提供按会话保存的快
 
 「文本引用与批注」0.1.3支持DSH 0.2.1-rc.3至0.2.2-rc.3。引用只进入草稿，不自动发送；支持悬停预览、评论、按会话保存和已发送引用折叠，与0.2.2原生引用栏共存并避让浮层遮挡。原生chip的键盘接口边界及dock等价入口见[插件说明](plugins/dsh-quote-annotate/README.md)。
 
-「电脑控制」1.1.5 适用于 Windows，兼容 DSH 0.2.2-rc.3，提供 21 个 MCP 工具。可用 UIA 区分同名按钮、用 OCR 读取被遮挡窗口的文字，也可操作浏览器控件或按顺序执行多步桌面任务。安装、首次调用和远程 SSH 配置见[插件说明](plugins/juzi-win-dsh/README.md)。
+「电脑控制」1.1.6 适用于 Windows，兼容 DSH 0.2.2-rc.3，提供 21 个 MCP 工具。可用 UIA 区分同名按钮、用 OCR 读取被遮挡窗口的文字，也可操作浏览器控件或按顺序执行多步桌面任务。安装、首次调用和远程 SSH 配置见[插件说明](plugins/juzi-win-dsh/README.md)。
 
 「搜索与抓取」1.2.0复用官方MCP客户端，支持`freshness`、域名过滤与本地可信`wb-proxy`搜索兜底，限制响应体大小并按剩余预算分配请求与重试超时。Python工作目录位于安装包外，旧版首次迁移时先停用本搜索插件，安装后再启用。
 
